@@ -1,0 +1,9 @@
+[
+  {"paper": {"id": "2605.00001", "title": "Diffusion Editing at Scale",
+             "publishedAt": "2026-05-30T08:00:00.000Z",
+             "summary": "A method for image editing."},
+   "publishedAt": "2026-05-30T08:00:00.000Z", "upvotes": 42},
+  {"paper": {"id": "2605.00002", "title": "Video Generation Survey",
+             "publishedAt": "2026-05-29T08:00:00.000Z", "summary": "Survey."},
+   "publishedAt": "2026-05-29T08:00:00.000Z", "upvotes": 7}
+]
