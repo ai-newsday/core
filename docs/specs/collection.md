@@ -40,7 +40,7 @@ class RawItem:           # 本层产物(NewsItem 的前身, 不含 score/summary
     title_en: str        # 必填(原始标题; 中文源则同填 title_en 占位)
     link: str            # 必填, 唯一性后续去重用
     source: str          # 必填, 源标识
-    source_type: str     # paper|model|tool|community|official|news
+    source_type: str     # paper|model|tool|community|official|news|blog
     published_at: datetime  # 必填, 带时区
     raw_summary: str | None # 源自带摘要(若有), 不强制
     image_url: str | None
