@@ -1,7 +1,9 @@
 from __future__ import annotations
 import hashlib
 import numpy as np
-from src.core.types import RawItem, NewsItem, Cluster, DedupConfig, RunContext, SourceType
+from src.core.types import RawItem, NewsItem, Cluster, DedupConfig, RunContext, SourceType, DedupResult
+from src.core.registry import load_source_priorities
+from src.observability.events import emit
 
 
 def build_embed_text(item: RawItem) -> str:
@@ -80,3 +82,41 @@ def cluster(items: list[RawItem],
                                 members=members, related_links=related,
                                 size=len(members)))
     return clusters
+
+
+def dedup(items: list[RawItem], config: DedupConfig, ctx: RunContext, *,
+          embedder, store) -> DedupResult:
+    emit(ctx.logger, "dedup_start", run_id=ctx.run_id, input_count=len(items))
+    if not items:
+        emit(ctx.logger, "dedup_done", input_count=0, cluster_count=0,
+             duplicate_count=0, silent=True)
+        return DedupResult(clusters=[], deduped_items=[], input_count=0,
+                           cluster_count=0, duplicate_count=0)
+
+    priority_of = load_source_priorities(config.sources_registry_path)
+    texts = [build_embed_text(it) for it in items]
+    try:
+        vectors = embedder.embed(texts)
+    except Exception as e:  # noqa: BLE001 - degrade is non-fatal (spec §7)
+        emit(ctx.logger, "dedup_embedding_degraded", reason=str(e))
+        vectors = [None] * len(items)
+
+    clusters = cluster(items, vectors, priority_of, config, ctx)
+
+    by_emb = {embedding_id(it.link): v for it, v in zip(items, vectors)}
+    points: list[tuple] = []
+    for c in clusters:
+        emit(ctx.logger, "dedup_cluster_created", cluster_id=c.cluster_id, size=c.size)
+        vec = by_emb.get(c.primary.embedding_id)
+        if vec is not None:
+            points.append((c.primary.embedding_id, vec, {"cluster_id": c.cluster_id}))
+    store.upsert(points)
+
+    deduped = [c.primary for c in clusters]
+    result = DedupResult(clusters=clusters, deduped_items=deduped,
+                         input_count=len(items), cluster_count=len(clusters),
+                         duplicate_count=len(items) - len(clusters))
+    emit(ctx.logger, "dedup_done", input_count=result.input_count,
+         cluster_count=result.cluster_count,
+         duplicate_count=result.duplicate_count, silent=False)
+    return result
