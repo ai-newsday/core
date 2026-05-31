@@ -19,3 +19,18 @@ def test_run_dry_returns_summary_dict(tmp_path):
     assert out["total_items"] == 1
     assert out["source_reports"][0]["name"] == "openai"
     json.dumps(out)                                  # must be JSON-serializable
+
+
+from datetime import datetime, timezone
+from src.cli import run_dry_dedup
+from tests.fakes import FakeEmbeddingProvider
+
+
+def test_run_dry_dedup_returns_dedupresult_json():
+    out = run_dry_dedup(
+        registry_path="tests/golden/data/registry_min.yaml",
+        now=datetime(2026, 5, 30, 12, tzinfo=timezone.utc),
+        embedder=FakeEmbeddingProvider({}),
+    )
+    assert "cluster_count" in out and "deduped_items" in out
+    assert out["input_count"] == out["cluster_count"] + out["duplicate_count"]
