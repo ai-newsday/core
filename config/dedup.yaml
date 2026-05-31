@@ -1,0 +1,6 @@
+similarity_threshold: 0.83        # cosine 阈值; 调高=更少合并(更保守), 调低=更多合并
+embedding_model: "Qwen/Qwen3-Embedding-8B"
+batch_size: 32
+# 主条目优先级: 越靠前=越一手/权威; dedup 选主与排序据此
+source_type_rank: [official, paper, model, tool, news, community, blog]
+sources_registry_path: "config/sources.yaml"
