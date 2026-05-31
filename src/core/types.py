@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Literal
@@ -75,3 +75,38 @@ class CollectionResult:
     items: list[RawItem]
     source_reports: list[SourceReport]
     is_silent: bool
+
+
+# --- dedup layer (Circle 2) ---
+class NewsItem(RawItem):
+    cluster_id: str = Field(min_length=1)
+    related_links: list[str] = Field(default_factory=list)
+    embedding_id: str | None = None
+
+
+@dataclass
+class DedupConfig:
+    similarity_threshold: float = 0.83
+    embedding_model: str = "Qwen/Qwen3-Embedding-8B"
+    batch_size: int = 32
+    source_type_rank: list[str] = field(default_factory=lambda: [
+        "official", "paper", "model", "tool", "news", "community", "blog"])
+    sources_registry_path: str = "config/sources.yaml"
+
+
+@dataclass
+class Cluster:
+    cluster_id: str
+    primary: NewsItem
+    members: list[RawItem]
+    related_links: list[str]
+    size: int
+
+
+@dataclass
+class DedupResult:
+    clusters: list[Cluster]
+    deduped_items: list[NewsItem]
+    input_count: int
+    cluster_count: int
+    duplicate_count: int
