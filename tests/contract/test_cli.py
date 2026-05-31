@@ -34,3 +34,18 @@ def test_run_dry_dedup_returns_dedupresult_json():
     )
     assert "cluster_count" in out and "deduped_items" in out
     assert out["input_count"] == out["cluster_count"] + out["duplicate_count"]
+
+
+from src.cli import run_dry_score
+
+
+def test_run_dry_score_returns_scoreresult_json():
+    out = run_dry_score(
+        registry_path="tests/golden/data/registry_min.yaml",
+        now=datetime(2026, 5, 30, 12, tzinfo=timezone.utc),
+        embedder=FakeEmbeddingProvider({}),
+    )
+    assert "selected_count" in out and "selected_items" in out
+    assert "quota_report" in out
+    assert out["input_count"] >= out["selected_count"]
+    json.dumps(out)                                  # must be JSON-serializable

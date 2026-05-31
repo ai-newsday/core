@@ -7,6 +7,9 @@ from src.core.config import load_dedup_config
 from src.pipeline.dedup import dedup
 from src.adapters.embedding.modelscope import ModelScopeEmbedder
 from src.adapters.vectorstore.memory import InMemoryVectorStore
+from dataclasses import asdict
+from src.core.config import load_scoring_config
+from src.pipeline.score import score
 
 
 def run_dry(registry_path: str, now: datetime | None = None) -> dict:
@@ -52,6 +55,38 @@ def run_dry_dedup(registry_path: str, now: datetime | None = None,
     }
 
 
+def run_dry_score(registry_path: str, now: datetime | None = None,
+                  embedder=None) -> dict:
+    now = now or datetime.now(timezone.utc)
+    logger = logging.getLogger("ai-newsday")
+    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
+
+    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
+    coll = asyncio.run(collect(coll_cfg, ctx))
+
+    dcfg = load_dedup_config("config/dedup.yaml")
+    dcfg.sources_registry_path = registry_path
+    if embedder is None:
+        embedder = ModelScopeEmbedder(
+            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
+            model=dcfg.embedding_model, batch_size=dcfg.batch_size)
+    dres = dedup(coll.items, dcfg, ctx,
+                 embedder=embedder, store=InMemoryVectorStore())
+
+    scfg = load_scoring_config("config/scoring.yaml")
+    scfg.sources_registry_path = registry_path
+    sres = score(dres.deduped_items, scfg, ctx)
+    return {
+        "run_id": ctx.run_id,
+        "now": now.isoformat(),
+        "input_count": sres.input_count,
+        "selected_count": sres.selected_count,
+        "is_silent": sres.is_silent,
+        "quota_report": {k: asdict(v) for k, v in sres.quota_report.items()},
+        "selected_items": [si.model_dump(mode="json") for si in sres.selected_items],
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="ai-newsday-collect")
     p.add_argument("--registry", default="config/sources.yaml")
@@ -59,12 +94,18 @@ def main(argv: list[str] | None = None) -> int:
                    help="collect + print result JSON; no side effects (only mode this circle)")
     p.add_argument("--dedup", action="store_true",
                    help="chain collect -> dedup, print DedupResult JSON")
+    p.add_argument("--score", action="store_true",
+                   help="chain collect -> dedup -> score, print ScoreResult JSON")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
     if not args.dry_run:
         print("This circle supports --dry-run only (publishing is a later layer).",
               file=sys.stderr)
         return 2
+    if args.dry_run and args.score:
+        out = run_dry_score(registry_path=args.registry)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
     if args.dry_run and args.dedup:
         out = run_dry_dedup(registry_path=args.registry)
         print(json.dumps(out, ensure_ascii=False, indent=2))
