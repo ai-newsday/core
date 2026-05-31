@@ -1,7 +1,7 @@
 from __future__ import annotations
 import hashlib
 import numpy as np
-from src.core.types import RawItem
+from src.core.types import RawItem, NewsItem, Cluster, DedupConfig, RunContext, SourceType
 
 
 def build_embed_text(item: RawItem) -> str:
@@ -22,3 +22,61 @@ def _cosine(a: list[float], b: list[float]) -> float:
     if na == 0.0 or nb == 0.0:
         return 0.0
     return float(np.dot(va, vb) / (na * nb))
+
+
+def _rank_index(source_type: SourceType, order: list[str]) -> int:
+    try:
+        return order.index(source_type.value)
+    except ValueError:
+        return len(order)            # unknown types sort last
+
+
+def cluster(items: list[RawItem],
+            vectors: list[list[float] | None],
+            priority_of: dict[str, int],
+            config: DedupConfig,
+            ctx: RunContext) -> list[Cluster]:
+    """Pure greedy-threshold clustering. `vectors` aligns to `items` by index;
+    None means that item has no embedding and is forced into its own singleton.
+    Seeds are primaries by construction because of the priority sort (spec §5)."""
+    indexed = [
+        (it, vectors[i], embedding_id(it.link))
+        for i, it in enumerate(items)
+    ]
+    indexed.sort(key=lambda t: (
+        _rank_index(t[0].source_type, config.source_type_rank),
+        priority_of.get(t[0].source, 3),
+        t[0].published_at,
+    ))
+
+    open_clusters: list[dict] = []
+    for it, vec, emb_id in indexed:
+        joined = False
+        if vec is not None:
+            best_sim, best = -1.0, None
+            for oc in open_clusters:
+                if oc["seed_vec"] is None:
+                    continue
+                sim = _cosine(vec, oc["seed_vec"])
+                if sim > best_sim:
+                    best_sim, best = sim, oc
+            if best is not None and best_sim > config.similarity_threshold:
+                best["members"].append((it, emb_id))
+                joined = True
+        if not joined:
+            open_clusters.append(
+                {"seed_vec": vec, "seed_item": it, "seed_emb": emb_id,
+                 "members": [(it, emb_id)]})
+
+    clusters: list[Cluster] = []
+    for n, oc in enumerate(open_clusters, start=1):
+        cid = f"evt-{ctx.now:%Y-%m-%d}-{n:03d}"
+        seed_item = oc["seed_item"]
+        members = [m for m, _ in oc["members"]]
+        related = [m.link for m in members if m is not seed_item]
+        primary = NewsItem(**seed_item.model_dump(), cluster_id=cid,
+                           related_links=related, embedding_id=oc["seed_emb"])
+        clusters.append(Cluster(cluster_id=cid, primary=primary,
+                                members=members, related_links=related,
+                                size=len(members)))
+    return clusters
