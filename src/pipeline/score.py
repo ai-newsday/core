@@ -1,7 +1,10 @@
 from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime
-from src.core.types import (NewsItem, ScoredItem, ScoringConfig, RunContext)
+from src.core.types import (NewsItem, ScoredItem, ScoringConfig, RunContext,
+                            QuotaLine, ScoreResult)
+from src.core.registry import load_source_priorities
+from src.observability.events import emit
 
 # PRD §5.5 fixed breakdown dimension keys.
 DIMENSION_KEYS = ["机构影响力", "一手性", "技术价值", "产业影响", "扩散潜力",
@@ -66,9 +69,6 @@ def compute_scores(items: list[NewsItem], priority_of: dict[str, int],
     return scored
 
 
-from src.core.types import QuotaLine
-
-
 def apply_quota(scored: list[ScoredItem], config: ScoringConfig
                 ) -> tuple[list[ScoredItem], dict[str, QuotaLine]]:
     """Strict per-type quota selection (spec §5.4). No cross-type fill.
@@ -91,3 +91,34 @@ def apply_quota(scored: list[ScoredItem], config: ScoringConfig
     if len(selected) > config.total_limit:
         selected = selected[:config.total_limit]
     return selected, report
+
+
+def score(items: list[NewsItem], config: ScoringConfig, ctx: RunContext) -> ScoreResult:
+    """Orchestrate scoring: load registry priority map, run pure compute_scores +
+    apply_quota, emit runs events (spec §3, §11)."""
+    emit(ctx.logger, "score_start", run_id=ctx.run_id, input_count=len(items))
+    if not items:
+        emit(ctx.logger, "score_done", input_count=0, selected_count=0, silent=True)
+        return ScoreResult(selected_items=[], all_scored=[], quota_report={},
+                           input_count=0, selected_count=0, is_silent=True)
+
+    priority_of = load_source_priorities(config.sources_registry_path)
+    scored = compute_scores(items, priority_of, config, ctx)
+    for s in scored:
+        emit(ctx.logger, "item_scored", link=s.link,
+             source_type=s.source_type.value, score=s.score)
+
+    selected, report = apply_quota(scored, config)
+    for stype, line in report.items():
+        emit(ctx.logger, "quota_applied", source_type=stype,
+             available=line.available, quota=line.quota, selected=line.selected)
+    for s in selected:
+        emit(ctx.logger, "item_selected", link=s.link,
+             source_type=s.source_type.value, score=s.score)
+
+    result = ScoreResult(selected_items=selected, all_scored=scored,
+                         quota_report=report, input_count=len(items),
+                         selected_count=len(selected), is_silent=False)
+    emit(ctx.logger, "score_done", input_count=result.input_count,
+         selected_count=result.selected_count, silent=False)
+    return result
