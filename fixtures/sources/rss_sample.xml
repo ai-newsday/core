@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+  <title>OpenAI</title>
+  <item>
+    <title>Introducing GPT-X</title>
+    <link>https://openai.com/blog/gpt-x</link>
+    <description>A new frontier model.</description>
+    <pubDate>Sat, 30 May 2026 10:00:00 GMT</pubDate>
+  </item>
+  <item>
+    <title>Undated announcement</title>
+    <link>https://openai.com/blog/undated</link>
+    <description>No date here.</description>
+  </item>
+</channel></rss>
