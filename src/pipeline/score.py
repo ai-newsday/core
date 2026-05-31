@@ -64,3 +64,30 @@ def compute_scores(items: list[NewsItem], priority_of: dict[str, int],
                                  score_breakdown=breakdown, is_explore=False))
     scored.sort(key=lambda s: (-s.score, s.published_at, s.link))
     return scored
+
+
+from src.core.types import QuotaLine
+
+
+def apply_quota(scored: list[ScoredItem], config: ScoringConfig
+                ) -> tuple[list[ScoredItem], dict[str, QuotaLine]]:
+    """Strict per-type quota selection (spec §5.4). No cross-type fill.
+    `scored` is assumed sorted (compute_scores output) but we re-sort defensively."""
+    by_type: dict[str, list[ScoredItem]] = defaultdict(list)
+    for s in scored:
+        by_type[s.source_type.value].append(s)
+
+    selected: list[ScoredItem] = []
+    report: dict[str, QuotaLine] = {}
+    for stype, group in by_type.items():
+        group_sorted = sorted(group, key=lambda s: (-s.score, s.published_at, s.link))
+        q = config.quota.get(stype, 0)
+        take = group_sorted[:q]
+        selected.extend(take)
+        report[stype] = QuotaLine(source_type=stype, available=len(group),
+                                  quota=q, selected=len(take))
+
+    selected.sort(key=lambda s: (-s.score, s.published_at, s.link))
+    if len(selected) > config.total_limit:
+        selected = selected[:config.total_limit]
+    return selected, report
