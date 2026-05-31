@@ -1,7 +1,7 @@
 # ROADMAP — 开发进度与文档地图
 
 > 本文是项目的**可视化进度看板** + **文档导航** + **每圈开发范式**。
-> 每完成一个 Circle 更新此文。最后更新：2026-05-31。
+> 每完成一个 Circle 更新此文。最后更新：2026-05-31（Circle 2 dedup 已合并）。
 
 ---
 
@@ -10,7 +10,7 @@
 ```mermaid
 flowchart LR
     C1["① 采集<br/>collect()"]:::done
-    C2["② 去重聚类<br/>dedup()"]:::spec
+    C2["② 去重聚类<br/>dedup()"]:::done
     C3["③ 打分配额<br/>score()"]:::todo
     C4["④ 解读生成<br/>interpret()"]:::todo
     C5["⑤ 审校<br/>review()"]:::todo
@@ -34,7 +34,7 @@ flowchart LR
 | # | 层 | spec | 实现 | 测试 | dry-run | 状态 |
 |---|---|---|---|---|---|---|
 | ① | 采集 collect | `specs/collection.md` | ✅ `pipeline/collect.py` + 3 adapters | ✅ 26 绿 | ✅ 28 源实跑 | **🟩 已合并 (master)** |
-| ② | 去重聚类 dedup | `specs/dedup.md` | ⏳ 未开始 | ⏳ | ⏳ | **🟨 spec 已定，待 write-plan** |
+| ② | 去重聚类 dedup | `specs/dedup.md` | ✅ `pipeline/dedup.py` + embedding/vectorstore adapters | ✅ 34 绿 | ✅ `--dry-run --dedup` 实跑 | **🟩 已合并 (master)** |
 | ③ | 打分配额 score | — | — | — | — | ⬜ |
 | ④ | 解读生成 interpret | — | — | — | — | ⬜ |
 | ⑤ | 审校 review | — | — | — | — | ⬜ |
@@ -79,6 +79,7 @@ flowchart TD
     SPECS --> S2["dedup.md ✅"]
     PLANS["docs/superpowers/plans/*.md<br/>每层 TDD 计划"]
     PLANS --> P1["2026-05-31-collection-layer.md ✅"]
+    PLANS --> P2["2026-05-31-dedup-layer.md ✅"]
     REF["references/ + src/prompts/<br/>产品 SOP / 内容判断"]
     RM["docs/ROADMAP.md<br/>← 你在这里"]
     SB["docs/Session启动包.md<br/>每圈启动手册"]
@@ -95,13 +96,18 @@ flowchart TD
 
 ---
 
-## 5. 下一步（Circle 2 · dedup）
+## 5. 下一步（Circle 3 · score）
 
-1. **你 review** `docs/specs/dedup.md`（去重聚类契约，验收门 = 去重覆盖率 100%）。
-2. 确认后 → `superpowers:writing-plans` 产出 dedup 的逐任务 TDD 计划。
-3. 按计划 TDD 实现：`cluster()` 纯函数 + `EmbeddingProvider`/`VectorStore` 适配器 + `FakeEmbeddingProvider` 冻结向量驱动 golden。
-4. 收尾合并，回来更新本表 ②→🟩。
+1. **你 review** 即将产出的 `docs/specs/score.md`（打分配额契约，验收门 = 配额/排序可复现）。
+2. 确认后 → `superpowers:writing-plans` 产出 score 的逐任务 TDD 计划。
+3. 按计划 TDD 实现：`score()` / `quota()` 纯函数（读 `config/`，不写死权重），LLM/IO 隔离在 adapters。
+4. 收尾合并，回来更新本表 ③→🟩。
 
-### 待办 backlog（采集层遗留，不阻塞 Circle 2）
+### 已完成（Circle 2 · dedup）
+- `cluster()` 纯函数（贪心阈值聚类，registry 优先级注入）+ `EmbeddingProvider`(ModelScope)/`VectorStore`(InMemory，Qdrant 后置) 适配器。
+- `FakeEmbeddingProvider` 冻结向量驱动 6 个 golden 用例；embedding 失败降级为全单例（spec §7）。
+- 验收门 PRD #3 去重覆盖率 100% 通过；`--dry-run --dedup` 链路实跑。
+
+### 待办 backlog（采集层遗留，不阻塞 Circle 3）
 - 修死链：`microsoft-ai` (403)、`meta-ai` (404) feed URL 过期。
 - `hf-models` firehose 噪声大（topic-agnostic，过滤是 Circle 3 的职责）。

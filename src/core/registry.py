@@ -23,3 +23,13 @@ def load_registry(path: str, ctx: RunContext) -> list[SourceSpec]:
         emit(ctx.logger, "registry_load_failed", path=path, error=str(e))
         return FALLBACK_SOURCES
     return [s for s in specs if s.status == "working"]
+
+
+def load_source_priorities(path: str) -> dict[str, int]:
+    """name -> priority for ALL registry entries (any status). Missing file -> {}."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            rows = yaml.safe_load(f) or []
+    except FileNotFoundError:
+        return {}
+    return {r["name"]: r.get("priority", 3) for r in rows if "name" in r}
