@@ -6,7 +6,7 @@ from src.core.types import DedupConfig
 def load_dedup_config(path: str) -> DedupConfig:
     """Load dedup thresholds from YAML; missing/empty file -> dataclass defaults."""
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
     except FileNotFoundError:
         return DedupConfig()

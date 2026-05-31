@@ -28,8 +28,8 @@ def load_registry(path: str, ctx: RunContext) -> list[SourceSpec]:
 def load_source_priorities(path: str) -> dict[str, int]:
     """name -> priority for ALL registry entries (any status). Missing file -> {}."""
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             rows = yaml.safe_load(f) or []
     except FileNotFoundError:
         return {}
-    return {r["name"]: r.get("priority", 3) for r in rows}
+    return {r["name"]: r.get("priority", 3) for r in rows if "name" in r}

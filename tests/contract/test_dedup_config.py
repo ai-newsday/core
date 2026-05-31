@@ -1,13 +1,5 @@
-import logging
 from src.core.config import load_dedup_config
 from src.core.registry import load_source_priorities
-from src.core.types import RunContext
-from datetime import datetime, timezone
-
-
-def _ctx():
-    return RunContext(run_id="t", now=datetime(2026, 5, 30, tzinfo=timezone.utc),
-                      logger=logging.getLogger("t"))
 
 
 def test_load_dedup_config_reads_yaml():
@@ -30,3 +22,9 @@ def test_load_source_priorities_maps_name_to_priority():
 
 def test_load_source_priorities_missing_file_is_empty():
     assert load_source_priorities("does/not/exist.yaml") == {}
+
+
+def test_load_source_priorities_skips_rows_missing_name(tmp_path):
+    p = tmp_path / "bad.yaml"
+    p.write_text("- {url: x, priority: 1}\n- {name: ok, priority: 2}\n")
+    assert load_source_priorities(str(p)) == {"ok": 2}
