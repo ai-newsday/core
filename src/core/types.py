@@ -161,3 +161,44 @@ class ScoreResult:
     input_count: int
     selected_count: int
     is_silent: bool
+
+
+# --- interpret layer (Circle 4) ---
+class Evidence(BaseModel):
+    claim: str = Field(min_length=1)
+    anchor: str = Field(min_length=1)        # must be ∈ item.link ∪ related_links
+
+
+class InterpretedItem(ScoredItem):           # ScoredItem 的下游演进; 本圈加解读字段
+    title: str                               # 中文标题, ≤ title_max_chars
+    summary: str                             # 中文摘要, ≤ summary_max_chars
+    takeaway: str                            # 对你意味着什么/怎么用; 回退时 ""
+    hot_take: str = ""                       # 锐评 AI 草稿(待人工定稿)
+    tags: list[str] = Field(default_factory=list)        # 恰好 tags_count 个或回退时 []
+    evidence: list[Evidence] = Field(default_factory=list)
+    interpretation_status: str               # "ok" | "extractive_fallback"
+    eligible_for_must_read: bool
+
+
+@dataclass
+class InterpretConfig:
+    model: str = "Qwen/Qwen2.5-72B-Instruct"
+    temperature: float = 0.3
+    max_tokens: int = 800
+    timeout_s: int = 60
+    title_max_chars: int = 64
+    summary_max_chars: int = 120
+    tags_count: int = 3
+    min_evidence: int = 1
+    item_prompt_path: str = "src/prompts/interpret_item.md"
+    daily_prompt_path: str = "src/prompts/daily_take.md"
+
+
+@dataclass
+class InterpretResult:
+    interpreted_items: list[InterpretedItem]
+    daily_take: str | None
+    input_count: int
+    interpreted_count: int
+    fallback_count: int
+    is_silent: bool
