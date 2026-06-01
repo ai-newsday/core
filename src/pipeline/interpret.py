@@ -1,6 +1,9 @@
 from __future__ import annotations
 import json
-from src.core.types import (ScoredItem, InterpretedItem, Evidence, InterpretConfig)
+from src.core.types import (ScoredItem, InterpretedItem, Evidence, InterpretConfig,
+                            RunContext, InterpretResult)
+from src.core.prompts import load_prompt
+from src.observability.events import emit
 
 
 def build_item_prompt(item: ScoredItem, template: str) -> str:
@@ -76,9 +79,6 @@ def extractive_fallback(item: ScoredItem,
         eligible_for_must_read=False)
 
 
-from src.core.types import RunContext
-
-
 def interpret_item(item: ScoredItem, item_template: str, config: InterpretConfig,
                    llm) -> InterpretedItem:
     """One item: prompt -> LLM -> parse -> enforce. Any failure -> extractive
@@ -114,3 +114,40 @@ def generate_daily_take(items: list[InterpretedItem], daily_template: str,
         return text or None
     except Exception:
         return None
+
+
+def interpret(items: list[ScoredItem], config: InterpretConfig, ctx: RunContext,
+              llm) -> InterpretResult:
+    """Orchestrate per-item interpretation + daily take (spec §3, §5, §11).
+    Only side effect is the injected llm; everything else is pure/testable."""
+    emit(ctx.logger, "interpret_start", run_id=ctx.run_id, input_count=len(items))
+    if not items:
+        emit(ctx.logger, "interpret_done", input_count=0, interpreted_count=0,
+             fallback_count=0, silent=True)
+        return InterpretResult(interpreted_items=[], daily_take=None,
+                               input_count=0, interpreted_count=0,
+                               fallback_count=0, is_silent=True)
+
+    item_tpl = load_prompt(config.item_prompt_path)
+    out: list[InterpretedItem] = []
+    for it in items:
+        res = interpret_item(it, item_tpl, config, llm)
+        emit(ctx.logger, "item_interpreted", link=res.link,
+             status=res.interpretation_status, evidence_count=len(res.evidence))
+        if res.interpretation_status == "extractive_fallback":
+            emit(ctx.logger, "interpret_fallback", link=res.link)
+        out.append(res)
+
+    daily_tpl = load_prompt(config.daily_prompt_path)
+    daily = generate_daily_take(out, daily_tpl, config, llm)
+    emit(ctx.logger, "daily_take_done", ok=daily is not None)
+
+    interpreted_count = sum(1 for r in out if r.interpretation_status == "ok")
+    fallback_count = len(out) - interpreted_count
+    emit(ctx.logger, "interpret_done", input_count=len(items),
+         interpreted_count=interpreted_count, fallback_count=fallback_count,
+         silent=False)
+    return InterpretResult(interpreted_items=out, daily_take=daily,
+                           input_count=len(items),
+                           interpreted_count=interpreted_count,
+                           fallback_count=fallback_count, is_silent=False)
