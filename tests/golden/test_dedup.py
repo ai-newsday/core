@@ -85,6 +85,27 @@ def test_golden_threshold_boundary():
     assert sizes == [1, 2]
 
 
+def test_golden_duplicate_link_collapsed_first_wins():
+    # Same link reaching dedup() (collect() does not guarantee link-uniqueness):
+    # embedding_id = sha256(link) collides; without a guard the by_emb vector map
+    # collapses to the last item's vector. Keep first, count as one input.
+    items = [
+        _item("First", "https://a/1", "openai", SourceType.OFFICIAL),
+        _item("Second dupe link", "https://a/1", "some-blog", SourceType.BLOG),
+        _item("Other", "https://b/2", "openai", SourceType.OFFICIAL),
+    ]
+    vecs = {build_embed_text(items[0]): [1.0, 0.0],
+            build_embed_text(items[1]): [0.0, 1.0],
+            build_embed_text(items[2]): [0.0, 1.0]}
+    res = dedup(items, _cfg(), _ctx(),
+                embedder=FakeEmbeddingProvider(vecs), store=InMemoryVectorStore())
+    assert res.input_count == 2
+    links = {d.link for d in res.deduped_items}
+    assert links == {"https://a/1", "https://b/2"}
+    primary_a = next(d for d in res.deduped_items if d.link == "https://a/1")
+    assert primary_a.title_en == "First"
+
+
 def test_golden_empty_input():
     res = dedup([], _cfg(), _ctx(),
                 embedder=FakeEmbeddingProvider({}), store=InMemoryVectorStore())

@@ -84,6 +84,20 @@ def cluster(items: list[RawItem],
     return clusters
 
 
+def _unique_by_link(items: list[RawItem]) -> list[RawItem]:
+    """Collapse exact-link duplicates (keep first), preserving order.
+    Upstream collect() concatenates sources without link-dedup, so identical
+    links can arrive; embedding_id = sha256(link) would otherwise collide and
+    silently drop a vector from the by_emb map below."""
+    seen: set[str] = set()
+    out: list[RawItem] = []
+    for it in items:
+        if it.link not in seen:
+            seen.add(it.link)
+            out.append(it)
+    return out
+
+
 def dedup(items: list[RawItem], config: DedupConfig, ctx: RunContext, *,
           embedder, store) -> DedupResult:
     emit(ctx.logger, "dedup_start", run_id=ctx.run_id, input_count=len(items))
@@ -93,10 +107,16 @@ def dedup(items: list[RawItem], config: DedupConfig, ctx: RunContext, *,
         return DedupResult(clusters=[], deduped_items=[], input_count=0,
                            cluster_count=0, duplicate_count=0)
 
+    items = _unique_by_link(items)
+
     priority_of = load_source_priorities(config.sources_registry_path)
     texts = [build_embed_text(it) for it in items]
     try:
         vectors = embedder.embed(texts)
+        if len(vectors) != len(items):
+            raise ValueError(
+                f"embedder returned {len(vectors)} vectors for {len(items)} items "
+                "(EmbeddingProvider 1:1 alignment contract violated)")
     except Exception as e:  # noqa: BLE001 - degrade is non-fatal (spec §7)
         emit(ctx.logger, "dedup_embedding_degraded", reason=str(e))
         vectors = [None] * len(items)
