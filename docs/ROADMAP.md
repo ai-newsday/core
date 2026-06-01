@@ -1,7 +1,7 @@
 # ROADMAP — 开发进度与文档地图
 
 > 本文是项目的**可视化进度看板** + **文档导航** + **每圈开发范式**。
-> 每完成一个 Circle 更新此文。最后更新：2026-06-02（Circle 5 review 已合并）。
+> 每完成一个 Circle 更新此文。最后更新：2026-06-02（Circle 6 publish 已合并）。
 
 ---
 
@@ -14,7 +14,7 @@ flowchart LR
     C3["③ 打分配额<br/>score()"]:::done
     C4["④ 解读生成<br/>interpret()"]:::done
     C5["⑤ 审校<br/>review()"]:::done
-    C6["⑥ 发布<br/>publish()"]:::todo
+    C6["⑥ 发布<br/>publish()"]:::done
     C7["⑦ 反馈闭环<br/>feedback()"]:::todo
 
     C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7
@@ -38,7 +38,7 @@ flowchart LR
 | ③ | 打分配额 score | `specs/score.md` | ✅ `pipeline/score.py`（纯打分+配额） | ✅ golden | ✅ `--dry-run --score` 实跑 | **🟩 已合并 (master)** |
 | ④ | 解读生成 interpret | `specs/interpret.md` | ✅ `pipeline/interpret.py`（LLM 解读+抽取式回退） | ✅ golden | ✅ `--dry-run --interpret` 实跑 | **🟩 已合并 (master)** |
 | ⑤ | 审校 review | `specs/review.md` | ✅ `pipeline/review.py`（纯函数留/删/改/排序+必读门重算） | ✅ contract+golden | ✅ `--dry-run --review` 实跑 | **🟩 已合并 (master)** |
-| ⑥ | 发布 publish | — | — | — | — | ⬜ |
+| ⑥ | 发布 publish | `specs/publish.md` | ✅ `pipeline/publish.py`（纯函数 DailyReport 组装 + Markdown 渲染） | ✅ contract+golden+snapshot | ✅ `--dry-run --publish` 实跑 | **🟩 已合并 (master)** |
 | ⑦ | 反馈闭环 feedback | — | — | — | — | ⬜ |
 
 ---
@@ -80,12 +80,14 @@ flowchart TD
     SPECS --> S3["score.md ✅"]
     SPECS --> S4["interpret.md ✅"]
     SPECS --> S5["review.md ✅"]
+    SPECS --> S6["publish.md ✅"]
     PLANS["docs/superpowers/plans/*.md<br/>每层 TDD 计划"]
     PLANS --> P1["2026-05-31-collection-layer.md ✅"]
     PLANS --> P2["2026-05-31-dedup-layer.md ✅"]
     PLANS --> P3["2026-05-31-score-layer.md ✅"]
     PLANS --> P4["2026-06-01-interpret-layer.md ✅"]
     PLANS --> P5["2026-06-02-review-layer.md ✅"]
+    PLANS --> P6["2026-06-02-publish-layer.md ✅"]
     REF["references/ + src/prompts/<br/>产品 SOP / 内容判断"]
     RM["docs/ROADMAP.md<br/>← 你在这里"]
     SB["docs/Session启动包.md<br/>每圈启动手册"]
@@ -102,12 +104,17 @@ flowchart TD
 
 ---
 
-## 5. 下一步（Circle 6 · publish）
+## 5. 下一步（Circle 7 · feedback）
 
-1. **你 review** 即将产出的 `docs/specs/publish.md`（发布层契约：一稿多渲染 Notion/公众号/网站/RSS，今日必读 Top3 分组，`is_pending` 拦截"未审自动发"）。
-2. 确认后 → `superpowers:writing-plans` 产出 publish 的逐任务 TDD 计划。
-3. 按计划 TDD 实现：渲染器 provider 解耦，对外副作用（写库/发布）支持 `--dry-run`。
-4. 收尾合并，回来更新本表 ⑥→🟩。
+1. **你 review** 即将产出的 `docs/specs/feedback.md`（反馈层契约：回收 review 动作 + 发布后 outcome(open/dwell/forward/upvote)，反哺打分权重/源信誉）。
+2. 确认后 → `superpowers:writing-plans` 产出 feedback 的逐任务 TDD 计划。
+3. 按计划 TDD 实现：反馈聚合做成纯函数，写库/外部回收支持 `--dry-run`。
+4. 收尾合并，回来更新本表 ⑦→🟩（七层闭环完成）。
+
+### 已完成（Circle 6 · publish）
+- `publish()` 把审阅定稿 `ReviewResult` 两步组装：`build_report` 产统一内容模型 `DailyReport`（今日看点/必读 Top3/分类速览/数据概览），`render_markdown` 渲染成 Markdown；**纯核心、不调 LLM、不打网络、无渠道副作用**。
+- 必读 Top3 只收 `eligible_for_must_read==True`（无证据/回退条目天然排除，延续 PRD §4.4 零幻觉）；分类速览按 `type_labels` 键序分组、全量目录守恒；数据概览聚合 tags 取高频关键词。
+- `is_pending=True` 时报头打"未审草稿"水印但照常渲染（发不发交上层，PRD §3.4）；空输入静默。contract+golden（§9 九用例）+ Markdown snapshot 全绿；`--dry-run --publish` 链路实跑。多渠道渲染器（Notion/公众号/JSON/RSS）+ 真实推送延后 P1。
 
 ### 已完成（Circle 5 · review）
 - `review()` 纯函数应用人工"留/删/改/排序"决策（按 `link` 索引的 `ReviewDecision`），产 `ReviewedItem`；**不调 LLM、不打网络**，唯一 IO 是读决策 JSON。
