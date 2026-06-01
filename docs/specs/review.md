@@ -1,24 +1,48 @@
 # Spec — 审阅层 (Review)
 
-> 放置路径：`docs/specs/review.md`。这是七层流水线的第 5 层，MVP 第五个要实现的模块。
-> 对应 PRD §5.3（审阅层：每条留/删/改/拖动排序，≤10 min，审阅动作全部回收为反馈信号）、§5.5（NewsItem 模板含 `review_action: keep|drop|edit` = 隐式反馈）、§4.4（hot_take 可 AI 起草、人工定稿；无证据不进必读）、§3.4（审阅未在窗口内完成 → 进入"待审"队列不自动发）、§2.1（验收 #6 审阅页支持留/删/改/排序、单期审阅 ≤10 分钟）。
-> 上游：第 4 层解读 (`docs/specs/interpret.md`) 产出的 `InterpretResult.interpreted_items: list[InterpretedItem]` + `daily_take`。下游：第 6 层发布（多端渲染器消费审阅后的 `ReviewedItem`），第 7 层反馈（消费审阅动作信号）。
+> 路径：`docs/specs/review.md`。七层流水线第 5 层，MVP 第五个模块。
+> 上游：第 4 层解读产出的 `interpreted_items` + `daily_take`。下游：第 6 层发布、第 7 层反馈。
+> 对应 PRD 条款：
+
+| PRD | 说的事 | 本层怎么落 |
+|---|---|---|
+| §5.3 | 审阅页每条可"留/删/改/拖动排序"，≤10 min，动作全部回收成反馈 | 本圈做"应用决策"的核心，UI 延后；动作记进 `ReviewResult` |
+| §5.5 | NewsItem 模板带 `review_action: keep\|drop\|edit`（隐式反馈） | 每条输出带 `review_action` + 改了哪些字段 |
+| §4.4 | hot_take 可 AI 起草、人工定稿；无证据不进必读 | 解读层只产草稿，人在这一层定稿；改完重算必读门 |
+| §3.4 | 没审完不自动发，进"待审"队列 | 没有任何决策 → `is_pending=True` |
+| §2.1 #6 | 审阅支持留/删/改/排序，单期 ≤10 分钟 | 本圈备好四操作的数据契约 |
 
 ## 1. 目的
 
-把上游解读层产出的 `InterpretedItem` 列表，按人工审阅决策（留 / 删 / 改 / 排序）转化为**已审阅、可发布**的内容模型 `ReviewedItem`，并把每条的审阅动作回收为结构化反馈信号（PRD §5.3「审阅动作全部回收为反馈信号」）。
+一句话：**把解读层的 AI 草稿，按人工的"留/删/改/排序"决定，变成可以发布的定稿。**
 
-本层是"人在环路"的把关点：解读层只产 AI 草稿，**人工定稿在此**（PRD §4.4「可 AI 起草、人工定稿」）。本层成败标准是 **PRD #6：审阅页支持留/删/改/排序、单期审阅 ≤10 分钟**——本圈只实现纯核心决策应用（把决策应用到内容上），Web 审阅页延后。
+这是"人在环路"的把关点——解读层产的是草稿，到这一层由人拍板。同时把每个人工动作（留了什么、删了什么、改了哪些字段）记下来，喂给第 7 层做反馈。
+
+本圈**只做核心逻辑**（决策怎么应用到条目上），审阅用的网页延后再做。
 
 ## 2. 范围 / 非目标
 
-- **做**：读审阅决策（JSON，按 `link` 索引）、逐条应用留/删/改、按决策重排序、改后重新校验（重夹 title/summary、重算必读门）、可选 `daily_take` 覆盖、无决策时透传标记"待审"、产出 `ReviewResult`（含审阅动作信号）、写 `runs` 事件、支持 `--dry-run`。
-- **不做（本圈明确延后）**：
-  - **Web 审阅页 / 交互 UI**（读 dry-run JSON、点选留删改、拖动排序、≤10 min 计时）：属审阅层的人机界面，本圈只做**纯核心决策应用**（决策以 JSON 注入），UI 留后续 PR（CLAUDE.md「能 50 行别写 200 行」「一次只做一层」）。
-  - **反馈闭环 / 信号消费**：本层只**回收并记录**审阅动作（`review_action` / `edited_fields`），不据此更新打分权重或源信誉——那是第 7 层反馈（PRD §5.4）。YAGNI：先记录，不建环。
-  - **重新解读 / 调 LLM**：本层是纯函数决策应用，**不引入任何 LLM 调用**；改写内容来自人工决策的 `edits`，不是 LLM 重生成。
-  - **多端渲染 / 今日必读分组**：属第 6 层发布（PRD §5.1 一稿多渲染）。本层只标 `eligible_for_must_read`（继承/重算），不分组排版。
-  - **抓全文 / 补证据**：本层只在人工 `edits` 给定的字段内改写，不抓取、不补造证据锚点（CLAUDE.md「宁可少写不可编造」）。
+**做：**
+
+| 能力 | 说明 |
+|---|---|
+| 读决策 | 从 JSON 读人工决策，按文章 `link` 对号入座 |
+| 留/删/改 | 逐条应用：留=原样，删=移走，改=覆盖指定字段 |
+| 排序 | 按决策里的 `order` 重排，没给的保持上游顺序 |
+| 改后校验 | 改完重新夹长度、重算"能否进必读" |
+| 今日看点覆盖 | 人工可改写或清空 `daily_take` |
+| 待审标记 | 一条决策都没有 → 标记"待审"，不拦发布但置位提醒 |
+| 产物 + 留痕 | 产 `ReviewResult`，写 `runs` 事件，支持 `--dry-run` |
+
+**不做（这一圈明确延后）：**
+
+| 不做 | 为什么 / 归属 |
+|---|---|
+| 网页审阅 UI（点选、拖动、计时） | 本圈只做核心，决策用 JSON 喂进来；UI 留后续 PR |
+| 反馈闭环（拿动作去调权重/源信誉） | 只**记录**动作，不消费；那是第 7 层。先记不建环（YAGNI） |
+| 调 LLM 重写内容 | 本层纯函数，改写内容全来自人工 `edits`，不重新生成 |
+| 多端渲染 / 必读 Top3 分组 | 第 6 层发布的事；本层只**标**资格不分组 |
+| 抓全文 / 自动补证据 | 只在人工给的字段里改，绝不抓取、不编锚点 |
 
 ## 3. 接口契约
 
@@ -28,102 +52,133 @@ def review(items: list[InterpretedItem], daily_take: str | None,
            ctx: RunContext) -> ReviewResult: ...
 ```
 
-- **输入**：
-  - `items: list[InterpretedItem]` —— 上游解读条目（`InterpretResult.interpreted_items`，已按 score 降序）。
-  - `daily_take: str | None` —— 上游今日看点（可被决策覆盖，见 §5.6）。
-  - `decisions: dict[str, ReviewDecision]` —— 按 item `link` 索引的审阅决策；由 `load_review_decisions(config.decisions_path)` 加载（见 §6）。某 `link` 不在 dict ⇒ 默认 keep（§5.2）。
-  - `config: ReviewConfig`（见 §6，字段上限 / 决策路径读 `config/review.yaml`，不写死）。
-  - `ctx: RunContext` —— 复用上游 `run_id` / `now` / `logger`。
-- **纯函数 / 无外部副作用（CLAUDE.md 架构约束）**：本层**不调 LLM、不打网络、不抓取**。唯一 IO = 启动时 `load_review_decisions` 读 JSON 文件（与 `load_*_config` 同风格）；`review()` 本体及 `apply_decision` / `order_reviewed` / 必读门重算皆为**纯函数**，注入冻结 `items` + 内存 `decisions` 离线确定性可测。
-- **决策运行时加载**：审阅决策是内容/编辑数据，运行时从 `config.decisions_path` 读取，不硬编码（CLAUDE.md 内容纪律）。
+**输入：**
+
+| 参数 | 是什么 |
+|---|---|
+| `items` | 上游解读条目（已按 score 降序） |
+| `daily_take` | 上游今日看点，可被覆盖（§5.6） |
+| `decisions` | 按文章 `link` 索引的决策表；`load_review_decisions()` 读出来 |
+| `config` | 字段上限 / 决策路径，读 `config/review.yaml`，不写死 |
+| `ctx` | 复用上游 `run_id` / `now` / `logger` |
+
+**纪律（CLAUDE.md 架构约束）：**
+
+- **不调 LLM、不打网络、不抓取。** 唯一的 IO 是启动时读一次决策 JSON。
+- `review()` 本体和 `apply_decision` / `order_reviewed` / 必读门重算全是**纯函数**，注入冻结 `items` + 内存 `decisions` 就能离线确定性测。
+- 决策是内容数据，运行时从 `config.decisions_path` 读，不硬编码。
 
 ## 4. 数据契约
 
 ```python
 class ReviewDecision(BaseModel):
-    action: str                          # "keep" | "drop" | "edit"
-    order: int | None = None             # 可选; 重排序索引(升序); None 保持上游序
-    edits: dict = {}                     # action=="edit" 时覆盖的内容字段(见 §5.4)
+    action: str = "keep"        # keep | drop | edit
+    order: int | None = None    # 重排序号(升序); None=不指定
+    edits: dict = {}            # action==edit 时要覆盖的字段(见 §5.4)
 
-class ReviewedItem(InterpretedItem):     # InterpretedItem 的下游演进; 本圈加审阅字段
-    review_action: str                   # "keep" | "edit"  (drop 的条目不进结果)
-    was_edited: bool                     # 是否发生过字段覆盖
-    edited_fields: list[str] = []        # 实际被覆盖的字段名(反馈信号)
+class ReviewedItem(InterpretedItem):   # 在解读条目上加审阅痕迹
+    review_action: str          # keep | edit  (drop 的不进结果)
+    was_edited: bool            # 有没有真的改过字段
+    edited_fields: list[str] = []   # 改了哪些字段(反馈信号)
 
 class ReviewResult:
-    reviewed_items: list[ReviewedItem]   # 保留(未删)条目, 按 §5.5 排序
-    daily_take: str | None               # 今日看点(可被决策覆盖, 见 §5.6)
-    input_count: int                     # 入参 items 数
-    kept_count: int                      # review_action=="keep" 的条数
-    dropped_count: int                   # 被删除条数
-    edited_count: int                    # review_action=="edit" 的条数
-    is_reviewed: bool                    # 是否存在任一显式决策(见 §5.7)
-    is_pending: bool                     # 无任何决策 → 待审(不自动发, PRD §3.4)
-    is_silent: bool                      # input_count == 0
+    reviewed_items: list[ReviewedItem]  # 留下的条目, 已排序
+    daily_take: str | None      # 今日看点(可被覆盖)
+    input_count: int            # 进来几条
+    kept_count: int             # 纯留几条
+    dropped_count: int          # 删了几条
+    edited_count: int           # 改了几条
+    is_reviewed: bool           # 有没有任何人工决策
+    is_pending: bool            # 没决策 → 待审, 不自动发
+    is_silent: bool             # 进来 0 条
 ```
 
-> `kept_count + edited_count == len(reviewed_items)`（保留的条目要么纯留要么改后留）。
-> `kept_count + edited_count + dropped_count == input_count`（每条要么保留要么删除，恒不漏账）。
-> `review_action` 仅取 `keep` / `edit`；`drop` 条目不进 `reviewed_items`（其删除事实记于 `dropped_count` 与 §11 事件）。
+**计数恒等式（必须永远成立）：**
 
-## 5. 算法（确定性 / IO 隔离）
+| 等式 | 含义 |
+|---|---|
+| `kept + edited + dropped == input_count` | 每条都有去向，不漏账 |
+| `kept + edited == len(reviewed_items)` | 留下的=纯留+改留 |
 
-### 5.1 空输入短路
+> `review_action` 只会是 `keep` 或 `edit`；`drop` 的条目不进 `reviewed_items`，只记进 `dropped_count` 和事件。
 
-`items == []` → 返回 `ReviewResult(reviewed_items=[], daily_take=daily_take, input_count=0, kept_count=0, dropped_count=0, edited_count=0, is_reviewed=False, is_pending=True, is_silent=True)`，不抛异常（PRD §3.4 静默；上游空则本层空）。
+## 5. 算法（确定性 / 无 IO）
 
-### 5.2 单条决策应用（`apply_decision(item, decision, config) -> ReviewedItem | None`，纯函数）
+### 5.1 空输入直接返回
 
-对每个 `InterpretedItem`，按其 `link` 取 `decisions.get(link)`：
+`items == []` → 返回空 `ReviewResult`，`is_silent=True`、`is_pending=True`，不抛异常。上游静默，本层也静默。
 
-1. **无决策**（`link` 不在 dict）⇒ 视为 **keep**：原样透传，`review_action="keep"`、`was_edited=False`、`edited_fields=[]`。
-2. **action=="keep"** ⇒ 同上，原样保留。
-3. **action=="drop"** ⇒ 返回 `None`（该条从结果移除，计入 `dropped_count`）。
-4. **action=="edit"** ⇒ 见 §5.4。
+### 5.2 逐条决策（`apply_decision(item, decision, config) -> ReviewedItem | None`）
 
-未知 `action`（非 keep/drop/edit）⇒ schema 校验在 `ReviewDecision` 构造时即拒（pydantic 限定枚举），不进算法。
+对每条按 `link` 找决策，照下表处理：
+
+| 情况 | 动作 | 结果 |
+|---|---|---|
+| `link` 不在决策表 | 默认 keep | 原样透传，`review_action="keep"` |
+| `action == "keep"` | 留 | 原样透传 |
+| `action == "drop"` | 删 | 返回 `None`，计入 `dropped_count` |
+| `action == "edit"` | 改 | 见 §5.4 |
+
+> 非法 `action`（不是这三个）在构造 `ReviewDecision` 时就被 pydantic 拒掉，进不了算法。
 
 ### 5.3 删除（drop）
 
-`apply_decision` 返回 `None` ⇒ orchestrator 跳过该条、`dropped_count += 1`、emit `item_dropped{link}`（§11）。删除是人工显式动作，**不影响其它条**。
+`apply_decision` 返回 `None` → orchestrator 跳过该条、`dropped_count += 1`、emit `item_dropped`。删除是显式动作，不影响别的条。
 
-### 5.4 改写（edit）+ 改后重新校验
+### 5.4 改写（edit）
 
-`action=="edit"` 时，只允许覆盖**内容字段**，provenance/出处字段只读：
+**只能改内容，不能改出处。** 哪些能改：
 
-- **可改内容字段**：`title` / `summary` / `takeaway` / `hot_take` / `tags` / `evidence`。
-- **只读 provenance**（不得被 `edits` 覆盖；若 `edits` 含这些键则**忽略**）：`score` / `score_breakdown` / `source` / `source_type` / `link` / `published_at` / `cluster_id` / `related_links` / `title_en` / `raw_summary` / `is_explore`。
-- 逐字段：`edits` 中存在该键则覆盖，并记入 `edited_fields`；不存在则保留解读层原值。
-- **改后重新校验**（纯函数，复用 §config 上限）：
-  - `title` 重夹到 `title_max_chars`、`summary` 重夹到 `summary_max_chars`。
-  - `evidence` 重新过滤 `anchor ∈ {item.link} ∪ set(item.related_links)`（人工也不得编造锚点；非法锚点丢弃）。
-  - **重算必读门**（§5.8）：`eligible_for_must_read` 据改后的 `evidence` / `takeaway` / `interpretation_status` 重新派生。
-- `review_action="edit"`、`was_edited=(edited_fields != [])`。
-  - 边界：`action=="edit"` 但 `edits` 为空或未改动任何字段 ⇒ `was_edited=False`、`edited_fields=[]`，仍计 `edited_count`（人工显式标记过 edit）。
+| 类别 | 字段 | 能改？ |
+|---|---|---|
+| 内容（可改） | `title` `summary` `takeaway` `hot_take` `tags` `evidence` | ✅ `edits` 里给了就覆盖 |
+| 出处（只读） | `score` `score_breakdown` `source` `source_type` `link` `published_at` `cluster_id` `related_links` `title_en` `raw_summary` `is_explore` | ❌ `edits` 里给了也忽略 |
 
-### 5.5 排序与确定性（`order_reviewed`）
+**改完要重新校验：**
 
-保留条目重排序规则：
+| 步骤 | 做什么 |
+|---|---|
+| 重夹长度 | `title` 夹到 `title_max_chars`、`summary` 夹到 `summary_max_chars` |
+| 过滤证据 | `evidence.anchor` 必须在 `link ∪ related_links` 里，非法的丢掉（人工也不能编锚点） |
+| 重算必读门 | 据改后的 evidence / takeaway / status 重新派生（§5.8） |
 
-- 决策含 `order`（int）的条目按 `order` 升序在前；`order` 相同用上游 score 序兜底。
-- 无 `order` 的条目保持上游序（score 降序，同分 `published_at` 升序、`link` 升序——与解读层 §5.5 一致）。
-- 稳定排序：`(has_order desc, order asc, upstream_index asc)`，保证同一输入 + 同一 decisions ⇒ 同顺序（确定性）。
+`review_action="edit"`；`was_edited` 看实际有没有改动（`edited_fields` 非空才 True）。
+
+> 边界：标了 `edit` 但 `edits` 为空或没改动任何字段 → `was_edited=False`、`edited_fields=[]`，但仍计入 `edited_count`（人工确实点了"改"）。
+
+### 5.5 排序（`order_reviewed`）
+
+| 条目 | 排在哪 |
+|---|---|
+| 决策给了 `order` | 按 `order` 升序排在前面 |
+| 没给 `order` | 保持上游顺序（score 降序，同分按 `published_at`、`link` 兜底） |
+
+排序键 `(有order优先, order升序, 上游下标升序)`，稳定排序 → 同输入同决策必同顺序。
 
 ### 5.6 今日看点覆盖（可选）
 
-约定保留键 `decisions["__daily_take__"]`（sentinel，不对应任何真实 item）：若该键存在且为 `action=="edit"` 且 `edits` 含 `daily_take`，则 `ReviewResult.daily_take = edits["daily_take"]`（人工设为空串 `""` 视为清空/不发今日看点）；否则透传上游 `daily_take`。该 sentinel 仅用于 daily_take 覆盖，不进 `reviewed_items`、不计入 kept/dropped/edited。
+用一个保留键 `decisions["__daily_take__"]`（占位，不对应真实文章）：
 
-### 5.7 是否已审 / 待审
+| 决策表里 | `ReviewResult.daily_take` |
+|---|---|
+| 有 `__daily_take__` 且 `edits` 含 `daily_take` | 用新值（设成 `""` 即清空，等于不发今日看点） |
+| 没有 | 透传上游 `daily_take` |
+
+这个占位键只管 daily_take，不进 `reviewed_items`、不计 kept/dropped/edited。
+
+### 5.7 已审 / 待审
 
 ```
-is_reviewed = (任一 item 命中显式 decisions 决策, 或存在 __daily_take__ 覆盖)
-is_pending  = (not is_reviewed) and (input_count > 0)
+is_reviewed = 有任一条命中决策, 或有 __daily_take__ 覆盖
+is_pending  = (没有 is_reviewed) 且 (input_count > 0)
 ```
 
-- **无任何决策**：所有条目透传 keep、`is_reviewed=False`、`is_pending=True`——产物**可发布但标记"待审"**（PRD §3.4「审阅未在窗口内完成 → 进入待审队列、不自动发」；本层只置位，发布层据 `is_pending` 决定是否拦截）。
-- **有决策**：`is_reviewed=True`、`is_pending=False`。
+| 场景 | `is_reviewed` | `is_pending` | 含义 |
+|---|---|---|---|
+| 一条决策都没有 | False | True | 全透传 keep，标"待审"，发布层据此决定拦不拦 |
+| 有任何决策 | True | False | 已审过 |
 
-### 5.8 必读门重算（派生 `eligible_for_must_read`，PRD §4.4「无证据不进必读」）
+### 5.8 必读门重算（派生 `eligible_for_must_read`）
 
 ```
 eligible_for_must_read = (interpretation_status == "ok")
@@ -131,98 +186,118 @@ eligible_for_must_read = (interpretation_status == "ok")
                          and (takeaway != "")
 ```
 
-与解读层 §5.4 同式。keep 条目沿用上游值（未改则等价）；edit 条目在改后字段上**重新派生**——人工删空 evidence/takeaway ⇒ 自动降级出必读；人工补合法 evidence + takeaway ⇒ 可升级（但 `interpretation_status` 只读，回退条目不能被人工"洗白"成 ok）。
+和解读层 §5.4 同一条式子。keep 条目沿用上游值；edit 条目用改后字段重算：
 
-## 6. 配置与 provider
+- 人工删空 evidence/takeaway → 自动掉出必读。
+- 人工补合法 evidence + takeaway → 可升级，**但** `interpretation_status` 只读，回退条目（`extractive_fallback`）洗不白成 `ok`，照样进不了必读。
+
+## 6. 配置与加载
 
 ### 6.1 `config/review.yaml`
 
 ```yaml
-decisions_path: "data/review_decisions.json"  # 审阅决策(按 link 索引); 缺则全 keep/待审
-title_max_chars: 64                  # 与解读层一致(PRD §5.5)
-summary_max_chars: 120               # 与解读层一致
-tags_count: 3                        # 改后若涉 tags 的一致性参考(本层不强制回退)
-min_evidence: 1                      # 必读门: 至少 1 条证据(§5.8)
+decisions_path: "data/review_decisions.json"  # 决策表; 缺则全 keep/待审
+title_max_chars: 64        # 与解读层一致
+summary_max_chars: 120     # 与解读层一致
+tags_count: 3              # 一致性参考(本层不因 tags 数强制回退)
+min_evidence: 1            # 必读门: 至少 1 条证据
 ```
 
-对应 `ReviewConfig`（dataclass，默认值与上表一致）：`decisions_path: str`、`title_max_chars: int`、`summary_max_chars: int`、`tags_count: int`、`min_evidence: int`。加载器 `load_review_config(path)` 与 `load_interpret_config` 同风格（缺文件 → 默认值；`.get` per field）。
+`ReviewConfig`（dataclass，默认值同上）：`decisions_path` / `title_max_chars` / `summary_max_chars` / `tags_count` / `min_evidence`。加载器 `load_review_config(path)` 与 `load_interpret_config` 同风格（缺文件→默认；`.get` per field）。
 
 ### 6.2 决策加载器
 
 ```python
 def load_review_decisions(path: str) -> dict[str, ReviewDecision]:
-    """Read审阅决策 JSON(按 link 索引); 缺文件 → {} (全 keep/待审)。"""
-    ...
+    """读决策 JSON(按 link 索引); 缺文件 → {}(全 keep/待审)。"""
 ```
 
-- JSON 结构：`{"<link>": {"action": "keep|drop|edit", "order": int|null, "edits": {...}}, ...}`；可含保留键 `__daily_take__`（§5.6）。
-- 缺文件 / 空文件 ⇒ 返回 `{}`（等价无决策、全 keep、`is_pending=True`），不抛（PRD 静默友好）。
-- 每个 value 经 `ReviewDecision` pydantic 校验（非法 `action` 即拒）。
+JSON 长这样：
 
-### 6.3 无 prompts / 无 LLM provider
+```json
+{
+  "https://a/1": {"action": "drop"},
+  "https://a/2": {"action": "edit", "order": 0, "edits": {"title": "新标题"}},
+  "__daily_take__": {"action": "edit", "edits": {"daily_take": "人工改写的看点"}}
+}
+```
 
-本层**不引入** LLM / prompts（区别于解读层）。决策数据即"内容 SOP 的人工产物"，运行时从 `decisions_path` 加载。
+- 缺文件 / 空文件 → 返回 `{}`（等于全 keep、待审），不抛。
+- 每个 value 过 `ReviewDecision` 校验，非法 `action` 即拒。
 
-## 7. 错误与回退（非致命，继承 CLAUDE.md/PRD §3.4）
+### 6.3 没有 LLM / prompts
 
-| 情况 | 处理 |
+本层**不引入** LLM、不读 prompts（这点和解读层不同）。决策 JSON 就是"人工产出的内容"，运行时加载。
+
+## 7. 错误与回退（都不致命）
+
+| 情况 | 怎么处理 |
 |---|---|
-| 入参 `items == []`（上游 `is_silent`） | 返回空 `ReviewResult`（`is_silent=True`、`is_pending=True`），不抛 |
-| 决策文件缺失 / 空 | `decisions={}` → 全 keep、`is_reviewed=False`、`is_pending=True`（待审，不自动发） |
-| 决策 JSON 含未知 `action` | `ReviewDecision` 校验失败 → 该条决策视为非法、按 keep 兜底（不删不改），emit 告警事件 |
-| `edits` 含只读 provenance 字段 | 忽略这些键（不覆盖出处），只应用可改内容字段（§5.4） |
-| edit 后 `evidence.anchor` 不在 `link∪related_links` | 丢弃该条 evidence（人工也不得编造锚点）；清空后据必读门降级 |
-| edit 把 `takeaway`/`evidence` 删空 | `eligible_for_must_read=False`（无证据不进必读） |
-| 决策 `link` 在 items 中不存在 | 忽略该决策（无对应条目可应用） |
-| `--dry-run` | 链路 `collect()→dedup()→score()→interpret()→review()`；产 `ReviewResult` JSON |
+| 进来 0 条 | 空 `ReviewResult`，`is_silent=True`、`is_pending=True`，不抛 |
+| 决策文件缺/空 | `decisions={}` → 全 keep、待审 |
+| 决策含未知 `action` | 校验失败 → 该条按 keep 兜底（不删不改），emit 告警 |
+| `edits` 想改出处字段 | 忽略那些键，只应用可改的内容字段 |
+| edit 后锚点非法 | 丢掉那条 evidence；清空后据必读门降级 |
+| edit 把 takeaway/evidence 删空 | `eligible_for_must_read=False` |
+| 决策的 `link` 没对应文章 | 忽略该决策 |
+| `--dry-run` | 跑 `collect→dedup→score→interpret→review`，产 `ReviewResult` JSON |
 
 ## 8. 不变量（golden 测试必须断言）
 
-1. **账目守恒**：`kept_count + edited_count + dropped_count == input_count`；`kept_count + edited_count == len(reviewed_items)`（不漏账、不重复）。
-2. **drop 即移除**：`action=="drop"` 的条目不出现在 `reviewed_items`，且 `dropped_count` 准确计数。
-3. **provenance 只读**：任一 `ReviewedItem` 的 `score`/`source`/`link`/`published_at`/`cluster_id`/`title_en`/`raw_summary` 等出处字段恒等于上游 `InterpretedItem`（edit 不能改出处）。
-4. **必读门重算**：`eligible_for_must_read == (interpretation_status=="ok" ∧ len(evidence)≥min_evidence ∧ takeaway≠"")`；edit 删空 evidence/takeaway ⇒ `False`。
-5. **不能洗白回退**：`interpretation_status` 只读；上游 `extractive_fallback` 的条目经 edit 后 `interpretation_status` 仍为 `extractive_fallback`，不因人工编辑变 `ok`（即使补了 evidence/takeaway，仍因 status≠ok 不入必读）。
-6. **证据锚点合法**：edit 后每条 `evidence.anchor ∈ item.link ∪ item.related_links`（非法锚点已丢弃）。
-7. **待审标记**：无任何决策 ⇒ `is_reviewed==False`、`is_pending==True`、全条 `review_action=="keep"`、`reviewed_items` 顺序==上游顺序。
-8. **确定性**：同一输入 + 同一 decisions ⇒ 同 `reviewed_items` 字段 / 同顺序 / 同计数 / 同 `daily_take`。
-9. **排序**：含 `order` 的条目按 `order` 升序在前，无 `order` 的保持上游 score 序（§5.5）。
-10. 入参 `[]` → 空 `ReviewResult`、`is_silent==True`、不抛异常。
-11. 每个 `ReviewedItem` 继承全部 `InterpretedItem`/`ScoredItem`/`NewsItem`/`RawItem` 不变量（score∈[0,100]、breakdown 9 键、cluster_id 非空、evidence 锚点合法等）。
+| # | 不变量 |
+|---|---|
+| 1 | 账目守恒：`kept+edited+dropped == input_count`；`kept+edited == len(reviewed_items)` |
+| 2 | drop 即移除：被删的不在 `reviewed_items`，`dropped_count` 计数准 |
+| 3 | 出处只读：`score`/`source`/`link`/`published_at`/`cluster_id`/`title_en`/`raw_summary` 恒等上游 |
+| 4 | 必读门重算：`eligible == (status=="ok" ∧ len(evidence)≥min_evidence ∧ takeaway≠"")` |
+| 5 | 洗不白：edit 后 `interpretation_status` 仍是上游值，回退条目改完仍进不了必读 |
+| 6 | 锚点合法：edit 后每条 `evidence.anchor ∈ link ∪ related_links` |
+| 7 | 待审：无决策时 `is_reviewed=False`、`is_pending=True`、全 `keep`、顺序==上游 |
+| 8 | 确定性：同输入同决策 → 同字段 / 同顺序 / 同计数 / 同 `daily_take` |
+| 9 | 排序：有 `order` 的按 `order` 升序在前，没给的保持上游序 |
+| 10 | 空输入 → 空 `ReviewResult`、`is_silent=True`、不抛 |
+| 11 | `ReviewedItem` 继承全部上游不变量（score∈[0,100]、breakdown 9 键、cluster_id 非空等） |
 
-## 9. golden 用例（fixtures 驱动，≥6）
+## 9. golden 用例（≥6，冻结 fixtures + 内存 decisions）
 
-> 用**冻结的 InterpretedItem fixtures** + 内存 `decisions` dict，使审阅确定、可断言，不依赖文件/网络。
-
-1. **透传待审**：`decisions={}` → 全条 `review_action=="keep"`、`is_reviewed==False`、`is_pending==True`、顺序==上游、`kept_count==input_count`、`dropped_count==0`（不变量 7）。
-2. **删除生效**：对某 `link` 给 `action=="drop"` → 该条不在 `reviewed_items`、`dropped_count==1`、账目守恒（不变量 1、2）。
-3. **改写 + 重夹 + 重算门**：`edit` 覆盖超长 `title`/`summary` → 被重夹到上限；改 `takeaway`+合法 `evidence` → `eligible_for_must_read==True`；`review_action=="edit"`、`edited_fields` 含被改字段（不变量 4）。
-4. **改写不能洗白回退**：上游 `extractive_fallback` 条目 edit 补 evidence/takeaway → `interpretation_status` 仍 `extractive_fallback`、`eligible_for_must_read==False`（不变量 5）。
-5. **edit 非法锚点丢弃**：`edit` 的 `evidence.anchor` 不在 `link∪related_links` → 丢弃、`eligible_for_must_read==False`（不变量 6）。
-6. **重排序**：给两条 `order`（如 `order=0`/`order=1` 反转上游序）→ `reviewed_items` 顺序按 `order`，无 `order` 的尾随上游序（不变量 9）；重复调用一致（不变量 8）。
-7. **空输入 → silent**：`items==[]` → 空 `ReviewResult`、`is_silent==True`、`is_pending==True`（不变量 10）。
-8. **今日看点覆盖**：`__daily_take__` edit 给新 `daily_take` → `ReviewResult.daily_take` 为新值；无覆盖则透传上游（§5.6）。
-9. **provenance 只读**：`edit` 的 `edits` 含 `score`/`link` → 被忽略，输出出处字段恒等上游（不变量 3）。
+| # | 用例 | 断言要点 | 关联不变量 |
+|---|---|---|---|
+| 1 | 全透传待审：`decisions={}` | 全 `keep`、`is_pending=True`、顺序==上游 | 7 |
+| 2 | 删除生效：某条 `drop` | 不在结果、`dropped_count==1`、账目守恒 | 1, 2 |
+| 3 | 改写+重夹+重算门：超长 title/summary + 改 takeaway/evidence | 被夹到上限、`eligible=True`、`edited_fields` 准 | 4 |
+| 4 | 洗不白回退：回退条目 edit 补证据 | `status` 仍 `extractive_fallback`、`eligible=False` | 5 |
+| 5 | 非法锚点丢弃：edit 给的 anchor 不合法 | 丢掉、`eligible=False` | 6 |
+| 6 | 重排序：两条给反转的 `order` | 按 `order` 排，没给的尾随上游序；重复调用一致 | 8, 9 |
+| 7 | 空输入 → silent | 空结果、`is_silent=True` | 10 |
+| 8 | 今日看点覆盖：`__daily_take__` edit | `daily_take` 为新值；无覆盖则透传 | — |
+| 9 | 出处只读：`edits` 含 `score`/`link` | 被忽略，出处字段恒等上游 | 3 |
 
 ## 10. 测试要求
 
-- **contract**：`load_review_config` 加载（缺文件回默认 / 覆盖字段）；`load_review_decisions` 读取（缺文件→`{}` / 正常解析 / 非法 action 拒绝）；`ReviewDecision`/`ReviewedItem`/`ReviewResult` schema 校验（action 枚举、ReviewedItem 继承 InterpretedItem 不变量）。
-- **golden**：用冻结 fixtures + 内存 decisions 驱动 §9 的 ≥6 个用例，断言 §8 不变量。
-- 全程**纯内存、不打网络、不调 LLM、不读真实文件**（decisions 直接构造 dict 注入 `review()`，文件加载单独在 contract 测）；时间用注入的 `ctx.now`。
-- 纯函数 `apply_decision`/`order_reviewed`/必读门重算/字段重夹全程离线可测。
+| 类型 | 测什么 |
+|---|---|
+| contract | `load_review_config`（缺文件回默认/覆盖字段）；`load_review_decisions`（缺文件→`{}`/正常解析/非法 action 拒绝）；`ReviewDecision`/`ReviewedItem`/`ReviewResult` schema |
+| golden | 冻结 fixtures + 内存 decisions 跑 §9 的 ≥6 用例，断言 §8 |
 
-## 11. 可观察
+- 全程**纯内存、不打网络、不调 LLM、不读真实文件**（decisions 直接构造 dict 注入；文件加载单独在 contract 测）；时间用注入的 `ctx.now`。
+- 纯函数 `apply_decision` / `order_reviewed` / 必读门重算 / 字段重夹全离线可测。
 
-- 每条保留 emit `item_kept{link, edited: bool}`（复用 interpret/score 的 `emit`）。
-- 每条删除 emit `item_dropped{link}`。
-- 每条改写 emit `item_edited{link, edited_fields}`。
-- `review()` 结束 emit `review_done{input_count, kept_count, dropped_count, edited_count, is_pending, silent}`，写入 `runs`。
+## 11. 可观察（写 `runs`）
+
+| 事件 | 何时 | 载荷 |
+|---|---|---|
+| `item_kept` | 每条保留 | `{link, edited}` |
+| `item_dropped` | 每条删除 | `{link}` |
+| `item_edited` | 每条改写 | `{link, edited_fields}` |
+| `review_done` | 结束 | `{input_count, kept_count, dropped_count, edited_count, is_pending, silent}` |
 
 ## 12. 验收（对齐 PRD §2.1）
 
-- **#6 审阅可操作**：本圈实现留/删/改/排序的**核心决策应用**（`review()` 据 decisions 产 `ReviewedItem`）；Web 页 ≤10 min 计时延后，但数据契约（按 link 索引的四操作决策）为其备好。
-- **#5 解读零幻觉延续**：edit 后必读门重算，**无证据/无 takeaway 条目 `eligible_for_must_read==False`**；人工不能编造锚点（非法 anchor 丢弃）、不能洗白回退条目（status 只读）。
-- **#1 端到端**：`collect()→dedup()→score()→interpret()→review()` 可串联，`--dry-run --review` 产 `ReviewResult` JSON。
-- **#8 静默正确**：上游静默时本层返回空结果（`is_silent=True`），不抛异常。
-- **待审正确**（PRD §3.4）：无审阅决策时 `is_pending=True`，发布层据此可拦截"未审自动发"。
-- **#9 可观察**：`review_done` 等事件写入 `runs`，审阅动作（keep/drop/edit + edited_fields）回收为反馈信号供第 7 层消费。
+| 验收点 | 本层交付 |
+|---|---|
+| #6 审阅可操作 | 留/删/改/排序的核心决策应用全实现；Web 计时页延后，但四操作数据契约备好 |
+| #5 解读零幻觉延续 | edit 后重算必读门：无证据/无 takeaway → 进不了必读；人工不能编锚点、不能洗白回退 |
+| #1 端到端 | `collect→dedup→score→interpret→review` 串得起来，`--dry-run --review` 产 JSON |
+| #8 静默正确 | 上游静默时返回空结果，不抛 |
+| 待审正确（§3.4） | 无决策 → `is_pending=True`，发布层可拦"未审自动发" |
+| #9 可观察 | `review_done` 等写入 `runs`，审阅动作回收成反馈供第 7 层用 |
