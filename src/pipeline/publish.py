@@ -139,3 +139,25 @@ def render_markdown(report: DailyReport, config: PublishConfig) -> str:
     lines.append("---")
     lines.append("📬 RSS ｜ 🗂 历史归档 ｜ 🏠 主站")
     return "\n".join(lines)
+
+
+def publish(review_result: ReviewResult, date_label: str,
+            config: PublishConfig, ctx: RunContext) -> PublishResult:
+    """编排: 空→静默; 否则组装内容模型并渲染 Markdown。无网络/LLM/渠道副作用。"""
+    items = review_result.reviewed_items
+    emit(ctx.logger, "publish_start", run_id=ctx.run_id, input_count=len(items))
+    report = build_report(review_result, date_label, config)
+    if not items:
+        emit(ctx.logger, "publish_done", item_count=0, must_read_count=0,
+             is_pending=report.is_pending, silent=True)
+        return PublishResult(report=report, markdown="",
+                             is_pending=report.is_pending, is_silent=True)
+    emit(ctx.logger, "report_built", must_read_count=len(report.must_read),
+         category_count=len(report.categories), item_count=report.item_count,
+         is_pending=report.is_pending)
+    markdown = render_markdown(report, config)
+    emit(ctx.logger, "publish_done", item_count=report.item_count,
+         must_read_count=len(report.must_read), is_pending=report.is_pending,
+         silent=False)
+    return PublishResult(report=report, markdown=markdown,
+                         is_pending=report.is_pending, is_silent=False)

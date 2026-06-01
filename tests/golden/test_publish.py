@@ -1,8 +1,11 @@
+import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from src.core.types import (SourceType, Evidence, ReviewedItem, PublishConfig,
-                            DailyReport, ReviewResult)
+                            DailyReport, ReviewResult, RunContext)
 from src.pipeline.publish import (select_must_read, group_by_category,
-                                  build_overview, build_report, render_markdown)
+                                  build_overview, build_report, render_markdown,
+                                  publish)
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 CFG = PublishConfig()
@@ -163,3 +166,57 @@ def test_render_markdown_explore_marker():
     items = [_ri("https://a/1", is_explore=True, eligible=False)]
     md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
     assert "🧭探索" in md
+
+
+def _ctx():
+    return RunContext(run_id="g", now=NOW,
+                      logger=logging.getLogger("golden-publish"))
+
+
+def test_publish_empty_input_silent():
+    res = publish(_rr([], daily_take=None, is_silent=True), "d", CFG, _ctx())
+    assert res.is_silent is True and res.markdown == ""
+    assert res.report.item_count == 0
+
+
+def test_publish_pending_propagates():
+    items = [_ri("https://a/1")]
+    res = publish(_rr(items, is_pending=True), "d", CFG, _ctx())
+    assert res.is_pending is True
+    assert CFG.pending_watermark in res.markdown
+
+
+def test_publish_deterministic():
+    items = [_ri("https://a/1", source_type=SourceType.MODEL),
+             _ri("https://a/2", source_type=SourceType.PAPER)]
+    r1 = publish(_rr(items), "2026-05-30", CFG, _ctx())
+    r2 = publish(_rr(items), "2026-05-30", CFG, _ctx())
+    assert r1.markdown == r2.markdown
+    assert r1.report.model_dump() == r2.report.model_dump()
+
+
+SNAPSHOT = Path(__file__).parent / "data" / "publish_report.md"
+
+
+def _snapshot_items():
+    return [
+        _ri("https://a/1", source_type=SourceType.MODEL, title="GLM-5 发布",
+            summary="开源 MoE 旗舰。", takeaway="可自建推理。",
+            hot_take="护城河变薄。", score=88, tags=["#MoE", "#开源"],
+            eligible=True),
+        _ri("https://a/2", source_type=SourceType.PAPER, title="新论文",
+            summary="一句话摘要。", score=82, tags=["#MoE", "#推理"],
+            eligible=True),
+        _ri("https://a/3", source_type=SourceType.COMMUNITY, title="社区热帖",
+            summary="探索选题。", score=71, tags=["#Agent"],
+            eligible=False, is_explore=True),
+    ]
+
+
+def test_publish_markdown_snapshot():
+    res = publish(_rr(_snapshot_items(), daily_take="看点一句话。"),
+                  "2026-05-30（周六）", CFG, _ctx())
+    if not SNAPSHOT.exists():               # 首次运行固化快照
+        SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
+        SNAPSHOT.write_text(res.markdown, encoding="utf-8")
+    assert res.markdown == SNAPSHOT.read_text(encoding="utf-8")
