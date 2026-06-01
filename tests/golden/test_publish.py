@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
-from src.core.types import (SourceType, Evidence, ReviewedItem, PublishConfig)
+from src.core.types import (SourceType, Evidence, ReviewedItem, PublishConfig,
+                            DailyReport, ReviewResult)
 from src.pipeline.publish import (select_must_read, group_by_category,
-                                  build_overview)
+                                  build_overview, build_report, render_markdown)
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 CFG = PublishConfig()
@@ -89,3 +90,76 @@ def test_build_overview_keywords_top_n_and_empty_tags():
     cfg = PublishConfig(top_keywords=2)
     ov = build_overview(items, cfg)
     assert len(ov.keywords) == 2
+
+
+def _rr(items, daily_take="看点。", is_pending=False, is_silent=False):
+    n = len(items)
+    return ReviewResult(
+        reviewed_items=items, daily_take=daily_take, input_count=n,
+        kept_count=n, dropped_count=0, edited_count=0,
+        is_reviewed=not is_pending, is_pending=is_pending, is_silent=is_silent)
+
+
+def test_build_report_assembles_blocks():
+    items = [_ri("https://a/1", source_type=SourceType.MODEL, eligible=True),
+             _ri("https://a/2", source_type=SourceType.PAPER, eligible=False,
+                 is_explore=True)]
+    rep = build_report(_rr(items), "2026-05-30（周六）", CFG)
+    assert rep.date_label == "2026-05-30（周六）"
+    assert rep.item_count == 2 and rep.explore_count == 1
+    assert [i.link for i in rep.must_read] == ["https://a/1"]
+    assert [c.source_type for c in rep.categories] == ["paper", "model"]
+    assert rep.is_pending is False
+    # 必读子集: must_read 出现在其类型分组里
+    model_cat = [c for c in rep.categories if c.source_type == "model"][0]
+    assert "https://a/1" in [i.link for i in model_cat.items]
+    # 全量目录守恒
+    assert sum(len(c.items) for c in rep.categories) == rep.item_count
+
+
+def test_render_markdown_full():
+    items = [_ri("https://a/1", source_type=SourceType.MODEL,
+                 title="GLM-5 发布", summary="开源 MoE。", tags=["#MoE"])]
+    md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
+    assert md.startswith("# AI Daily · 2026-05-30")
+    assert "> **今日看点**：看点。" in md
+    assert "## 🏆 今日必读" in md
+    assert "### 1. [模型] GLM-5 发布（X released）" in md
+    assert "**一句话**：开源 MoE。" in md
+    assert "**对你**：怎么用。" in md
+    assert "**锐评**：锐评。" in md
+    assert "[src](https://a/1)" in md
+    assert "## 📚 分类速览" in md
+    assert "## 📊 数据概览" in md
+    assert "MoE" in md
+
+
+def test_render_markdown_pending_watermark():
+    items = [_ri("https://a/1")]
+    md = render_markdown(build_report(_rr(items, is_pending=True), "d", CFG), CFG)
+    assert CFG.pending_watermark in md
+
+
+def test_render_markdown_no_watermark_when_reviewed():
+    items = [_ri("https://a/1")]
+    md = render_markdown(build_report(_rr(items, is_pending=False), "d", CFG), CFG)
+    assert CFG.pending_watermark not in md
+
+
+def test_render_markdown_omits_empty_daily_take():
+    items = [_ri("https://a/1")]
+    md = render_markdown(build_report(_rr(items, daily_take=None), "d", CFG), CFG)
+    assert "今日看点" not in md
+
+
+def test_render_markdown_omits_must_read_when_none_eligible():
+    items = [_ri("https://a/1", eligible=False)]
+    md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
+    assert "今日必读" not in md
+    assert "## 📚 分类速览" in md      # 速览仍在
+
+
+def test_render_markdown_explore_marker():
+    items = [_ri("https://a/1", is_explore=True, eligible=False)]
+    md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
+    assert "🧭探索" in md
