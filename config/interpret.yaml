@@ -1,0 +1,11 @@
+# 解读生成层配置 (Circle 4). 模型参数/字段约束全部可调, 不写死.
+model: "Qwen/Qwen2.5-72B-Instruct"   # OpenAI 兼容 chat 模型 (ModelScope); 可换
+temperature: 0.3
+max_tokens: 800
+timeout_s: 60
+title_max_chars: 64                  # PRD §5.5 中文标题 ≤64
+summary_max_chars: 120               # PRD §5.5 摘要 ≤120
+tags_count: 3                        # PRD §5.5 恰好 3 个
+min_evidence: 1                      # 必读门: 至少 1 条证据
+item_prompt_path: "src/prompts/interpret_item.md"
+daily_prompt_path: "src/prompts/daily_take.md"

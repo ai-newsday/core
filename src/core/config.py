@@ -1,6 +1,6 @@
 from __future__ import annotations
 import yaml
-from src.core.types import DedupConfig, ScoringConfig
+from src.core.types import DedupConfig, ScoringConfig, InterpretConfig
 
 
 def load_dedup_config(path: str) -> DedupConfig:
@@ -45,4 +45,26 @@ def load_scoring_config(path: str) -> ScoringConfig:
         quota=data.get("quota", d.quota),
         total_limit=data.get("total_limit", d.total_limit),
         sources_registry_path=data.get("sources_registry_path", d.sources_registry_path),
+    )
+
+
+def load_interpret_config(path: str) -> InterpretConfig:
+    """Load interpret model params/field limits from YAML; missing file -> defaults."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return InterpretConfig()
+    d = InterpretConfig()
+    return InterpretConfig(
+        model=data.get("model", d.model),
+        temperature=data.get("temperature", d.temperature),
+        max_tokens=data.get("max_tokens", d.max_tokens),
+        timeout_s=data.get("timeout_s", d.timeout_s),
+        title_max_chars=data.get("title_max_chars", d.title_max_chars),
+        summary_max_chars=data.get("summary_max_chars", d.summary_max_chars),
+        tags_count=data.get("tags_count", d.tags_count),
+        min_evidence=data.get("min_evidence", d.min_evidence),
+        item_prompt_path=data.get("item_prompt_path", d.item_prompt_path),
+        daily_prompt_path=data.get("daily_prompt_path", d.daily_prompt_path),
     )
