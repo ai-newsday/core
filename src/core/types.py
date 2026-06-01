@@ -237,3 +237,50 @@ class ReviewResult:
     is_reviewed: bool
     is_pending: bool
     is_silent: bool
+
+
+# --- publish layer (Circle 6) ---
+class Overview(BaseModel):
+    type_distribution: dict[str, int] = Field(default_factory=dict)
+    keywords: list[str] = Field(default_factory=list)
+
+
+class CategorySection(BaseModel):
+    source_type: str
+    label: str
+    items: list[ReviewedItem] = Field(default_factory=list)
+
+
+class DailyReport(BaseModel):
+    date_label: str
+    daily_take: str | None
+    must_read: list[ReviewedItem] = Field(default_factory=list)
+    categories: list[CategorySection] = Field(default_factory=list)
+    overview: Overview
+    is_pending: bool
+    item_count: int
+    explore_count: int
+
+
+@dataclass
+class PublishConfig:
+    must_read_count: int = 3
+    top_keywords: int = 4
+    pending_watermark: str = "⚠ 未审草稿（待人工定稿，勿直接发布）"
+    type_labels: dict[str, str] = field(default_factory=lambda: {
+        "official": "官方",
+        "paper": "论文",
+        "model": "模型",
+        "tool": "工具 / 开源",
+        "news": "新闻",
+        "community": "社区",
+        "blog": "博客",
+    })
+
+
+@dataclass
+class PublishResult:
+    report: DailyReport
+    markdown: str
+    is_pending: bool
+    is_silent: bool
