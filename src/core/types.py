@@ -202,3 +202,38 @@ class InterpretResult:
     interpreted_count: int
     fallback_count: int
     is_silent: bool
+
+
+# --- review layer (Circle 5) ---
+class ReviewDecision(BaseModel):
+    action: Literal["keep", "drop", "edit"] = "keep"
+    order: int | None = None                   # 重排序号(升序); None=不指定
+    edits: dict = Field(default_factory=dict)  # action==edit 时覆盖的字段
+
+
+class ReviewedItem(InterpretedItem):           # InterpretedItem 的下游演进
+    review_action: Literal["keep", "edit"]     # drop 的条目不进结果
+    was_edited: bool
+    edited_fields: list[str] = Field(default_factory=list)
+
+
+@dataclass
+class ReviewConfig:
+    decisions_path: str = "data/review_decisions.json"
+    title_max_chars: int = 64
+    summary_max_chars: int = 120
+    tags_count: int = 3
+    min_evidence: int = 1
+
+
+@dataclass
+class ReviewResult:
+    reviewed_items: list[ReviewedItem]
+    daily_take: str | None
+    input_count: int
+    kept_count: int
+    dropped_count: int
+    edited_count: int
+    is_reviewed: bool
+    is_pending: bool
+    is_silent: bool
