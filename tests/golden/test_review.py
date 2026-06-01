@@ -118,3 +118,122 @@ def test_order_reviewed_respects_order_then_upstream():
     # a2(order0), a1(order1), 然后无 order 的 a3 保持上游序
     assert [i.link for i in ordered] == ["https://a/2", "https://a/1",
                                          "https://a/3"]
+
+
+# --- orchestrator: review() golden cases (spec §9) ---
+import logging
+from src.core.types import ReviewResult, RunContext
+from src.pipeline.review import review
+
+
+def _ctx():
+    return RunContext(run_id="g", now=NOW,
+                      logger=logging.getLogger("golden-review"))
+
+
+# Case 1 (§9.1): 全透传待审
+def test_golden_passthrough_pending():
+    items = [_interp("https://a/1"), _interp("https://a/2")]
+    res = review(items, "看点。", {}, CFG, _ctx())
+    assert res.is_reviewed is False and res.is_pending is True
+    assert res.is_silent is False
+    assert all(r.review_action == "keep" for r in res.reviewed_items)
+    assert [r.link for r in res.reviewed_items] == ["https://a/1", "https://a/2"]
+    assert res.kept_count == 2 and res.dropped_count == 0
+    assert res.daily_take == "看点。"
+
+
+# Case 2 (§9.2): 删除生效 + 账目守恒
+def test_golden_drop_removes_and_counts():
+    items = [_interp("https://a/1"), _interp("https://a/2")]
+    decisions = {"https://a/1": ReviewDecision(action="drop")}
+    res = review(items, None, decisions, CFG, _ctx())
+    assert [r.link for r in res.reviewed_items] == ["https://a/2"]
+    assert res.dropped_count == 1 and res.kept_count == 1
+    assert (res.kept_count + res.edited_count + res.dropped_count
+            == res.input_count == 2)
+    assert res.is_reviewed is True and res.is_pending is False
+
+
+# Case 3 (§9.3): 改写 + 重夹 + 重算门
+def test_golden_edit_reclamp_and_gate():
+    items = [_interp("https://a/1", eligible=False, takeaway="")]
+    decisions = {"https://a/1": ReviewDecision(
+        action="edit", edits={"title": "标" * 100, "takeaway": "可操作",
+                              "evidence": [{"claim": "事实",
+                                            "anchor": "https://a/1"}]})}
+    res = review(items, None, decisions, CFG, _ctx())
+    one = res.reviewed_items[0]
+    assert len(one.title) == CFG.title_max_chars
+    assert one.eligible_for_must_read is True
+    assert one.review_action == "edit" and res.edited_count == 1
+
+
+# Case 4 (§9.4): 改写不能洗白回退
+def test_golden_edit_cannot_whitewash_fallback():
+    items = [_interp("https://a/1", status="extractive_fallback",
+                     takeaway="", evidence=[], eligible=False)]
+    decisions = {"https://a/1": ReviewDecision(
+        action="edit", edits={"takeaway": "硬补", "evidence": [
+            {"claim": "事实", "anchor": "https://a/1"}]})}
+    res = review(items, None, decisions, CFG, _ctx())
+    one = res.reviewed_items[0]
+    assert one.interpretation_status == "extractive_fallback"
+    assert one.eligible_for_must_read is False
+
+
+# Case 5 (§9.5): edit 非法锚点丢弃
+def test_golden_edit_illegal_anchor_dropped():
+    items = [_interp("https://a/1", related=["https://r/1"])]
+    decisions = {"https://a/1": ReviewDecision(
+        action="edit", edits={"evidence": [
+            {"claim": "x", "anchor": "https://evil/x"}]})}
+    res = review(items, None, decisions, CFG, _ctx())
+    assert res.reviewed_items[0].evidence == []
+    assert res.reviewed_items[0].eligible_for_must_read is False
+
+
+# Case 6 (§9.6): 重排序 + 确定性
+def test_golden_reorder_and_deterministic():
+    items = [_interp("https://a/1"), _interp("https://a/2"),
+             _interp("https://a/3")]
+    decisions = {"https://a/1": ReviewDecision(order=1),
+                 "https://a/2": ReviewDecision(order=0)}
+    res1 = review(items, None, decisions, CFG, _ctx())
+    res2 = review(items, None, decisions, CFG, _ctx())
+    order1 = [r.link for r in res1.reviewed_items]
+    assert order1 == ["https://a/2", "https://a/1", "https://a/3"]
+    assert order1 == [r.link for r in res2.reviewed_items]
+
+
+# Case 7 (§9.7): 空输入 silent
+def test_golden_empty_input_silent():
+    res = review([], None, {}, CFG, _ctx())
+    assert res.is_silent is True and res.reviewed_items == []
+    assert res.is_pending is True and res.input_count == 0
+    assert res.daily_take is None
+
+
+# Case 8 (§9.8): 今日看点覆盖
+def test_golden_daily_take_override():
+    items = [_interp("https://a/1")]
+    decisions = {"__daily_take__": ReviewDecision(
+        action="edit", edits={"daily_take": "人工改写的看点"})}
+    res = review(items, "原看点", decisions, CFG, _ctx())
+    assert res.daily_take == "人工改写的看点"
+    assert res.is_reviewed is True
+    # __daily_take__ 不进 reviewed_items / 不计数
+    assert [r.link for r in res.reviewed_items] == ["https://a/1"]
+    assert res.kept_count == 1 and res.edited_count == 0
+
+
+# Case 9 (§9.9): 出处只读
+def test_golden_provenance_readonly():
+    items = [_interp("https://a/1", score=80)]
+    decisions = {"https://a/1": ReviewDecision(
+        action="edit", edits={"score": 5, "link": "https://evil/x",
+                              "title": "改后"})}
+    res = review(items, None, decisions, CFG, _ctx())
+    one = res.reviewed_items[0]
+    assert one.score == 80 and one.link == "https://a/1"
+    assert one.title == "改后"

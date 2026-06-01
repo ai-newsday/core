@@ -72,3 +72,61 @@ def order_reviewed(items: list[ReviewedItem],
         return (1, 0, idx)
 
     return [it for _, it in sorted(indexed, key=key)]
+
+
+DAILY_TAKE_KEY = "__daily_take__"
+
+
+def review(items: list[InterpretedItem], daily_take: str | None,
+           decisions: dict[str, ReviewDecision], config: ReviewConfig,
+           ctx: RunContext) -> ReviewResult:
+    """审阅 orchestrator(spec §3, §5)。纯函数: 无 LLM / 网络副作用。"""
+    emit(ctx.logger, "review_start", run_id=ctx.run_id, input_count=len(items))
+    if not items:
+        emit(ctx.logger, "review_done", input_count=0, kept_count=0,
+             dropped_count=0, edited_count=0, is_pending=True, silent=True)
+        return ReviewResult(reviewed_items=[], daily_take=daily_take,
+                            input_count=0, kept_count=0, dropped_count=0,
+                            edited_count=0, is_reviewed=False, is_pending=True,
+                            is_silent=True)
+
+    kept: list[ReviewedItem] = []
+    kept_count = dropped_count = edited_count = 0
+    for it in items:
+        decision = decisions.get(it.link, ReviewDecision())
+        result = apply_decision(it, decision, config)
+        if result is None:
+            dropped_count += 1
+            emit(ctx.logger, "item_dropped", link=it.link)
+            continue
+        if result.review_action == "edit":
+            edited_count += 1
+            emit(ctx.logger, "item_edited", link=result.link,
+                 edited_fields=result.edited_fields)
+        else:
+            kept_count += 1
+        emit(ctx.logger, "item_kept", link=result.link,
+             edited=result.was_edited)
+        kept.append(result)
+
+    ordered = order_reviewed(kept, decisions)
+
+    # 今日看点覆盖(§5.6)
+    daily_dec = decisions.get(DAILY_TAKE_KEY)
+    daily_overridden = (daily_dec is not None and daily_dec.action == "edit"
+                        and "daily_take" in daily_dec.edits)
+    out_daily = daily_dec.edits["daily_take"] if daily_overridden else daily_take
+
+    # 已审/待审(§5.7): 命中任一 item 决策, 或 daily_take 覆盖
+    item_links = {it.link for it in items}
+    is_reviewed = daily_overridden or any(k in item_links for k in decisions)
+    is_pending = not is_reviewed
+
+    emit(ctx.logger, "review_done", input_count=len(items),
+         kept_count=kept_count, dropped_count=dropped_count,
+         edited_count=edited_count, is_pending=is_pending, silent=False)
+    return ReviewResult(reviewed_items=ordered, daily_take=out_daily,
+                        input_count=len(items), kept_count=kept_count,
+                        dropped_count=dropped_count, edited_count=edited_count,
+                        is_reviewed=is_reviewed, is_pending=is_pending,
+                        is_silent=False)
