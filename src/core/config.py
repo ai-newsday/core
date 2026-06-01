@@ -1,7 +1,7 @@
 from __future__ import annotations
 import yaml
 from src.core.types import (DedupConfig, ScoringConfig, InterpretConfig,
-                            ReviewConfig, ReviewDecision)
+                            ReviewConfig, ReviewDecision, PublishConfig)
 
 
 def load_dedup_config(path: str) -> DedupConfig:
@@ -98,3 +98,19 @@ def load_review_decisions(path: str) -> dict[str, ReviewDecision]:
     except FileNotFoundError:
         return {}
     return {k: ReviewDecision(**v) for k, v in raw.items()}
+
+
+def load_publish_config(path: str) -> PublishConfig:
+    """Load publish display constants from YAML; missing/empty file -> defaults."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return PublishConfig()
+    d = PublishConfig()
+    return PublishConfig(
+        must_read_count=data.get("must_read_count", d.must_read_count),
+        top_keywords=data.get("top_keywords", d.top_keywords),
+        pending_watermark=data.get("pending_watermark", d.pending_watermark),
+        type_labels=data.get("type_labels", d.type_labels),
+    )
