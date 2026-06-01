@@ -13,6 +13,8 @@ from src.pipeline.score import score
 from src.core.config import load_interpret_config
 from src.pipeline.interpret import interpret
 from src.adapters.llm.openai_compat import OpenAICompatLLM
+from src.core.config import load_review_config, load_review_decisions
+from src.pipeline.review import review
 
 
 def run_dry(registry_path: str, now: datetime | None = None) -> dict:
@@ -131,6 +133,54 @@ def run_dry_interpret(registry_path: str, now: datetime | None = None,
     }
 
 
+def run_dry_review(registry_path: str, now: datetime | None = None,
+                   embedder=None, llm=None, decisions_path=None) -> dict:
+    now = now or datetime.now(timezone.utc)
+    logger = logging.getLogger("ai-newsday")
+    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
+
+    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
+    coll = asyncio.run(collect(coll_cfg, ctx))
+
+    dcfg = load_dedup_config("config/dedup.yaml")
+    dcfg.sources_registry_path = registry_path
+    if embedder is None:
+        embedder = ModelScopeEmbedder(
+            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
+            model=dcfg.embedding_model, batch_size=dcfg.batch_size)
+    dres = dedup(coll.items, dcfg, ctx,
+                 embedder=embedder, store=InMemoryVectorStore())
+
+    scfg = load_scoring_config("config/scoring.yaml")
+    scfg.sources_registry_path = registry_path
+    sres = score(dres.deduped_items, scfg, ctx)
+
+    icfg = load_interpret_config("config/interpret.yaml")
+    if llm is None:
+        llm = OpenAICompatLLM(
+            api_key=os.environ.get("MODELSCOPE_API_KEY", ""), model=icfg.model,
+            timeout_s=icfg.timeout_s)
+    ires = interpret(sres.selected_items, icfg, ctx, llm)
+
+    rcfg = load_review_config("config/review.yaml")
+    decisions = load_review_decisions(decisions_path or rcfg.decisions_path)
+    rres = review(ires.interpreted_items, ires.daily_take, decisions, rcfg, ctx)
+    return {
+        "run_id": ctx.run_id,
+        "now": now.isoformat(),
+        "input_count": rres.input_count,
+        "kept_count": rres.kept_count,
+        "dropped_count": rres.dropped_count,
+        "edited_count": rres.edited_count,
+        "is_reviewed": rres.is_reviewed,
+        "is_pending": rres.is_pending,
+        "is_silent": rres.is_silent,
+        "daily_take": rres.daily_take,
+        "reviewed_items": [it.model_dump(mode="json")
+                           for it in rres.reviewed_items],
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="ai-newsday-collect")
     p.add_argument("--registry", default="config/sources.yaml")
@@ -142,12 +192,18 @@ def main(argv: list[str] | None = None) -> int:
                    help="chain collect -> dedup -> score, print ScoreResult JSON")
     p.add_argument("--interpret", action="store_true",
                    help="chain collect -> dedup -> score -> interpret, print InterpretResult JSON")
+    p.add_argument("--review", action="store_true",
+                   help="chain collect -> ... -> review, print ReviewResult JSON")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
     if not args.dry_run:
         print("This circle supports --dry-run only (publishing is a later layer).",
               file=sys.stderr)
         return 2
+    if args.dry_run and args.review:
+        out = run_dry_review(registry_path=args.registry)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
     if args.dry_run and args.interpret:
         out = run_dry_interpret(registry_path=args.registry)
         print(json.dumps(out, ensure_ascii=False, indent=2))
