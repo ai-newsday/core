@@ -10,6 +10,9 @@ from src.adapters.vectorstore.memory import InMemoryVectorStore
 from dataclasses import asdict
 from src.core.config import load_scoring_config
 from src.pipeline.score import score
+from src.core.config import load_interpret_config
+from src.pipeline.interpret import interpret
+from src.adapters.llm.openai_compat import OpenAICompatLLM
 
 
 def run_dry(registry_path: str, now: datetime | None = None) -> dict:
@@ -87,6 +90,47 @@ def run_dry_score(registry_path: str, now: datetime | None = None,
     }
 
 
+def run_dry_interpret(registry_path: str, now: datetime | None = None,
+                      embedder=None, llm=None) -> dict:
+    now = now or datetime.now(timezone.utc)
+    logger = logging.getLogger("ai-newsday")
+    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
+
+    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
+    coll = asyncio.run(collect(coll_cfg, ctx))
+
+    dcfg = load_dedup_config("config/dedup.yaml")
+    dcfg.sources_registry_path = registry_path
+    if embedder is None:
+        embedder = ModelScopeEmbedder(
+            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
+            model=dcfg.embedding_model, batch_size=dcfg.batch_size)
+    dres = dedup(coll.items, dcfg, ctx,
+                 embedder=embedder, store=InMemoryVectorStore())
+
+    scfg = load_scoring_config("config/scoring.yaml")
+    scfg.sources_registry_path = registry_path
+    sres = score(dres.deduped_items, scfg, ctx)
+
+    icfg = load_interpret_config("config/interpret.yaml")
+    if llm is None:
+        llm = OpenAICompatLLM(
+            api_key=os.environ.get("MODELSCOPE_API_KEY", ""), model=icfg.model,
+            timeout_s=icfg.timeout_s)
+    ires = interpret(sres.selected_items, icfg, ctx, llm)
+    return {
+        "run_id": ctx.run_id,
+        "now": now.isoformat(),
+        "input_count": ires.input_count,
+        "interpreted_count": ires.interpreted_count,
+        "fallback_count": ires.fallback_count,
+        "is_silent": ires.is_silent,
+        "daily_take": ires.daily_take,
+        "interpreted_items": [it.model_dump(mode="json")
+                              for it in ires.interpreted_items],
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="ai-newsday-collect")
     p.add_argument("--registry", default="config/sources.yaml")
@@ -96,12 +140,18 @@ def main(argv: list[str] | None = None) -> int:
                    help="chain collect -> dedup, print DedupResult JSON")
     p.add_argument("--score", action="store_true",
                    help="chain collect -> dedup -> score, print ScoreResult JSON")
+    p.add_argument("--interpret", action="store_true",
+                   help="chain collect -> dedup -> score -> interpret, print InterpretResult JSON")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
     if not args.dry_run:
         print("This circle supports --dry-run only (publishing is a later layer).",
               file=sys.stderr)
         return 2
+    if args.dry_run and args.interpret:
+        out = run_dry_interpret(registry_path=args.registry)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
     if args.dry_run and args.score:
         out = run_dry_score(registry_path=args.registry)
         print(json.dumps(out, ensure_ascii=False, indent=2))

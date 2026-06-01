@@ -49,3 +49,20 @@ def test_run_dry_score_returns_scoreresult_json():
     assert "quota_report" in out
     assert out["input_count"] >= out["selected_count"]
     json.dumps(out)                                  # must be JSON-serializable
+
+
+from src.cli import run_dry_interpret
+from tests.fakes import FailingLLMProvider
+
+
+def test_run_dry_interpret_returns_result_json():
+    out = run_dry_interpret(
+        registry_path="tests/golden/data/registry_min.yaml",
+        now=datetime(2026, 5, 30, 12, tzinfo=timezone.utc),
+        embedder=FakeEmbeddingProvider({}),
+        llm=FailingLLMProvider(),
+    )
+    assert "interpreted_count" in out and "interpreted_items" in out
+    assert "daily_take" in out and "fallback_count" in out
+    assert out["input_count"] >= 0
+    json.dumps(out)                                  # must be JSON-serializable
