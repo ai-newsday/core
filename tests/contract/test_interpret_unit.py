@@ -122,3 +122,58 @@ def test_extractive_fallback_truncates_summary_and_handles_none():
     assert len(extractive_fallback(it, InterpretConfig()).summary) == 120
     it2 = _scored(raw_summary=None)
     assert extractive_fallback(it2, InterpretConfig()).summary == ""
+
+
+from src.pipeline.interpret import (interpret_item, build_daily_prompt,
+                                     generate_daily_take)
+from src.core.prompts import load_prompt
+from tests.fakes import FakeLLMProvider, FailingLLMProvider
+
+_OK_JSON = json.dumps({"title": "智谱 GLM-5", "summary": "开源 MoE。",
+                       "takeaway": "可自建推理。", "hot_take": "变薄了。",
+                       "tags": ["#开源", "#MoE", "#GLM"],
+                       "evidence": [{"claim": "MoE", "anchor": "https://hf.co/glm5"}]})
+
+
+def test_interpret_item_ok_path():
+    it = _scored()
+    tpl = load_prompt("src/prompts/interpret_item.md")
+    llm = FakeLLMProvider({"https://hf.co/glm5": _OK_JSON})
+    out = interpret_item(it, tpl, InterpretConfig(), llm)
+    assert out.interpretation_status == "ok" and out.eligible_for_must_read is True
+
+
+def test_interpret_item_llm_failure_falls_back():
+    it = _scored()
+    tpl = load_prompt("src/prompts/interpret_item.md")
+    out = interpret_item(it, tpl, InterpretConfig(), FailingLLMProvider())
+    assert out.interpretation_status == "extractive_fallback"
+    assert out.title == "GLM-5 released"
+
+
+def test_interpret_item_bad_json_falls_back():
+    it = _scored()
+    tpl = load_prompt("src/prompts/interpret_item.md")
+    llm = FakeLLMProvider({"https://hf.co/glm5": "not json"})
+    out = interpret_item(it, tpl, InterpretConfig(), llm)
+    assert out.interpretation_status == "extractive_fallback"
+
+
+def test_build_daily_prompt_uses_titles():
+    it_ok = build_ok_item(json.loads(_OK_JSON), _scored(), InterpretConfig())
+    tpl = "Today:\n{{items}}"
+    out = build_daily_prompt([it_ok], tpl)
+    assert "智谱 GLM-5" in out
+
+
+def test_generate_daily_take_ok():
+    it_ok = build_ok_item(json.loads(_OK_JSON), _scored(), InterpretConfig())
+    tpl = load_prompt("src/prompts/daily_take.md")
+    llm = FakeLLMProvider({}, default=json.dumps({"highlights": "今天开源大爆发。"}))
+    assert generate_daily_take([it_ok], tpl, InterpretConfig(), llm) == "今天开源大爆发。"
+
+
+def test_generate_daily_take_failure_returns_none():
+    it_ok = build_ok_item(json.loads(_OK_JSON), _scored(), InterpretConfig())
+    tpl = load_prompt("src/prompts/daily_take.md")
+    assert generate_daily_take([it_ok], tpl, InterpretConfig(), FailingLLMProvider()) is None

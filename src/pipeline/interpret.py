@@ -74,3 +74,43 @@ def extractive_fallback(item: ScoredItem,
         takeaway="", hot_take="", tags=[], evidence=[],
         interpretation_status="extractive_fallback",
         eligible_for_must_read=False)
+
+
+from src.core.types import RunContext
+
+
+def interpret_item(item: ScoredItem, item_template: str, config: InterpretConfig,
+                   llm) -> InterpretedItem:
+    """One item: prompt -> LLM -> parse -> enforce. Any failure -> extractive
+    fallback (spec §5.2/§5.3). Pure except for the injected llm call."""
+    try:
+        prompt = build_item_prompt(item, item_template)
+        raw = llm.complete_json(prompt, temperature=config.temperature,
+                                max_tokens=config.max_tokens)
+        parsed = parse_and_validate(raw)
+        return build_ok_item(parsed, item, config)
+    except Exception:
+        return extractive_fallback(item, config)
+
+
+def build_daily_prompt(items: list[InterpretedItem], template: str) -> str:
+    """Render the daily-take prompt from interpreted items' titles + summaries."""
+    lines = []
+    for it in items:
+        title = it.title if it.interpretation_status == "ok" else it.title_en
+        lines.append(f"- {title}: {it.summary}")
+    return template.replace("{{items}}", "\n".join(lines))
+
+
+def generate_daily_take(items: list[InterpretedItem], daily_template: str,
+                        config: InterpretConfig, llm) -> str | None:
+    """One LLM call for the macro '今日看点'. Any failure -> None (no fabrication)."""
+    try:
+        prompt = build_daily_prompt(items, daily_template)
+        raw = llm.complete_json(prompt, temperature=config.temperature,
+                                max_tokens=config.max_tokens)
+        data = json.loads(raw)
+        text = data.get("highlights", "") if isinstance(data, dict) else ""
+        return text or None
+    except Exception:
+        return None
