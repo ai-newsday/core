@@ -1,6 +1,7 @@
 from __future__ import annotations
 import yaml
-from src.core.types import DedupConfig, ScoringConfig, InterpretConfig
+from src.core.types import (DedupConfig, ScoringConfig, InterpretConfig,
+                            ReviewConfig, ReviewDecision)
 
 
 def load_dedup_config(path: str) -> DedupConfig:
@@ -68,3 +69,32 @@ def load_interpret_config(path: str) -> InterpretConfig:
         item_prompt_path=data.get("item_prompt_path", d.item_prompt_path),
         daily_prompt_path=data.get("daily_prompt_path", d.daily_prompt_path),
     )
+
+
+def load_review_config(path: str) -> ReviewConfig:
+    """Load review field limits / decisions path from YAML; missing -> defaults."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return ReviewConfig()
+    d = ReviewConfig()
+    return ReviewConfig(
+        decisions_path=data.get("decisions_path", d.decisions_path),
+        title_max_chars=data.get("title_max_chars", d.title_max_chars),
+        summary_max_chars=data.get("summary_max_chars", d.summary_max_chars),
+        tags_count=data.get("tags_count", d.tags_count),
+        min_evidence=data.get("min_evidence", d.min_evidence),
+    )
+
+
+def load_review_decisions(path: str) -> dict[str, ReviewDecision]:
+    """Read审阅决策 JSON(按 link 索引); 缺文件 -> {}(全 keep/待审).
+    每个 value 过 ReviewDecision 校验(非法 action 即抛 ValidationError)。"""
+    import json
+    try:
+        with open(path, encoding="utf-8") as f:
+            raw = json.load(f) or {}
+    except FileNotFoundError:
+        return {}
+    return {k: ReviewDecision(**v) for k, v in raw.items()}
