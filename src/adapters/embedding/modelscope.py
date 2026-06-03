@@ -20,8 +20,11 @@ class ModelScopeEmbedder:
         with httpx.Client(timeout=self._timeout) as client:
             for i in range(0, len(texts), self._batch):
                 chunk = texts[i:i + self._batch]
+                # encoding_format required by ModelScope (2026+): default '' → 400
+                # "must be 'float' or 'base64'". 'float' keeps list-of-floats shape.
                 r = client.post(_BASE_URL, headers=headers,
-                                json={"model": self._model, "input": chunk})
+                                json={"model": self._model, "input": chunk,
+                                      "encoding_format": "float"})
                 r.raise_for_status()
                 data = r.json()["data"]
                 out.extend(d["embedding"] for d in data)

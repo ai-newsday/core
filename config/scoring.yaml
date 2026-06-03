@@ -24,8 +24,9 @@ recency:                          # 时效分 (spec §5.2)
 penalty:
   same_source: -5                 # 同源第2+条各扣 (spec §5.3)
 
-# 类型配额 (PRD §4.2). 各 quota 之和(=8) <= total_limit.
-quota: {paper: 2, model: 1, tool: 2, official: 1, community: 1, news: 1, blog: 0}
+# 类型配额 (PRD §4.2). 各 quota 之和(=7) <= total_limit.
+# news 已删: registry 目前 0 个 news 源, 留 quota 会让 1 槽位永远空。补 news 源时再加回。
+quota: {paper: 2, model: 1, tool: 2, official: 1, community: 1, blog: 0}
 total_limit: 8
 
 sources_registry_path: "config/sources.yaml"

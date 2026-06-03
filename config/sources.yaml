@@ -1,7 +1,7 @@
 # config/sources.yaml — single source of truth (SSOT). Edit here only.
 # status: working = run this circle; manual = registered but not run.
 # --- primary APIs ---
-- {name: hf-papers, url: "https://huggingface.co/api/papers", type: paper, adapter: hf_papers, status: working, priority: 1}
+- {name: hf-papers, url: "https://huggingface.co/api/daily_papers", type: paper, adapter: hf_papers, status: working, priority: 1}
 - {name: hf-models, url: "https://huggingface.co/api/models?sort=createdAt&direction=-1&limit=50", type: model, adapter: hf_models, status: working, priority: 1}
 # --- official / lab blogs (RSS) ---
 - {name: openai, url: "https://openai.com/news/rss.xml", type: official, adapter: rss, status: working, priority: 2}
