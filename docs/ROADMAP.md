@@ -1,7 +1,7 @@
 # ROADMAP — 开发进度与文档地图
 
 > 本文是项目的**可视化进度看板** + **文档导航** + **每圈开发范式**。
-> 每完成一个 Circle 更新此文。最后更新：2026-06-02（Circle 6 publish 已合并）。
+> 每完成一个 Circle 更新此文。最后更新：2026-06-03（Circle 7 feedback 已合并 — 七层闭环完成）。
 
 ---
 
@@ -15,7 +15,7 @@ flowchart LR
     C4["④ 解读生成<br/>interpret()"]:::done
     C5["⑤ 审校<br/>review()"]:::done
     C6["⑥ 发布<br/>publish()"]:::done
-    C7["⑦ 反馈闭环<br/>feedback()"]:::todo
+    C7["⑦ 反馈闭环<br/>feedback()"]:::done
 
     C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7
     C7 -.读者画像/相关度.-> C3
@@ -39,7 +39,7 @@ flowchart LR
 | ④ | 解读生成 interpret | `specs/interpret.md` | ✅ `pipeline/interpret.py`（LLM 解读+抽取式回退） | ✅ golden | ✅ `--dry-run --interpret` 实跑 | **🟩 已合并 (master)** |
 | ⑤ | 审校 review | `specs/review.md` | ✅ `pipeline/review.py`（纯函数留/删/改/排序+必读门重算） | ✅ contract+golden | ✅ `--dry-run --review` 实跑 | **🟩 已合并 (master)** |
 | ⑥ | 发布 publish | `specs/publish.md` | ✅ `pipeline/publish.py`（纯函数 DailyReport 组装 + Markdown 渲染） | ✅ contract+golden+snapshot | ✅ `--dry-run --publish` 实跑 | **🟩 已合并 (master)** |
-| ⑦ | 反馈闭环 feedback | — | — | — | — | ⬜ |
+| ⑦ | 反馈闭环 feedback | `specs/feedback.md` | ✅ `pipeline/feedback.py`（纯函数派生事件+按源聚合+增量算权重） | ✅ contract+golden | ✅ `--dry-run --feedback` 实跑 | **🟩 已合并 (master)** |
 
 ---
 
@@ -81,6 +81,7 @@ flowchart TD
     SPECS --> S4["interpret.md ✅"]
     SPECS --> S5["review.md ✅"]
     SPECS --> S6["publish.md ✅"]
+    SPECS --> S7["feedback.md ✅"]
     PLANS["docs/superpowers/plans/*.md<br/>每层 TDD 计划"]
     PLANS --> P1["2026-05-31-collection-layer.md ✅"]
     PLANS --> P2["2026-05-31-dedup-layer.md ✅"]
@@ -88,6 +89,7 @@ flowchart TD
     PLANS --> P4["2026-06-01-interpret-layer.md ✅"]
     PLANS --> P5["2026-06-02-review-layer.md ✅"]
     PLANS --> P6["2026-06-02-publish-layer.md ✅"]
+    PLANS --> P7["2026-06-03-feedback-layer.md ✅"]
     REF["references/ + src/prompts/<br/>产品 SOP / 内容判断"]
     RM["docs/ROADMAP.md<br/>← 你在这里"]
     SB["docs/Session启动包.md<br/>每圈启动手册"]
@@ -104,12 +106,20 @@ flowchart TD
 
 ---
 
-## 5. 下一步（Circle 7 · feedback）
+## 5. 下一步（MVP 七层闭环已完成 → P1）
 
-1. **你 review** 即将产出的 `docs/specs/feedback.md`（反馈层契约：回收 review 动作 + 发布后 outcome(open/dwell/forward/upvote)，反哺打分权重/源信誉）。
-2. 确认后 → `superpowers:writing-plans` 产出 feedback 的逐任务 TDD 计划。
-3. 按计划 TDD 实现：反馈聚合做成纯函数，写库/外部回收支持 `--dry-run`。
-4. 收尾合并，回来更新本表 ⑦→🟩（七层闭环完成）。
+七层 MVP（collect→dedup→score→interpret→review→publish→feedback）已全部合并 master、`--dry-run` 串得起来。接下来是 P1 增强，每项仍走本文 §3 的 5 步范式、独立小 PR：
+
+1. **反馈 → 打分接线**：把 `feedback` 产出的 `quality_weight` 接回第 3 层评分（改 `scoring.py`，**先写 `docs/adr/` 决策记录**说明信誉如何折进打分，再动代码）。
+2. **多渠道发布**：复用 `DailyReport` 加 Notion / 公众号 HTML / 网站 JSON / RSS 渲染器 + 真实推送 + 失败隔离（渠道 adapter + mock API）。
+3. **更多反馈信号**：阅读行为（open/dwell/forward）、显式 👍👎、`reader_relevance` 重算（依赖前端埋点/渠道回传）。
+4. **持久化落地**：JSON 账本 → SQLite `feedback` 表 + 正反馈向量进 Qdrant（替掉当前的内存/JSON 占位）。
+5. **采集层遗留**（见下方 backlog）。
+
+### 已完成（Circle 7 · feedback）
+- `feedback()` 把人工审阅动作（留/删/改）回收成按源信誉信号并增量更新 `quality_weight`：`derive_events` 从**进审阅前**全量条目派生事件（被删条目也产 `drop`，负反馈不漏）、`aggregate_by_source` 按源聚合（字母序确定性）、`compute_quality_weights` 增量算权重（留升/删降/改记半正、样本下限保护、夹界 `[0.5,1.5]`）；**纯函数、不调 LLM、不打网络、不落盘**。
+- 信号只收 `review_action`（PRD §4.5 信号①最强隐式）；②阅读行为 ③👍👎 与 `reader_relevance` 延后 P1。JSON 事件账本（`load_feedback_events`/`load_quality_weights` 只读）替代 SQLite/Qdrant；产 `weight_diff`（旧→新）可解释。
+- **只算不接打分**——`quality_weight` 进第 3 层评分是显式未来改动（配 ADR）。contract+golden（§9 十用例：派生含 drop / 聚合 / 全留升 / 全删降 / 夹界 / 样本不足 / 历史保留 / edit 弱正 / 空静默 / 确定性）全绿；`--dry-run --feedback` 链路实跑（dry-run 只打印权重+差异，不落盘）。全套 210 测试绿。
 
 ### 已完成（Circle 6 · publish）
 - `publish()` 把审阅定稿 `ReviewResult` 两步组装：`build_report` 产统一内容模型 `DailyReport`（今日看点/必读 Top3/分类速览/数据概览），`render_markdown` 渲染成 Markdown；**纯核心、不调 LLM、不打网络、无渠道副作用**。
