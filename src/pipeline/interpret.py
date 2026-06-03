@@ -80,16 +80,21 @@ def extractive_fallback(item: ScoredItem,
 
 
 def interpret_item(item: ScoredItem, item_template: str, config: InterpretConfig,
-                   llm) -> InterpretedItem:
+                   llm, logger=None) -> InterpretedItem:
     """One item: prompt -> LLM -> parse -> enforce. Any failure -> extractive
-    fallback (spec §5.2/§5.3). Pure except for the injected llm call."""
+    fallback (spec §5.2/§5.3). Pure except for the injected llm call.
+    Optional `logger` enables an `interpret_error` emit before fallback —
+    fallback semantics unchanged, only adds observability."""
     try:
         prompt = build_item_prompt(item, item_template)
         raw = llm.complete_json(prompt, temperature=config.temperature,
                                 max_tokens=config.max_tokens)
         parsed = parse_and_validate(raw)
         return build_ok_item(parsed, item, config)
-    except Exception:
+    except Exception as e:
+        if logger is not None:
+            emit(logger, "interpret_error", link=item.link,
+                 error_type=type(e).__name__, error=str(e)[:200])
         return extractive_fallback(item, config)
 
 
@@ -103,8 +108,9 @@ def build_daily_prompt(items: list[InterpretedItem], template: str) -> str:
 
 
 def generate_daily_take(items: list[InterpretedItem], daily_template: str,
-                        config: InterpretConfig, llm) -> str | None:
-    """One LLM call for the macro '今日看点'. Any failure -> None (no fabrication)."""
+                        config: InterpretConfig, llm, logger=None) -> str | None:
+    """One LLM call for the macro '今日看点'. Any failure -> None (no fabrication).
+    Optional `logger` enables a `daily_take_error` emit on failure."""
     try:
         prompt = build_daily_prompt(items, daily_template)
         raw = llm.complete_json(prompt, temperature=config.temperature,
@@ -112,7 +118,10 @@ def generate_daily_take(items: list[InterpretedItem], daily_template: str,
         data = json.loads(raw)
         text = data.get("highlights", "") if isinstance(data, dict) else ""
         return text or None
-    except Exception:
+    except Exception as e:
+        if logger is not None:
+            emit(logger, "daily_take_error",
+                 error_type=type(e).__name__, error=str(e)[:200])
         return None
 
 
@@ -131,7 +140,7 @@ def interpret(items: list[ScoredItem], config: InterpretConfig, ctx: RunContext,
     item_tpl = load_prompt(config.item_prompt_path)
     out: list[InterpretedItem] = []
     for it in items:
-        res = interpret_item(it, item_tpl, config, llm)
+        res = interpret_item(it, item_tpl, config, llm, logger=ctx.logger)
         emit(ctx.logger, "item_interpreted", link=res.link,
              status=res.interpretation_status, evidence_count=len(res.evidence))
         if res.interpretation_status == "extractive_fallback":
@@ -139,7 +148,7 @@ def interpret(items: list[ScoredItem], config: InterpretConfig, ctx: RunContext,
         out.append(res)
 
     daily_tpl = load_prompt(config.daily_prompt_path)
-    daily = generate_daily_take(out, daily_tpl, config, llm)
+    daily = generate_daily_take(out, daily_tpl, config, llm, logger=ctx.logger)
     emit(ctx.logger, "daily_take_done", ok=daily is not None)
 
     interpreted_count = sum(1 for r in out if r.interpretation_status == "ok")
