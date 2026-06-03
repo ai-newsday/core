@@ -284,3 +284,42 @@ class PublishResult:
     markdown: str
     is_pending: bool
     is_silent: bool
+
+
+# --- feedback layer (Circle 7) ---
+class FeedbackEvent(BaseModel):
+    link: str = Field(min_length=1)
+    source: str = Field(min_length=1)
+    action: Literal["keep", "drop", "edit"]
+    run_id: str = Field(min_length=1)
+    ts: datetime                              # injected; layer never calls now()
+
+
+class SourceFeedbackStats(BaseModel):
+    source: str
+    keep: int = 0
+    edit: int = 0
+    drop: int = 0
+    total: int = 0
+
+
+@dataclass
+class FeedbackConfig:
+    events_path: str = "data/feedback_events.json"
+    weights_path: str = "data/quality_weights.json"
+    baseline_weight: float = 1.0
+    min_weight: float = 0.5
+    max_weight: float = 1.5
+    step: float = 0.2
+    edit_factor: float = 0.5
+    min_events: int = 1
+
+
+@dataclass
+class FeedbackResult:
+    source_stats: list[SourceFeedbackStats]
+    quality_weights: dict[str, float]
+    weight_diff: dict[str, tuple[float, float]]
+    event_count: int
+    source_count: int
+    is_silent: bool
