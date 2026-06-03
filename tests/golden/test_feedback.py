@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 from src.core.types import (SourceType, Evidence, InterpretedItem,
-                            ReviewDecision, FeedbackConfig)
-from src.pipeline.feedback import derive_events, aggregate_by_source
+                            ReviewDecision, FeedbackConfig, SourceFeedbackStats)
+from src.pipeline.feedback import (derive_events, aggregate_by_source,
+                                   compute_quality_weights)
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 CFG = FeedbackConfig()
@@ -50,3 +51,62 @@ def test_aggregate_by_source_counts_and_alpha_order():
     assert b.keep == 1 and b.drop == 1 and b.total == 2
     # 聚合不漏: 总 total == 事件数
     assert sum(s.total for s in stats) == len(evs)
+
+
+def _stats(source, keep=0, edit=0, drop=0):
+    return SourceFeedbackStats(source=source, keep=keep, edit=edit, drop=drop,
+                               total=keep + edit + drop)
+
+
+def test_compute_all_keep_raises_weight():
+    stats = [_stats("a", keep=3)]
+    w, diff = compute_quality_weights(stats, {}, CFG)
+    # 冷启动 baseline 1.0; 全 keep → 升; 夹界内
+    assert w["a"] == 1.2                       # 1.0 + 0.2*(1) = 1.2
+    assert diff["a"] == (1.0, 1.2)
+    assert CFG.min_weight <= w["a"] <= CFG.max_weight
+
+
+def test_compute_all_drop_lowers_weight():
+    stats = [_stats("b", drop=3)]
+    w, diff = compute_quality_weights(stats, {}, CFG)
+    assert w["b"] == 0.8                        # 1.0 + 0.2*(-1) = 0.8
+    assert diff["b"] == (1.0, 0.8)
+
+
+def test_compute_edit_is_half_positive():
+    stats = [_stats("e", edit=4)]
+    w, _ = compute_quality_weights(stats, {}, CFG)
+    assert w["e"] == 1.1                        # 1.0 + 0.2*(0.5) = 1.1
+    # edit 升幅 < 全 keep 升幅
+    assert w["e"] < 1.2
+
+
+def test_compute_clamp_upper_bound():
+    stats = [_stats("c", keep=5)]
+    w, _ = compute_quality_weights(stats, {"c": 1.45}, CFG)
+    # 1.45 + 0.2 = 1.65 → 夹到 1.5
+    assert w["c"] == 1.5
+
+
+def test_compute_clamp_lower_bound():
+    stats = [_stats("d", drop=5)]
+    w, _ = compute_quality_weights(stats, {"d": 0.55}, CFG)
+    # 0.55 - 0.2 = 0.35 → 夹到 0.5
+    assert w["d"] == 0.5
+
+
+def test_compute_insufficient_sample_unchanged():
+    cfg = FeedbackConfig(min_events=2)
+    stats = [_stats("f", keep=1)]               # total=1 < 2
+    w, diff = compute_quality_weights(stats, {"f": 1.3}, cfg)
+    assert w["f"] == 1.3                         # 不动
+    assert diff["f"] == (1.3, 1.3)
+
+
+def test_compute_preserves_unseen_prior_sources():
+    stats = [_stats("a", keep=2)]
+    w, diff = compute_quality_weights(stats, {"a": 1.0, "g": 0.9}, CFG)
+    # 本轮没出现的 g 原样保留, 但不进 diff
+    assert w["g"] == 0.9
+    assert "g" not in diff

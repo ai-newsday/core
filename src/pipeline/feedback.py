@@ -34,3 +34,32 @@ def aggregate_by_source(events: list[FeedbackEvent]
             source=source, keep=b["keep"], edit=b["edit"], drop=b["drop"],
             total=b["keep"] + b["edit"] + b["drop"]))
     return out
+
+
+def _clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
+
+
+def compute_quality_weights(
+        stats: list[SourceFeedbackStats],
+        prior_weights: dict[str, float],
+        config: FeedbackConfig
+) -> tuple[dict[str, float], dict[str, tuple[float, float]]]:
+    """增量更新每源权重: 留升/删降/改半正; 样本不足不动; 夹界 [min,max]。
+    本轮未出现的 prior 源原样保留进结果但不进 diff。"""
+    weights: dict[str, float] = dict(prior_weights)   # 历史不丢
+    diff: dict[str, tuple[float, float]] = {}
+    for s in stats:
+        old = prior_weights.get(s.source, config.baseline_weight)
+        if s.total < config.min_events:
+            new = old
+        else:
+            kr = s.keep / s.total
+            er = s.edit / s.total
+            dr = s.drop / s.total
+            raw = old + config.step * (kr + config.edit_factor * er - dr)
+            new = _clamp(raw, config.min_weight, config.max_weight)
+        new = round(new, 10)                          # 抹去浮点尾噪, 确定性
+        weights[s.source] = new
+        diff[s.source] = (old, new)
+    return weights, diff
