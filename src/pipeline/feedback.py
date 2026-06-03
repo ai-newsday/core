@@ -63,3 +63,27 @@ def compute_quality_weights(
         weights[s.source] = new
         diff[s.source] = (old, new)
     return weights, diff
+
+
+def feedback(events: list[FeedbackEvent], prior_weights: dict[str, float],
+             config: FeedbackConfig, ctx: RunContext) -> FeedbackResult:
+    """编排: 聚合 → 增量算权重 → 组装结果。空事件→静默, 权重原样透传。
+    无网络/LLM/落盘副作用。"""
+    emit(ctx.logger, "feedback_start", run_id=ctx.run_id,
+         event_count=len(events))
+    if not events:
+        emit(ctx.logger, "feedback_done", event_count=0, source_count=0,
+             silent=True)
+        return FeedbackResult(
+            source_stats=[], quality_weights=dict(prior_weights),
+            weight_diff={}, event_count=0, source_count=0, is_silent=True)
+    stats = aggregate_by_source(events)
+    weights, diff = compute_quality_weights(stats, prior_weights, config)
+    changed = sum(1 for old, new in diff.values() if old != new)
+    emit(ctx.logger, "weights_computed", source_count=len(stats),
+         changed_count=changed)
+    emit(ctx.logger, "feedback_done", event_count=len(events),
+         source_count=len(stats), silent=False)
+    return FeedbackResult(
+        source_stats=stats, quality_weights=weights, weight_diff=diff,
+        event_count=len(events), source_count=len(stats), is_silent=False)

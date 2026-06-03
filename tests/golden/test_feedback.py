@@ -1,8 +1,10 @@
+import logging
 from datetime import datetime, timezone
 from src.core.types import (SourceType, Evidence, InterpretedItem,
-                            ReviewDecision, FeedbackConfig, SourceFeedbackStats)
+                            ReviewDecision, FeedbackConfig, SourceFeedbackStats,
+                            FeedbackEvent, RunContext, FeedbackResult)
 from src.pipeline.feedback import (derive_events, aggregate_by_source,
-                                   compute_quality_weights)
+                                   compute_quality_weights, feedback)
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 CFG = FeedbackConfig()
@@ -110,3 +112,48 @@ def test_compute_preserves_unseen_prior_sources():
     # 本轮没出现的 g 原样保留, 但不进 diff
     assert w["g"] == 0.9
     assert "g" not in diff
+
+
+def _ctx():
+    return RunContext(run_id="g", now=NOW,
+                      logger=logging.getLogger("golden-feedback"))
+
+
+def _events(*specs):
+    # specs: (source, action) tuples
+    return [FeedbackEvent(link=f"https://a/{i}", source=src, action=act,
+                          run_id="r1", ts=NOW)
+            for i, (src, act) in enumerate(specs)]
+
+
+def test_feedback_empty_input_silent():
+    res = feedback([], {"x": 1.2}, CFG, _ctx())
+    assert res.is_silent is True
+    assert res.quality_weights == {"x": 1.2}     # 原样透传
+    assert res.weight_diff == {} and res.event_count == 0
+    assert res.source_count == 0 and res.source_stats == []
+
+
+def test_feedback_assembles_result():
+    evs = _events(("a", "keep"), ("a", "keep"), ("b", "drop"))
+    res = feedback(evs, {}, CFG, _ctx())
+    assert res.event_count == 3 and res.source_count == 2
+    assert res.is_silent is False
+    # 计数自洽 + 聚合守恒
+    assert sum(s.total for s in res.source_stats) == res.event_count
+    assert res.quality_weights["a"] > 1.0        # 全 keep 升
+    assert res.quality_weights["b"] < 1.0        # 全 drop 降
+    # 夹界
+    for v in res.quality_weights.values():
+        assert CFG.min_weight <= v <= CFG.max_weight
+
+
+def test_feedback_deterministic_order_independent():
+    e1 = _events(("a", "keep"), ("b", "drop"), ("a", "edit"))
+    e2 = _events(("a", "edit"), ("a", "keep"), ("b", "drop"))  # 打乱
+    r1 = feedback(e1, {}, CFG, _ctx())
+    r2 = feedback(e2, {}, CFG, _ctx())
+    assert r1.quality_weights == r2.quality_weights
+    assert r1.weight_diff == r2.weight_diff
+    assert [s.model_dump() for s in r1.source_stats] == \
+           [s.model_dump() for s in r2.source_stats]
