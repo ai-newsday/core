@@ -1,0 +1,8 @@
+events_path: "data/feedback_events.json"   # JSON 事件账本(追加式)
+weights_path: "data/quality_weights.json"  # 权重落账
+baseline_weight: 1.0                        # 冷启动/未知源基准
+min_weight: 0.5                             # 权重下夹界
+max_weight: 1.5                             # 权重上夹界
+step: 0.2                                    # 每轮步长
+edit_factor: 0.5                            # edit 记作半个正向
+min_events: 1                               # 样本下限, 不足不动权重

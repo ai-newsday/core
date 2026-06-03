@@ -1,7 +1,8 @@
 from __future__ import annotations
 import yaml
 from src.core.types import (DedupConfig, ScoringConfig, InterpretConfig,
-                            ReviewConfig, ReviewDecision, PublishConfig)
+                            ReviewConfig, ReviewDecision, PublishConfig,
+                            FeedbackConfig, FeedbackEvent)
 
 
 def load_dedup_config(path: str) -> DedupConfig:
@@ -114,3 +115,46 @@ def load_publish_config(path: str) -> PublishConfig:
         pending_watermark=data.get("pending_watermark", d.pending_watermark),
         type_labels=data.get("type_labels", d.type_labels),
     )
+
+
+def load_feedback_config(path: str) -> FeedbackConfig:
+    """Load feedback formula coefficients / ledger paths from YAML;
+    missing/empty file -> dataclass defaults."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return FeedbackConfig()
+    d = FeedbackConfig()
+    return FeedbackConfig(
+        events_path=data.get("events_path", d.events_path),
+        weights_path=data.get("weights_path", d.weights_path),
+        baseline_weight=data.get("baseline_weight", d.baseline_weight),
+        min_weight=data.get("min_weight", d.min_weight),
+        max_weight=data.get("max_weight", d.max_weight),
+        step=data.get("step", d.step),
+        edit_factor=data.get("edit_factor", d.edit_factor),
+        min_events=data.get("min_events", d.min_events),
+    )
+
+
+def load_feedback_events(path: str) -> list[FeedbackEvent]:
+    """读 JSON 事件账本(数组); 缺文件 -> []。
+    每个元素过 FeedbackEvent 校验(非法 action 即抛 ValidationError)。"""
+    import json
+    try:
+        with open(path, encoding="utf-8") as f:
+            raw = json.load(f) or []
+    except FileNotFoundError:
+        return []
+    return [FeedbackEvent(**v) for v in raw]
+
+
+def load_quality_weights(path: str) -> dict[str, float]:
+    """读权重账本 JSON 对象 {source: float}; 缺文件 -> {}。只读不写。"""
+    import json
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f) or {}
+    except FileNotFoundError:
+        return {}
