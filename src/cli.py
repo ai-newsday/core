@@ -17,6 +17,9 @@ from src.core.config import load_review_config, load_review_decisions
 from src.pipeline.review import review
 from src.core.config import load_publish_config
 from src.pipeline.publish import publish
+from src.core.config import (load_feedback_config, load_feedback_events,
+                             load_quality_weights)
+from src.pipeline.feedback import derive_events, feedback
 
 
 def run_dry(registry_path: str, now: datetime | None = None) -> dict:
@@ -231,6 +234,56 @@ def run_dry_publish(registry_path: str, now: datetime | None = None,
     }
 
 
+def run_dry_feedback(registry_path: str, now: datetime | None = None,
+                     embedder=None, llm=None, decisions_path=None) -> dict:
+    now = now or datetime.now(timezone.utc)
+    logger = logging.getLogger("ai-newsday")
+    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
+
+    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
+    coll = asyncio.run(collect(coll_cfg, ctx))
+
+    dcfg = load_dedup_config("config/dedup.yaml")
+    dcfg.sources_registry_path = registry_path
+    if embedder is None:
+        embedder = ModelScopeEmbedder(
+            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
+            model=dcfg.embedding_model, batch_size=dcfg.batch_size)
+    dres = dedup(coll.items, dcfg, ctx,
+                 embedder=embedder, store=InMemoryVectorStore())
+
+    scfg = load_scoring_config("config/scoring.yaml")
+    scfg.sources_registry_path = registry_path
+    sres = score(dres.deduped_items, scfg, ctx)
+
+    icfg = load_interpret_config("config/interpret.yaml")
+    if llm is None:
+        llm = OpenAICompatLLM(
+            api_key=os.environ.get("MODELSCOPE_API_KEY", ""), model=icfg.model,
+            timeout_s=icfg.timeout_s)
+    ires = interpret(sres.selected_items, icfg, ctx, llm)
+
+    rcfg = load_review_config("config/review.yaml")
+    decisions = load_review_decisions(decisions_path or rcfg.decisions_path)
+
+    fcfg = load_feedback_config("config/feedback.yaml")
+    # 本轮事件从"进审阅前"全量条目派生(被删条目也回收), 并入历史账本
+    run_events = derive_events(ires.interpreted_items, decisions,
+                               run_id=ctx.run_id, now=now)
+    history = load_feedback_events(fcfg.events_path)
+    prior = load_quality_weights(fcfg.weights_path)
+    fres = feedback(history + run_events, prior, fcfg, ctx)
+    return {
+        "run_id": ctx.run_id,
+        "now": now.isoformat(),
+        "event_count": fres.event_count,
+        "source_count": fres.source_count,
+        "is_silent": fres.is_silent,
+        "quality_weights": fres.quality_weights,
+        "weight_diff": {k: list(v) for k, v in fres.weight_diff.items()},
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="ai-newsday-collect")
     p.add_argument("--registry", default="config/sources.yaml")
@@ -246,12 +299,18 @@ def main(argv: list[str] | None = None) -> int:
                    help="chain collect -> ... -> review, print ReviewResult JSON")
     p.add_argument("--publish", action="store_true",
                    help="chain collect -> ... -> publish, print daily-report Markdown")
+    p.add_argument("--feedback", action="store_true",
+                   help="chain collect -> ... -> review -> feedback, print quality_weights JSON")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
     if not args.dry_run:
         print("This circle supports --dry-run only (publishing is a later layer).",
               file=sys.stderr)
         return 2
+    if args.dry_run and args.feedback:
+        out = run_dry_feedback(registry_path=args.registry)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
     if args.dry_run and args.publish:
         out = run_dry_publish(registry_path=args.registry)
         print(out["markdown"])
