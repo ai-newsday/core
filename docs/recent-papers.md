@@ -1,86 +1,90 @@
-# 最近 5 天热门 paper (hf-papers ⭐ + papers.cool 📘)
+# 最近 5 天 hf-papers 热门论文 (按 upvotes 排序, 每天 top 2)
 
 
-## 2026-06-04  (无)
+## 2026-06-04  共 45 篇, 取 top 2
 
-## 2026-06-03  共 490 条
-- ⭐hf  **Audio Interaction Model**  https://huggingface.co/papers/2606.05121
-- ⭐hf  **AutoLab: Can Frontier Models Solve Long-Horizon Auto Research and Engineering Tasks?**  https://huggingface.co/papers/2606.05080
-- ⭐hf  **Deep Embedded Multiplicative DMD for Algebra-Preserving Koopman Learning**  https://huggingface.co/papers/2606.05131
-- ⭐hf  **Echo-Infinity: Learning Evolving Memory for Real-Time Infinite Video Generation**  https://huggingface.co/papers/2606.04527
-- ⭐hf  **GRAIL: Generating Humanoid Loco-Manipulation from 3D Assets and Video Priors**  https://huggingface.co/papers/2606.05160
-- ⭐hf  **GRAIL: Gradient-Reweighted Advantages for Reinforcement Learning with Verifiable Rewards**  https://huggingface.co/papers/2606.04889
-- ⭐hf  **M^3Eval: Multi-Modal Memory Evaluation through Cognitively-Grounded Video Tasks**  https://huggingface.co/papers/2606.05008
-- ⭐hf  **MapAgent: An Industrial-Grade Agentic Framework for City-scale Lane-level Map Generation**  https://huggingface.co/papers/2606.04513
-- ⭐hf  **MeshWeaver: Sparse-Voxel-Guided Surface Weaving for Autoregressive Mesh Generation**  https://huggingface.co/papers/2606.04688
-- ⭐hf  **Reproducing, Analyzing, and Detecting Reward Hacking in Rubric-Based Reinforcement Learning**  https://huggingface.co/papers/2606.04923
-- ⭐hf  **STRIDE: Training Data Attribution via Sparse Recovery from Subset Perturbations**  https://huggingface.co/papers/2606.05165
-- ⭐hf  **Stateful Visual Encoders for Vision-Language Models**  https://huggingface.co/papers/2606.04433
-- ⭐hf  **Streaming Communication in Multi-Agent Reasoning**  https://huggingface.co/papers/2606.05158
-- ⭐hf  **The Meta-Agent Challenge: Are Current Agents Capable of Autonomous Agent Development?**  https://huggingface.co/papers/2606.04455
-- 📘ai  **'Your AI Text is not Mine': Redefining and Evaluating AI-generated Text Detection under Realistic As**  https://papers.cool/arxiv/2606.04906
-- 📘lg  **(Mis)generalization of Helpful-only Fine-tuning**  https://papers.cool/arxiv/2606.04413
-- 📘cv  **3D Temporal Analysis for Autism Spectrum Disorder Screening During Attention Tasks**  https://papers.cool/arxiv/2606.04836
-- 📘cv  **3DThinkVLA: Endowing Vision-Language-Action Models with Latent 3D Priors via 3D-Thinking-Guided Co-t**  https://papers.cool/arxiv/2606.04436
-- 📘cv  **4D Reconstruction from Sparse Dynamic Cameras**  https://papers.cool/arxiv/2606.04593
-- 📘cl  **A French Corpus Annotated for Multiword Expressions with Adverbial Function**  https://papers.cool/arxiv/2606.04828
-- 📘lg  **A General Framework for Dynamic Consistent Submodular Maximization**  https://papers.cool/arxiv/2606.04946
-- 📘ai  **A Geometric Characterization of the Stationary Plateau for Two-Layer Neural Networks**  https://papers.cool/arxiv/2606.04327
-- 📘cv  **A New Angle on Bones: Robust Pose Estimation in X-Ray and Ultrasound**  https://papers.cool/arxiv/2606.04700
-- 📘ai  **A Normative Intermediate Representation for ASP-Based Compliance Reasoning**  https://papers.cool/arxiv/2606.04619
-- 📘cv  **A Pathology Foundation Model for Gastric Cancer with Real-World Validation**  https://papers.cool/arxiv/2606.04792
-- _(还有 328 条)_
+### 1. [👍 79 ｜ 💬 0 ⭐35] Audio Interaction Model
+- https://huggingface.co/papers/2606.05121 ｜ Large Audio Language Models · streaming audio models · perceive-decide-respond loop
+- code: https://github.com/https://github.com/xzf-thu/Audio-Interaction
+- A unified streaming audio model is developed that combines offline task execution with real-time audio instruction following through an end-to-end framework supporting multiple audio interaction capab
 
-## 2026-06-02  共 196 条
-- ⭐hf  **AAD-1: Asymmetric Adversarial Distillation for One-Step Autoregressive Video Generation**  https://huggingface.co/papers/2606.03972
-- ⭐hf  **AUDITFLOW: Executable Symbolic Environments for Structured Financial Reporting Verification**  https://huggingface.co/papers/2606.03031
-- ⭐hf  **AgentCL: Toward Rigorous Evaluation of Continual Learning in Language Agents**  https://huggingface.co/papers/2606.02461
-- ⭐hf  **Bootstrap Your Generator: Unpaired Visual Editing with Flow Matching**  https://huggingface.co/papers/2606.03911
-- ⭐hf  **BraveGuard: From Open-World Threats to Safer Computer-Use Agents**  https://huggingface.co/papers/2606.01166
-- ⭐hf  **Conditional Hypothesis Generation for LLM-Based Text Analysis with Researcher-Specified Covariates**  https://huggingface.co/papers/2606.03029
-- ⭐hf  **Eliciting Complex Spatial Reasoning in MLLMs through Wide-Baseline Matching**  https://huggingface.co/papers/2606.03577
-- ⭐hf  **KVarN: Variance-Normalized KV-Cache Quantization Mitigates Error Accumulation in Reasoning Tasks**  https://huggingface.co/papers/2606.03458
-- ⭐hf  **MemTrain: Self-Supervised Context Memory Training**  https://huggingface.co/papers/2606.03197
-- ⭐hf  **OVO-S-Bench: A Hierarchical Benchmark for Streaming Spatial Intelligence in Multimodal LLMs**  https://huggingface.co/papers/2606.03890
-- ⭐hf  **Qwen-Image-Flash: Beyond Objective Design**  https://huggingface.co/papers/2606.03746
-- ⭐hf  **Self-Distilled Policy Gradient**  https://huggingface.co/papers/2606.04036
-- ⭐hf  **SynCred-Bench: Benchmarking Synthetic Credibility in AI-Generated Visual Misinformation**  https://huggingface.co/papers/2606.03348
-- ⭐hf  **ThoughtFold: Folding Reasoning Chains via Introspective Preference Learning**  https://huggingface.co/papers/2606.03503
-- ⭐hf  **Ultralytics YOLO26: Unified Real-Time End-to-End Vision Models**  https://huggingface.co/papers/2606.03748
-- ⭐hf  **Unlocking Feature Learning in Gated Delta Networks at Scale**  https://huggingface.co/papers/2606.04048
-- ⭐hf  **WebRISE: Requirement-Induced State Evaluation for MLLM-Generated Web Artifacts**  https://huggingface.co/papers/2606.03220
-- 📘cv  **A Cookbook of 3D Vision: Data, Learning Paradigms, and Application**  https://papers.cool/arxiv/2606.04291
-- 📘lg  **A Geometric View of Counterfactual Behavior: Interaction of Boundary Proximity and Local Support**  https://papers.cool/arxiv/2606.04209
-- 📘ai  **A Goal-Set Characterization of Task Composition in the Boolean Task Algebra**  https://papers.cool/arxiv/2606.04053
-- 📘ai  **A Systematic Analysis of Linguistic Features in AI-Generated Text Detection Across Domains and Model**  https://papers.cool/arxiv/2606.04177
-- 📘cl  **ACAT: A Collaborative Platform for Efficient Aspect-Based Sentiment Dataset Annotation**  https://papers.cool/arxiv/2606.04189
-- 📘ai  **ADAPTOOD: Uncertainty-Aware Fine-Tuning for Out-of-Distribution ECG Time Series Models**  https://papers.cool/arxiv/2606.04164
-- 📘ai  **Adaptive Patching Is Harder Than It Looks For Time-Series Forecasting**  https://papers.cool/arxiv/2606.04074
-- 📘ai  **AgenticDiffusion: Agentic Diffusion-based Path Planning for Vision-Based UAV Navigation**  https://papers.cool/arxiv/2606.04111
-- _(还有 107 条)_
+### 2. [👍 60 ｜ 💬 0 ⭐8774] Cosmos 3: Omnimodal World Models for Physical AI
+- https://huggingface.co/papers/2606.02800 ｜ omnimodal world models · mixture-of-transformers architecture · Physical AI
+- code: https://github.com/https://github.com/NVIDIA/cosmos
+- Cosmos 3 is an omnimodal world model that processes and generates multiple data types through a unified mixture-of-transformers architecture, achieving state-of-the-art performance in various understa
 
-## 2026-06-01  共 24 条
-- ⭐hf  **AURA: Action-Gated Memory for Robot Policies at Constant VRAM**  https://huggingface.co/papers/2606.02775
-- ⭐hf  **Adaptive Auto-Harness: Sustained Self-Improvement for Agentic System Deployment on Open-Ended Task S**  https://huggingface.co/papers/2606.01770
-- ⭐hf  **Cosmos 3: Omnimodal World Models for Physical AI**  https://huggingface.co/papers/2606.02800
-- ⭐hf  **Filter, Then Reweight: Rethinking Optimization Granularity in On-Policy Distillation**  https://huggingface.co/papers/2606.02684
-- ⭐hf  **MMG2Skill: Can Agents Distill In-the-Wild Guides into Self-Evolving Skills?**  https://huggingface.co/papers/2606.01993
-- ⭐hf  **Mitigating Perceptual Judgment Bias in Multimodal LLM-as-a-Judge via Perceptual Perturbation and Rew**  https://huggingface.co/papers/2606.02578
-- ⭐hf  **WALL-WM: Carving World Action Modeling at the Event Joints**  https://huggingface.co/papers/2606.01955
-- ⭐hf  **Where Do Deep-Research Agents Go Wrong? Span-Level Error Localization in Agent Trajectories**  https://huggingface.co/papers/2606.02060
-- 📘ai  **CodegenBench: Can LLMs Write Efficient Code Across Architectures?**  https://papers.cool/arxiv/2606.04023
-- 📘ai  **Do Transformers Need Three Projections? Systematic Study of QKV Variants**  https://papers.cool/arxiv/2606.04032
-- 📘ai  **Gravity-Aware Hierarchical Routing for Lightweight SensorLLM on Human Activity Recognition**  https://papers.cool/arxiv/2606.04019
-- 📘lg  **Inverse Critical Experiment Design via Gradient Optimization and a Multigroup Attention-Based Neural**  https://papers.cool/arxiv/2606.04033
-- 📘ai  **MaskForge: Structure-Aware Adaptive Attacks for Jailbreaking Diffusion Large Language Models**  https://papers.cool/arxiv/2606.04027
-- 📘lg  **Novel Aspects of IEEE SA P3109 Arithmetic Formats for Machine Learning**  https://papers.cool/arxiv/2606.04028
-- 📘ai  **Position: Deployed Reinforcement Learning should be Continual**  https://papers.cool/arxiv/2606.04029
-- 📘lg  **Pseudospectral Bounds for Transient Amplification in Coupled Gradient Descent**  https://papers.cool/arxiv/2606.04031
-- 📘lg  **SpliceBind: Isoform-Aware Prediction of Binding Pocket Druggability**  https://papers.cool/arxiv/2606.04020
-- 📘lg  **Structure-Aware Prediction of PROTAC-Mediated Protein Degradability via Graph Neural Networks**  https://papers.cool/arxiv/2606.04021
-- 📘ai  **The Biomimetic Architecture of Software 4.0**  https://papers.cool/arxiv/2606.04025
-- 📘ai  **Unpredictable Safety: Domain-Dependent Compliance and the Transparency Gap in Open-Weight LLMs**  https://papers.cool/arxiv/2606.04035
+_后续 43 篇 (top 排序前 8 节选)：_
+  - [👍 40] Where Do Deep-Research Agents Go Wrong? Span-Level Error Localization in Agent Trajectories  https://huggingface.co/papers/2606.02060
+  - [👍 33] Reproducing, Analyzing, and Detecting Reward Hacking in Rubric-Based Reinforcement Learning  https://huggingface.co/papers/2606.04923
+  - [👍 28] OVO-S-Bench: A Hierarchical Benchmark for Streaming Spatial Intelligence in Multimodal LLMs  https://huggingface.co/papers/2606.03890
+  - [👍 28] Qwen-Image-Flash: Beyond Objective Design  https://huggingface.co/papers/2606.03746
+  - [👍 24] M^3Eval: Multi-Modal Memory Evaluation through Cognitively-Grounded Video Tasks  https://huggingface.co/papers/2606.05008
+  - [👍 23] ThoughtFold: Folding Reasoning Chains via Introspective Preference Learning  https://huggingface.co/papers/2606.03503
+  - [👍 22] Echo-Infinity: Learning Evolving Memory for Real-Time Infinite Video Generation  https://huggingface.co/papers/2606.04527
+  - [👍 21] Streaming Communication in Multi-Agent Reasoning  https://huggingface.co/papers/2606.05158
 
-## 2026-05-31  共 2 条
-- ⭐hf  **BenchEvolver: Frontier Task Synthesis via Solution-Centric Evolution**  https://huggingface.co/papers/2606.01286
-- ⭐hf  **OmniOPD: Logit-Free On-Policy Distillation via Speculative Verification**  https://huggingface.co/papers/2606.01476
+## 2026-06-03  共 42 篇, 取 top 2
+
+### 1. [👍 81 ｜ 💬 0 ⭐17] OCC-RAG: Optimal Cognitive Core for Faithful Question Answering
+- https://huggingface.co/papers/2606.00683 ｜ language models · task-specialized models · multi-hop reasoning
+- code: https://github.com/https://github.com/optimal-cognitive-core/OCC-RAG
+- Compact task-specialized language models demonstrate superior performance in multi-hop reasoning and faithfulness compared to larger general-purpose models through a novel training pipeline and struct
+
+### 2. [👍 50 ｜ 💬 0] From Activation to Causality: Discovery of Causal Visual Representations in the Human Brain
+- https://huggingface.co/papers/2605.23895 ｜ activation maximization · image-to-fMRI encoding model · causal testing
+- BrainCause framework uses generative and brain models to identify valid neural representations through causal testing, demonstrating that activation alone is insufficient for confirming concept repres
+
+_后续 40 篇 (top 排序前 8 节选)：_
+  - [👍 46] KVarN: Variance-Normalized KV-Cache Quantization Mitigates Error Accumulation in Reasoning Tasks  https://huggingface.co/papers/2606.03458
+  - [👍 37] Humanoid-GPT: Scaling Data and Structure for Zero-Shot Motion Tracking  https://huggingface.co/papers/2606.03985
+  - [👍 37] Trust Region On-Policy Distillation  https://huggingface.co/papers/2606.01249
+  - [👍 27] World Models Meet Language Models: On the Complementarity of Concrete and Abstract Reasoning  https://huggingface.co/papers/2606.03603
+  - [👍 26] A Local Perturbation Theory for Cross-Domain Interference and Recovery in Multi-Domain RL  https://huggingface.co/papers/2606.02398
+  - [👍 24] AutoMedBench: Towards Medical AutoResearch with Agentic AI Models  https://huggingface.co/papers/2606.01961
+  - [👍 21] Language Models Need Sleep: Learning to Self-Modify and Consolidate Memories  https://huggingface.co/papers/2606.03979
+  - [👍 21] Benchmarking Visual State Tracking in Multimodal Video Understanding  https://huggingface.co/papers/2606.03920
+
+## 2026-06-02  共 50 篇, 取 top 2
+
+### 1. [👍 185 ｜ 💬 0 ⭐57] Crafter: A Multi-Agent Harness for Editable Scientific Figure Generation from Diverse Inputs
+- https://huggingface.co/papers/2605.30611 ｜ multi-agent harness · figure generation · raster outputs
+- code: https://github.com/https://github.com/HaozheZhao/Crafter
+- Automated systems for generating scientific figures face limitations in handling diverse figure types and conditions, prompting the development of multi-agent frameworks that generalize across differe
+
+### 2. [👍 168 ｜ 💬 0] On the Scaling of PEFT: Towards Million Personal Models of Trillion Parameters
+- https://huggingface.co/papers/2606.02437 ｜ parameter-efficient fine-tuning · full fine-tuning · trainable adapters
+- Parameter-efficient fine-tuning can function as a compact substrate for persistent personal models by enabling small trainable adapters to store instance-specific behaviors on top of strong foundation
+
+_后续 48 篇 (top 排序前 8 节选)：_
+  - [👍 135] Domino: Decoupling Causal Modeling from Autoregressive Drafting in Speculative Decoding  https://huggingface.co/papers/2605.29707
+  - [👍 61] A Matter of TASTE: Improving Coverage and Difficulty of Agent Benchmarks  https://huggingface.co/papers/2605.28556
+  - [👍 57] Masking Stale Observations Helps Search Agents -- Until It Doesn't: A Regime Map and Its Mechanism  https://huggingface.co/papers/2606.00408
+  - [👍 52] K-BrowseComp: A Web Browsing Agent Benchmark Grounded in Korean Contexts  https://huggingface.co/papers/2606.02404
+  - [👍 40] Harness-1: Reinforcement Learning for Search Agents with State-Externalizing Harnesses  https://huggingface.co/papers/2606.02373
+  - [👍 32] X-Stream: Exploring MLLMs as Multiplexers for Multi-Stream Understanding  https://huggingface.co/papers/2606.02482
+  - [👍 32] Draft-OPD: On-Policy Distillation for Speculative Draft Models  https://huggingface.co/papers/2605.29343
+  - [👍 32] NITP: Next Implicit Token Prediction for LLM Pre-training  https://huggingface.co/papers/2605.24956
+
+## 2026-06-01  共 50 篇, 取 top 2
+
+### 1. [👍 104 ｜ 💬 0 ⭐18967] COLLEAGUE.SKILL: Automated AI Skill Generation via Expert Knowledge Distillation
+- https://huggingface.co/papers/2605.31264 ｜ expert knowledge distillation · person-grounded agents · trace-to-skill distillation
+- code: https://github.com/https://github.com/titanwings/colleague-skill
+- Person-grounded AI skills are automatically distilled from heterogeneous traces into inspectable, correctable packages that capture both capabilities and behavioral patterns.
+
+### 2. [👍 98 ｜ 💬 0 ⭐33] GrepSeek: Training Search Agents for Direct Corpus Interaction
+- https://huggingface.co/papers/2605.29307 ｜ search agents · retrieval · reinforcement learning
+- code: https://github.com/https://github.com/alirezasalemi7/grepseek
+- GrepSeek enables efficient search agent training through direct corpus interaction using shell commands and a two-stage approach combining a cold-start dataset and group relative policy optimization.
+
+_后续 48 篇 (top 排序前 8 节选)：_
+  - [👍 64] Trust-Region Behavior Blending for On-Policy Distillation  https://huggingface.co/papers/2605.31159
+  - [👍 57] Representation Forcing for Bottleneck-Free Unified Multimodal Models  https://huggingface.co/papers/2605.31604
+  - [👍 56] SwanVoice: Expressive Long-Form Zero-Shot Speech Synthesis for Both Monologue and Dialogue  https://huggingface.co/papers/2605.30993
+  - [👍 51] Mellum2 Technical Report  https://huggingface.co/papers/2605.31268
+  - [👍 41] GGT-100K: Generative Ground Truth for Generalizable Real-World Image Restoration  https://huggingface.co/papers/2605.31039
+  - [👍 41] LongTraceRL: Learning Long-Context Reasoning from Search Agent Trajectories with Rubric Rewards  https://huggingface.co/papers/2605.31584
+  - [👍 40] Function2Scene: 3D Indoor Scene Layout from Functional Specifications  https://huggingface.co/papers/2605.30819
+  - [👍 36] Towards Streaming Synchronized Spatial Audio Generation via Autoregressive Diffusion Transformer  https://huggingface.co/papers/2605.30940
+
+## 2026-05-31  (无)

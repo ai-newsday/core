@@ -1,63 +1,67 @@
-"""一次性诊断: 拉 hf-papers + papers.cool 4 源, 按日期分组列出最近 5 天 paper。
-绕过 24h 窗口过滤, 便于人工验收 paper 来源质量。"""
+"""验收用: 调 HF daily_papers API 取 N 天数据, 按 upvotes 排序, 每天 top K。
+papers.cool 作为补充(无 upvote 信号, 不参与 ranking, 只展示 cool comment hint)。"""
 import asyncio
-import logging
+import httpx
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
-import yaml
-from src.adapters.sources import ADAPTERS
-from src.core.types import SourceSpec, RunContext
 
-SOURCES = ["hf-papers", "papers-cool-ai", "papers-cool-cl",
-           "papers-cool-lg", "papers-cool-cv"]
+DAYS = 5
+TOP_PER_DAY = 2
 
 
-async def _fetch(spec_d):
-    spec = SourceSpec(**spec_d)
-    ctx = RunContext(run_id="diag", now=datetime.now(timezone.utc),
-                     logger=logging.getLogger("diag"))
-    try:
-        items = await asyncio.wait_for(
-            ADAPTERS[spec.adapter].fetch(spec, ctx, 30), timeout=30)
-        return spec.name, items, None
-    except Exception as e:
-        return spec.name, [], str(e)[:120]
+async def _fetch_day(client: httpx.AsyncClient, date_str: str) -> list[dict]:
+    url = f"https://huggingface.co/api/daily_papers?date={date_str}"
+    r = await client.get(url, timeout=20)
+    r.raise_for_status()
+    return r.json() or []
 
 
 async def main():
-    cfg = yaml.safe_load(open("config/sources.yaml"))
-    by_name = {s["name"]: s for s in cfg}
-    res = await asyncio.gather(
-        *(_fetch(by_name[n]) for n in SOURCES if n in by_name))
-    by_day = defaultdict(list)
-    for name, items, err in res:
-        if err:
-            print(f"[{name}] FAIL: {err}")
-            continue
-        for it in items:
-            by_day[it.published_at.date().isoformat()].append(
-                (name, it.title_en, it.link))
     today = datetime.now(timezone.utc).date()
-    print(f"# 最近 5 天热门 paper (hf-papers ⭐ + papers.cool 📘)\n")
-    for delta in range(0, 5):
-        day = (today - timedelta(days=delta)).isoformat()
-        items = by_day.get(day, [])
-        if not items:
+    days = [(today - timedelta(days=d)).isoformat() for d in range(DAYS)]
+    async with httpx.AsyncClient() as client:
+        results = await asyncio.gather(
+            *(_fetch_day(client, d) for d in days), return_exceptions=True)
+    print(f"# 最近 {DAYS} 天 hf-papers 热门论文 (按 upvotes 排序, 每天 top {TOP_PER_DAY})\n")
+    for day, rows in zip(days, results):
+        if isinstance(rows, Exception):
+            print(f"\n## {day}  FAIL: {rows}")
+            continue
+        if not rows:
             print(f"\n## {day}  (无)")
             continue
-        print(f"\n## {day}  共 {len(items)} 条")
-        seen, uniq = set(), []
-        for src, title, link in items:
-            if link in seen:
-                continue
-            seen.add(link)
-            uniq.append((src, title, link))
-        uniq.sort(key=lambda x: (0 if x[0] == "hf-papers" else 1, x[1]))
-        for src, title, link in uniq[:25]:
-            tag = "⭐hf" if src == "hf-papers" else f"📘{src.split('-')[-1]}"
-            print(f"- {tag}  **{title[:100]}**  {link}")
-        if len(uniq) > 25:
-            print(f"- _(还有 {len(uniq)-25} 条)_")
+        # 解析 + 排序
+        items = []
+        for row in rows:
+            p = row.get("paper", {})
+            items.append({
+                "id": p.get("id"),
+                "title": p.get("title", "")[:120],
+                "upvotes": p.get("upvotes", 0),
+                "comments": p.get("numComments", 0),
+                "stars": p.get("githubStars"),
+                "repo": p.get("githubRepo"),
+                "ai_kw": p.get("ai_keywords") or [],
+                "ai_sum": (p.get("ai_summary") or "")[:200],
+            })
+        items.sort(key=lambda x: (-x["upvotes"], -x["comments"]))
+        print(f"\n## {day}  共 {len(items)} 篇, 取 top {TOP_PER_DAY}\n")
+        for i, it in enumerate(items[:TOP_PER_DAY], 1):
+            stars = f" ⭐{it['stars']}" if it["stars"] else ""
+            kw = " ｜ " + " · ".join(it["ai_kw"][:3]) if it["ai_kw"] else ""
+            print(f"### {i}. [👍 {it['upvotes']} ｜ 💬 {it['comments']}{stars}] {it['title']}")
+            print(f"- https://huggingface.co/papers/{it['id']}{kw}")
+            if it["repo"]:
+                print(f"- code: https://github.com/{it['repo']}")
+            if it["ai_sum"]:
+                print(f"- {it['ai_sum']}")
+            print()
+        # 列尾巴若干, 给个全景
+        if len(items) > TOP_PER_DAY:
+            tail = items[TOP_PER_DAY:TOP_PER_DAY + 8]
+            print(f"_后续 {len(items) - TOP_PER_DAY} 篇 (top 排序前 8 节选)：_")
+            for it in tail:
+                print(f"  - [👍 {it['upvotes']}] {it['title']}  https://huggingface.co/papers/{it['id']}")
 
 
 if __name__ == "__main__":
