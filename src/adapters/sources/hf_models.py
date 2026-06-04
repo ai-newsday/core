@@ -24,9 +24,21 @@ class HFModelsAdapter:
             published = _parse_dt(row.get("createdAt"))   # createdAt per decision #11
             if not mid or not published:
                 continue
+            # HF models 端信号: likes / downloads / pipeline_tag, 给下游 firehose 过滤用
+            signals = {
+                "likes": row.get("likes"),
+                "downloads": row.get("downloads"),
+                "downloads_all_time": row.get("downloadsAllTime"),
+                "pipeline_tag": row.get("pipeline_tag"),
+                "library_name": row.get("library_name"),
+                "tags": row.get("tags") or [],
+                "trending_score": row.get("trendingScore"),
+            }
+            signals = {k: v for k, v in signals.items() if v not in (None, [], "")}
             items.append(RawItem(
                 title_en=mid, link=f"https://huggingface.co/{mid}",
                 source=source.name, source_type=source.type,
                 published_at=published, raw_summary=None, fetched_via="native",
+                signals=signals,
             ))
         return items

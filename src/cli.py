@@ -20,6 +20,7 @@ from src.pipeline.publish import publish
 from src.core.config import (load_feedback_config, load_feedback_events,
                              load_quality_weights)
 from src.pipeline.feedback import derive_events, feedback
+from src.observability.persist import run_dir, dump_jsonl, dump_json
 
 
 def run_dry(registry_path: str, now: datetime | None = None) -> dict:
@@ -222,6 +223,29 @@ def run_dry_publish(registry_path: str, now: datetime | None = None,
     pcfg = load_publish_config("config/publish.yaml")
     date_label = now.date().isoformat()
     pres = publish(rres, date_label, pcfg, ctx)
+
+    # 落盘各层产物 (signals 都在 RawItem.signals 中带着, 跨层透传)
+    rd = run_dir(ctx.run_id)
+    dump_jsonl(coll.items, rd / "01_collected.jsonl")
+    dump_jsonl(coll.source_reports, rd / "01_source_reports.jsonl")
+    dump_jsonl(dres.deduped_items, rd / "02_deduped.jsonl")
+    dump_jsonl(sres.selected_items, rd / "03_scored.jsonl")
+    dump_jsonl(ires.interpreted_items, rd / "04_interpreted.jsonl")
+    dump_jsonl(rres.reviewed_items, rd / "05_reviewed.jsonl")
+    dump_json(pres.report, rd / "06_report.json")
+    (rd / "06_report.md").write_text(pres.markdown, encoding="utf-8")
+    dump_json({
+        "run_id": ctx.run_id, "now": now.isoformat(),
+        "collected": len(coll.items), "deduped": len(dres.deduped_items),
+        "selected": len(sres.selected_items),
+        "interpreted_ok": ires.interpreted_count,
+        "fallback": ires.fallback_count, "daily_take": ires.daily_take,
+        "must_read_count": len(pres.report.must_read),
+        "item_count": pres.report.item_count,
+        "is_pending": pres.is_pending, "is_silent": pres.is_silent,
+    }, rd / "run.json")
+    logger.info('{"event": "run_persisted", "dir": "%s"}', str(rd))
+
     return {
         "run_id": ctx.run_id,
         "now": now.isoformat(),
@@ -231,6 +255,7 @@ def run_dry_publish(registry_path: str, now: datetime | None = None,
         "is_pending": pres.is_pending,
         "is_silent": pres.is_silent,
         "markdown": pres.markdown,
+        "run_dir": str(rd),
     }
 
 
@@ -273,6 +298,30 @@ def run_dry_feedback(registry_path: str, now: datetime | None = None,
     history = load_feedback_events(fcfg.events_path)
     prior = load_quality_weights(fcfg.weights_path)
     fres = feedback(history + run_events, prior, fcfg, ctx)
+
+    # 全链产物落盘 (P1 接 SQLite 前的最简方案)
+    rd = run_dir(ctx.run_id)
+    dump_jsonl(coll.items, rd / "01_collected.jsonl")
+    dump_jsonl(coll.source_reports, rd / "01_source_reports.jsonl")
+    dump_jsonl(dres.deduped_items, rd / "02_deduped.jsonl")
+    dump_jsonl(sres.selected_items, rd / "03_scored.jsonl")
+    dump_jsonl(ires.interpreted_items, rd / "04_interpreted.jsonl")
+    dump_jsonl(run_events, rd / "07_feedback_events.jsonl")
+    dump_json({
+        "run_id": ctx.run_id, "now": now.isoformat(),
+        "collected": len(coll.items), "deduped": len(dres.deduped_items),
+        "selected": len(sres.selected_items),
+        "interpreted_ok": ires.interpreted_count,
+        "fallback": ires.fallback_count,
+        "daily_take": ires.daily_take,
+        "feedback_event_count": fres.event_count,
+        "source_count": fres.source_count,
+        "is_silent": fres.is_silent,
+        "quality_weights": fres.quality_weights,
+        "weight_diff": {k: list(v) for k, v in fres.weight_diff.items()},
+    }, rd / "run.json")
+    logger.info('{"event": "run_persisted", "dir": "%s"}', str(rd))
+
     return {
         "run_id": ctx.run_id,
         "now": now.isoformat(),
@@ -281,6 +330,7 @@ def run_dry_feedback(registry_path: str, now: datetime | None = None,
         "is_silent": fres.is_silent,
         "quality_weights": fres.quality_weights,
         "weight_diff": {k: list(v) for k, v in fres.weight_diff.items()},
+        "run_dir": str(rd),
     }
 
 

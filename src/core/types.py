@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 import logging
 from pydantic import BaseModel, Field, field_validator
 
@@ -26,6 +26,9 @@ class RawItem(BaseModel):
     raw_summary: str | None = None
     image_url: str | None = None
     fetched_via: Literal["native", "firecrawl"] = "native"
+    # 源端原生量化信号 (popularity / quality), 后续层可读不可改。
+    # 约定键: upvotes / num_comments / github_stars / likes / downloads / ai_keywords
+    signals: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("published_at")
     @classmethod
