@@ -37,6 +37,10 @@ async def _run_one(source: SourceSpec, config: CollectionConfig,
 
     cutoff = ctx.now - timedelta(hours=config.window_hours)
     kept = [it for it in items if it.published_at >= cutoff]
+    # 单源条数上限(firehose 阀): 按最新优先, 防 arXiv/HN 一类把池子打爆。
+    if source.max_items is not None and len(kept) > source.max_items:
+        kept.sort(key=lambda it: it.published_at, reverse=True)
+        kept = kept[:source.max_items]
     status = "working" if kept else "empty"
     emit(ctx.logger, "source_fetch_success", name=source.name, item_count=len(kept))
     return SourceReport(name=source.name, status=status, item_count=len(kept),

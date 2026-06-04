@@ -51,6 +51,7 @@ class SourceSpec(BaseModel):
     status: Literal["working", "manual", "failed"] = "working"
     priority: int = 3
     needs_firecrawl: bool = False
+    max_items: int | None = None       # truncate fetched items to this cap (e.g. arXiv firehose)
 
 
 @dataclass
