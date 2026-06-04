@@ -40,8 +40,8 @@
 - {name: mit-tech-review-ai, url: "https://www.technologyreview.com/topic/artificial-intelligence/feed/", type: news, adapter: rss, status: working, priority: 2}
 - {name: ars-technica-ai, url: "https://arstechnica.com/ai/feed/", type: news, adapter: rss, status: working, priority: 2}
 - {name: theverge-ai, url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", type: news, adapter: rss, status: working, priority: 3}
-- {name: qbitai, url: "https://www.qbitai.com/feed", type: news, adapter: rss, status: working, priority: 2}
-- {name: jiqizhixin, url: "https://www.jiqizhixin.com/rss", type: news, adapter: rss, status: working, priority: 2}
+- {name: qbitai, url: "https://www.qbitai.com/feed", type: news, adapter: rss, status: manual, priority: 2}  # 403 反爬, P2 找绕过方式
+- {name: jiqizhixin, url: "https://www.jiqizhixin.com/rss", type: news, adapter: rss, status: manual, priority: 2}  # 返回 HTML 非 RSS, 站无公开 feed
 # --- paper (arXiv 分类) ---
 # papers.cool: Kimi 出品, 对每篇 arxiv 论文带"一句话评论"作质量信号 → 优先级 2, 比 raw arxiv 高
 - {name: papers-cool-ai, url: "https://papers.cool/arxiv/cs.AI/feed", type: paper, adapter: rss, status: working, priority: 2, max_items: 30}
@@ -57,12 +57,12 @@
 # anthropic / mistral / ai2 现站无公开 RSS 端点(2026-06 探活全 404), 标 manual 待找
 - {name: anthropic, url: "https://www.anthropic.com/news/rss.xml", type: official, adapter: rss, status: manual, priority: 1}
 - {name: mistral, url: "https://mistral.ai/news/rss.xml", type: official, adapter: rss, status: manual, priority: 2}
-- {name: cohere, url: "https://cohere.com/blog/rss.xml", type: official, adapter: rss, status: working, priority: 2}
+- {name: cohere, url: "https://cohere.com/blog/rss.xml", type: official, adapter: rss, status: manual, priority: 2}  # 返回 HTML 非 RSS, 2026-06 探活失败
 - {name: together-ai, url: "https://www.together.ai/blog/rss.xml", type: official, adapter: rss, status: working, priority: 2}
 - {name: ai2, url: "https://allenai.org/news.rss", type: official, adapter: rss, status: manual, priority: 2}
 # --- tool (核心生态) ---
-- {name: langchain, url: "https://blog.langchain.dev/rss/", type: tool, adapter: rss, status: working, priority: 2}
-- {name: llamaindex, url: "https://www.llamaindex.ai/blog?format=rss", type: tool, adapter: rss, status: working, priority: 3}
+- {name: langchain, url: "https://www.langchain.com/blog/rss.xml", type: tool, adapter: rss, status: working, priority: 2}  # 旧 blog.langchain.dev/rss/ 返回 HTML, 新 URL 有效
+- {name: llamaindex, url: "https://www.llamaindex.ai/blog?format=rss", type: tool, adapter: rss, status: manual, priority: 3}  # 全端点 404, 站无 RSS
 - {name: modal, url: "https://modal.com/blog/feed.xml", type: tool, adapter: rss, status: manual, priority: 3}   # 404, 站无 RSS
 # --- blog (AI 专精个人 / newsletter) ---
 - {name: sebastian-raschka, url: "https://magazine.sebastianraschka.com/feed", type: blog, adapter: rss, status: working, priority: 2}
