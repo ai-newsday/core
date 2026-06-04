@@ -21,10 +21,11 @@ class HFModelsAdapter:
         items: list[RawItem] = []
         for row in data:
             mid = row.get("id")
-            published = _parse_dt(row.get("createdAt"))   # createdAt per decision #11
-            if not mid or not published:
+            if not mid:
                 continue
-            # HF models 端信号: likes / downloads / pipeline_tag, 给下游 firehose 过滤用
+            created = _parse_dt(row.get("createdAt"))
+            # surfacing time = ctx.now (这是 trending 榜的语义, 不是 firehose 创建时间)
+            # 老 createdAt 进 signals 保留信息
             signals = {
                 "likes": row.get("likes"),
                 "downloads": row.get("downloads"),
@@ -33,12 +34,13 @@ class HFModelsAdapter:
                 "library_name": row.get("library_name"),
                 "tags": row.get("tags") or [],
                 "trending_score": row.get("trendingScore"),
+                "created_at": created.isoformat() if created else None,
             }
             signals = {k: v for k, v in signals.items() if v not in (None, [], "")}
             items.append(RawItem(
                 title_en=mid, link=f"https://huggingface.co/{mid}",
                 source=source.name, source_type=source.type,
-                published_at=published, raw_summary=None, fetched_via="native",
+                published_at=ctx.now, raw_summary=None, fetched_via="native",
                 signals=signals,
             ))
         return items
