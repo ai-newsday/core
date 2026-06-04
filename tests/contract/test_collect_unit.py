@@ -36,9 +36,9 @@ async def test_window_filter_drops_old_items(monkeypatch, cfg):
     specs = [SourceSpec(name="a", url="u", type=SourceType.OFFICIAL, adapter="rss")]
     monkeypatch.setattr(collect_mod, "load_registry", lambda p, c: specs)
     monkeypatch.setattr(collect_mod, "ADAPTERS",
-                        {"rss": FakeOK([_item("a", 2), _item("a", 40)])})
+                        {"rss": FakeOK([_item("a", 2), _item("a", 100)])})
     res = await collect_mod.collect(cfg, _ctx())
-    assert len(res.items) == 1                       # 40h-old dropped (24h window)
+    assert len(res.items) == 1                       # 100h-old dropped (72h window)
     assert res.is_silent is False
     rep = res.source_reports[0]
     assert rep.status == "working" and rep.item_count == 1

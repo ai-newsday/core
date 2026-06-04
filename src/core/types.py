@@ -60,8 +60,8 @@ class SourceSpec(BaseModel):
 @dataclass
 class CollectionConfig:
     sources_registry_path: str
-    window_hours: int = 24
-    max_window_hours: int = 36
+    window_hours: int = 72       # 拉宽到 3 天: paper/tool/blog 周更慢更不漏 (原 24 把它们都砍了)
+    max_window_hours: int = 96   # 同步上调; spec §7.1 不变量仍按此参数
     concurrency: int = 10
     timeout_s: int = 15
     firecrawl_enabled: bool = False

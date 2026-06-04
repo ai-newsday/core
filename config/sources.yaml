@@ -10,9 +10,9 @@
 - {name: huggingface-blog, url: "https://huggingface.co/blog/feed.xml", type: official, adapter: rss, status: working, priority: 2}
 - {name: nvidia, url: "https://blogs.nvidia.com/feed", type: official, adapter: rss, status: working, priority: 2}
 - {name: apple-ml, url: "https://machinelearning.apple.com/rss.xml", type: official, adapter: rss, status: working, priority: 2}
-- {name: microsoft-ai, url: "https://news.microsoft.com/source/topics/ai/feed", type: official, adapter: rss, status: working, priority: 2}
+- {name: microsoft-ai, url: "https://news.microsoft.com/source/topics/ai/feed", type: official, adapter: rss, status: manual, priority: 2}  # 403 持续, 站点拒爬
 - {name: aws-ml, url: "https://aws.amazon.com/blogs/machine-learning/feed", type: official, adapter: rss, status: working, priority: 2}
-- {name: meta-ai, url: "https://ai.meta.com/blog/rss/", type: official, adapter: rss, status: working, priority: 2}
+- {name: meta-ai, url: "https://ai.meta.com/blog/rss/", type: official, adapter: rss, status: manual, priority: 2}  # 404, feed 路径变更, P2 找新端点
 # --- tools / infra ---
 - {name: pytorch, url: "https://pytorch.org/blog/feed.xml", type: tool, adapter: rss, status: working, priority: 2}
 - {name: comfy, url: "https://blog.comfy.org/feed.xml", type: tool, adapter: rss, status: working, priority: 3}
