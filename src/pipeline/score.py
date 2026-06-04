@@ -39,6 +39,24 @@ def _same_source_penalty(items: list[NewsItem], config: ScoringConfig) -> dict[s
     return out
 
 
+def _visibility(item: NewsItem, config: ScoringConfig) -> float:
+    """signals 加权: sum(weight * sqrt(value)) → cap。脏数据/缺失/负数 = 0 (不抛)。
+    sqrt 压缩长尾, cap 防极值。weights 缺省空 → 总是 0 (向后兼容)。"""
+    if not config.popularity_weights:
+        return 0.0
+    total = 0.0
+    for key, weight in config.popularity_weights.items():
+        v = item.signals.get(key)
+        try:
+            fv = float(v) if v is not None else 0.0
+        except (TypeError, ValueError):
+            continue
+        if fv <= 0:
+            continue
+        total += float(weight) * (fv ** 0.5)
+    return min(total, config.popularity_cap)
+
+
 def compute_scores(items: list[NewsItem], priority_of: dict[str, int],
                    config: ScoringConfig, ctx: RunContext) -> list[ScoredItem]:
     """Pure scoring (spec §5.1). Returns ScoredItems sorted by (score desc,
@@ -52,7 +70,7 @@ def compute_scores(items: list[NewsItem], priority_of: dict[str, int],
                       if prio is not None else config.priority_bonus_default)
         breakdown = {
             "机构影响力": float(dims.get("机构影响力", 0)) + float(prio_bonus),
-            "可见指标": 0.0,
+            "可见指标": round(_visibility(it, config), 4),
             "时效": recency_band(it.published_at, ctx.now, config),
             "惩罚": penalty_of[it.link],
             "读者相关度": 0.0,

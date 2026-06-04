@@ -143,6 +143,10 @@ class ScoringConfig:
     stale_hours: int = 72
     stale_penalty: float = -10
     same_source_penalty: float = -5
+    # 可见指标 = sum(weight * sqrt(signals[key]))  → 接 popularity 信号到 "可见指标" 维度。
+    # 缺省空 = 0 (向后兼容)。production yaml 里配上 weights 才激活。
+    popularity_weights: dict[str, float] = field(default_factory=dict)
+    popularity_cap: float = 15.0       # 单条最高加 15 分, 防异常超大数值
     quota: dict[str, int] = field(default_factory=lambda: {
         "paper": 2, "model": 1, "tool": 2, "official": 1, "community": 1, "news": 1, "blog": 0})
     total_limit: int = 8

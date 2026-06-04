@@ -24,6 +24,14 @@ recency:                          # 时效分 (spec §5.2)
 penalty:
   same_source: -5                 # 同源第2+条各扣 (spec §5.3)
 
+# "可见指标" = sum(weight * sqrt(signals[key]))  → cap (spec §5.1 PRD §5.5 该维度的接入)
+# - hf-papers.upvotes 范围常见 0-300 → sqrt 后 0-17, 大头都在 5-12
+# - hf-models.likes 范围 0-1000+ → sqrt 后 0-30, 极值有但少
+# - hn_points 范围 0-1000+ → sqrt 后 0-30, AI 圈中位数 5-50
+# - 权重 0.5 让 sqrt(100)=10 → 5 分, sqrt(900)=30 → 15 (近 cap)
+popularity_weights: {upvotes: 0.6, hn_points: 0.5, likes: 0.3, num_comments: 0.4}
+popularity_cap: 15.0              # 单条最高 +15 分, 防异常超大数值
+
 # 类型配额 (PRD §4.2). 各 quota 之和(=8) <= total_limit.
 quota: {paper: 2, model: 1, tool: 1, official: 1, community: 1, news: 1, blog: 1}
 total_limit: 8

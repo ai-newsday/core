@@ -45,6 +45,8 @@ def load_scoring_config(path: str) -> ScoringConfig:
         stale_penalty=recency.get("stale_penalty", d.stale_penalty),
         same_source_penalty=penalty.get("same_source", d.same_source_penalty),
         quota=data.get("quota", d.quota),
+        popularity_weights=data.get("popularity_weights", d.popularity_weights),
+        popularity_cap=data.get("popularity_cap", d.popularity_cap),
         total_limit=data.get("total_limit", d.total_limit),
         sources_registry_path=data.get("sources_registry_path", d.sources_registry_path),
     )
