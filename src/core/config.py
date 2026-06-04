@@ -2,7 +2,7 @@ from __future__ import annotations
 import yaml
 from src.core.types import (DedupConfig, ScoringConfig, InterpretConfig,
                             ReviewConfig, ReviewDecision, PublishConfig,
-                            FeedbackConfig, FeedbackEvent)
+                            FeedbackConfig, FeedbackEvent, EnrichConfig)
 
 
 def load_dedup_config(path: str) -> DedupConfig:
@@ -114,6 +114,22 @@ def load_publish_config(path: str) -> PublishConfig:
         top_keywords=data.get("top_keywords", d.top_keywords),
         pending_watermark=data.get("pending_watermark", d.pending_watermark),
         type_labels=data.get("type_labels", d.type_labels),
+    )
+
+
+def load_enrich_config(path: str) -> EnrichConfig:
+    """HN URL 反查 popularity 的开关 + 配额; 缺文件 -> 默认。"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return EnrichConfig()
+    d = EnrichConfig()
+    return EnrichConfig(
+        enabled=data.get("enabled", d.enabled),
+        concurrency=data.get("concurrency", d.concurrency),
+        timeout_s=data.get("timeout_s", d.timeout_s),
+        skip_source_types=data.get("skip_source_types", d.skip_source_types),
     )
 
 

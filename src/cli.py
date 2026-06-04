@@ -21,6 +21,9 @@ from src.core.config import (load_feedback_config, load_feedback_events,
                              load_quality_weights)
 from src.pipeline.feedback import derive_events, feedback
 from src.observability.persist import run_dir, dump_jsonl, dump_json
+from src.core.config import load_enrich_config
+from src.pipeline.enrich import enrich_with_hn
+from src.adapters.enrich.hn_algolia import HNAlgoliaClient
 
 
 def run_dry(registry_path: str, now: datetime | None = None) -> dict:
@@ -194,7 +197,16 @@ def run_dry_publish(registry_path: str, now: datetime | None = None,
     ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
 
     coll_cfg = CollectionConfig(sources_registry_path=registry_path)
-    coll = asyncio.run(collect(coll_cfg, ctx))
+    ecfg = load_enrich_config("config/enrich.yaml")
+
+    async def _collect_then_enrich():
+        c = await collect(coll_cfg, ctx)
+        if ecfg.enabled and c.items:
+            await enrich_with_hn(c.items, HNAlgoliaClient(ecfg.timeout_s),
+                                 ecfg, ctx)
+        return c
+
+    coll = asyncio.run(_collect_then_enrich())
 
     dcfg = load_dedup_config("config/dedup.yaml")
     dcfg.sources_registry_path = registry_path
@@ -266,7 +278,16 @@ def run_dry_feedback(registry_path: str, now: datetime | None = None,
     ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
 
     coll_cfg = CollectionConfig(sources_registry_path=registry_path)
-    coll = asyncio.run(collect(coll_cfg, ctx))
+    ecfg = load_enrich_config("config/enrich.yaml")
+
+    async def _collect_then_enrich():
+        c = await collect(coll_cfg, ctx)
+        if ecfg.enabled and c.items:
+            await enrich_with_hn(c.items, HNAlgoliaClient(ecfg.timeout_s),
+                                 ecfg, ctx)
+        return c
+
+    coll = asyncio.run(_collect_then_enrich())
 
     dcfg = load_dedup_config("config/dedup.yaml")
     dcfg.sources_registry_path = registry_path

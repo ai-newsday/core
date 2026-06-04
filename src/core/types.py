@@ -308,6 +308,17 @@ class SourceFeedbackStats(BaseModel):
 
 
 @dataclass
+class EnrichConfig:
+    """RSS 类源天然无 popularity, 用 HN Algolia by URL 反查补 signals.hn_*。"""
+    enabled: bool = True
+    concurrency: int = 5
+    timeout_s: int = 8
+    # 已经带原生 popularity 信号的源类型不查 HN (省请求, 不覆盖)
+    skip_source_types: list[str] = field(
+        default_factory=lambda: ["paper", "model"])
+
+
+@dataclass
 class FeedbackConfig:
     events_path: str = "data/feedback_events.json"
     weights_path: str = "data/quality_weights.json"
