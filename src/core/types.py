@@ -342,3 +342,25 @@ class FeedbackResult:
     event_count: int
     source_count: int
     is_silent: bool
+
+
+# --- delivery layer (P1) ---
+@dataclass
+class TelegramConfig:
+    bot_token: str = ""           # 优先从 TELEGRAM_BOT_TOKEN 环境变量读
+    chat_id: str = ""             # 优先从 TELEGRAM_CHAT_ID 环境变量读
+    mode: str = "polling"         # "polling" | "webhook"
+    webhook_url: str = ""         # mode=webhook 时填
+
+
+@dataclass
+class WebsiteConfig:
+    enabled: bool = True
+    output_dir: str = "docs/daily"
+    git_push: bool = False        # True = finalize 后自动 git add + commit
+
+
+@dataclass
+class DeliveryConfig:
+    telegram: TelegramConfig = field(default_factory=TelegramConfig)
+    website: WebsiteConfig = field(default_factory=WebsiteConfig)

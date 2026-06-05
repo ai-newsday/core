@@ -1,0 +1,9 @@
+telegram:
+  bot_token: ""         # 通过 TELEGRAM_BOT_TOKEN 环境变量注入, 不要写死在这里
+  chat_id: ""           # 通过 TELEGRAM_CHAT_ID 环境变量注入
+  mode: "polling"       # 本地用 polling; 云端换 webhook
+
+website:
+  enabled: true
+  output_dir: "docs/daily"
+  git_push: false

@@ -1,0 +1,38 @@
+import os
+from src.core.config import load_delivery_config
+from src.core.types import DeliveryConfig, TelegramConfig, WebsiteConfig
+
+
+def test_load_delivery_config_missing_returns_defaults(tmp_path):
+    cfg = load_delivery_config(str(tmp_path / "nope.yaml"))
+    assert cfg == DeliveryConfig()
+
+
+def test_load_delivery_config_telegram_fields(tmp_path):
+    p = tmp_path / "delivery.yaml"
+    p.write_text(
+        "telegram:\n  mode: webhook\n  webhook_url: https://x.com\n",
+        encoding="utf-8")
+    cfg = load_delivery_config(str(p))
+    assert cfg.telegram.mode == "webhook"
+    assert cfg.telegram.webhook_url == "https://x.com"
+    assert cfg.telegram.bot_token == ""
+
+
+def test_load_delivery_config_website_fields(tmp_path):
+    p = tmp_path / "delivery.yaml"
+    p.write_text("website:\n  enabled: true\n  output_dir: out\n  git_push: true\n",
+                 encoding="utf-8")
+    cfg = load_delivery_config(str(p))
+    assert cfg.website.enabled is True
+    assert cfg.website.output_dir == "out"
+    assert cfg.website.git_push is True
+
+
+def test_telegram_config_reads_env(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok123")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "99")
+    from src.core.config import load_delivery_config
+    cfg = load_delivery_config("nonexistent.yaml")
+    assert cfg.telegram.bot_token == "tok123"
+    assert cfg.telegram.chat_id == "99"

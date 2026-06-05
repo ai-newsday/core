@@ -2,7 +2,8 @@ from __future__ import annotations
 import yaml
 from src.core.types import (DedupConfig, ScoringConfig, InterpretConfig,
                             ReviewConfig, ReviewDecision, PublishConfig,
-                            FeedbackConfig, FeedbackEvent, EnrichConfig)
+                            FeedbackConfig, FeedbackEvent, EnrichConfig,
+                            DeliveryConfig, TelegramConfig, WebsiteConfig)
 
 
 def load_dedup_config(path: str) -> DedupConfig:
@@ -176,3 +177,29 @@ def load_quality_weights(path: str) -> dict[str, float]:
             return json.load(f) or {}
     except FileNotFoundError:
         return {}
+
+
+def load_delivery_config(path: str) -> DeliveryConfig:
+    """通道配置; 缺文件 -> 默认。bot_token / chat_id 优先读环境变量。"""
+    import os
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        data = {}
+    tg_data = data.get("telegram", {})
+    web_data = data.get("website", {})
+    tg = TelegramConfig(
+        bot_token=os.environ.get("TELEGRAM_BOT_TOKEN",
+                                 tg_data.get("bot_token", "")),
+        chat_id=os.environ.get("TELEGRAM_CHAT_ID",
+                               tg_data.get("chat_id", "")),
+        mode=tg_data.get("mode", "polling"),
+        webhook_url=tg_data.get("webhook_url", ""),
+    )
+    web = WebsiteConfig(
+        enabled=web_data.get("enabled", True),
+        output_dir=web_data.get("output_dir", "docs/daily"),
+        git_push=web_data.get("git_push", False),
+    )
+    return DeliveryConfig(telegram=tg, website=web)
