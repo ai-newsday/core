@@ -38,8 +38,8 @@ def test_poll_decisions_returns_queued():
     async def go():
         with patch("src.notifiers.telegram_polling.Bot"):
             notifier = TelegramPollingNotifier(_cfg())
-            notifier._decision_queue.put_nowait(("item_1", "keep"))
-            notifier._decision_queue.put_nowait(("item_2", "drop"))
+            notifier._decision_queue.put(("item_1", "keep"))
+            notifier._decision_queue.put(("item_2", "drop"))
             decisions = await notifier.poll_decisions()
             assert set(decisions) == {("item_1", "keep"), ("item_2", "drop")}
             assert await notifier.poll_decisions() == []

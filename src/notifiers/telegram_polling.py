@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import html as html_lib
+import queue
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CallbackQueryHandler
 from src.core.types import TelegramConfig
@@ -50,7 +51,7 @@ class TelegramPollingNotifier:
     def __init__(self, config: TelegramConfig):
         self._cfg = config
         self._bot = Bot(token=config.bot_token)
-        self._decision_queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue()
+        self._decision_queue: queue.SimpleQueue[tuple[str, str]] = queue.SimpleQueue()
         self._app: Application | None = None
 
     async def send_review_card(self, item_id: str, card: dict) -> int | None:
@@ -84,28 +85,37 @@ class TelegramPollingNotifier:
 
     async def poll_decisions(self) -> list[tuple[str, str]]:
         out = []
-        while not self._decision_queue.empty():
-            out.append(self._decision_queue.get_nowait())
+        try:
+            while True:
+                out.append(self._decision_queue.get_nowait())
+        except queue.Empty:
+            pass
         return out
-
-    def _handle_callback(self, update: Update, context) -> None:
-        """Telegram 回调按钮处理。"""
-        query = update.callback_query
-        if query and query.data:
-            parts = query.data.split(":", 1)
-            if len(parts) == 2:
-                item_id, action = parts
-                asyncio.get_event_loop().call_soon_threadsafe(
-                    self._decision_queue.put_nowait, (item_id, action))
-            asyncio.get_event_loop().run_until_complete(query.answer())
 
     def start_polling(self) -> None:
         """启动后台 polling 线程（长期运行时调用一次）。"""
         import threading
+
         self._app = (Application.builder()
                      .token(self._cfg.bot_token)
                      .build())
-        self._app.add_handler(CallbackQueryHandler(self._handle_callback))
+
+        decision_queue = self._decision_queue  # capture for closure
+
+        async def _callback_handler(update: Update, context) -> None:
+            query = update.callback_query
+            if query and query.data:
+                parts = query.data.split(":", 1)
+                if len(parts) == 2:
+                    item_id, action = parts
+                    decision_queue.put((item_id, action))
+            if query:
+                try:
+                    await query.answer()
+                except Exception:
+                    pass
+
+        self._app.add_handler(CallbackQueryHandler(_callback_handler))
 
         def _run():
             self._app.run_polling(stop_signals=None)
