@@ -4,10 +4,12 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.12"
 dependencies = [
+    "aiosqlite>=0.22.1",
     "feedparser>=6.0.12",
     "httpx>=0.28.1",
     "numpy>=2.4.6",
     "pydantic>=2.13.4",
+    "python-telegram-bot>=22.0",
     "pyyaml>=6.0.3",
 ]
 
