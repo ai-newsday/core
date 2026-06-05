@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>ai.newsday.finalize</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>REPLACE_WITH_FULL_PATH/.venv/bin/python</string>
+    <string>-m</string><string>src.cli</string>
+    <string>--tick</string><string>finalize</string>
+  </array>
+  <key>WorkingDirectory</key><string>REPLACE_WITH_FULL_PATH</string>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>22</integer><key>Minute</key><integer>0</integer></dict>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>TELEGRAM_BOT_TOKEN</key><string>REPLACE_WITH_TOKEN</string>
+    <key>TELEGRAM_CHAT_ID</key><string>REPLACE_WITH_CHAT_ID</string>
+    <key>MODELSCOPE_API_KEY</key><string>REPLACE_WITH_API_KEY</string>
+  </dict>
+  <key>StandardOutPath</key><string>REPLACE_WITH_FULL_PATH/logs/finalize.log</string>
+  <key>StandardErrorPath</key><string>REPLACE_WITH_FULL_PATH/logs/finalize_err.log</string>
+</dict>
+</plist>
