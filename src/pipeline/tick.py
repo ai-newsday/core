@@ -66,15 +66,22 @@ async def run_collect_tick(
         if row and row["msg_id"] is None:
             card = _build_card(item)
             for notifier in notifiers:
-                msg_id = await notifier.send_review_card(item_id, card)
-                if msg_id is not None:
-                    await db.update_msg_id(item_id, msg_id)
+                try:
+                    msg_id = await notifier.send_review_card(item_id, card)
+                    if msg_id is not None:
+                        await db.update_msg_id(item_id, msg_id)
+                except Exception as e:  # noqa: BLE001 - notifier failure is non-fatal
+                    emit(logger, "notifier_send_error", item_id=item_id,
+                         error=str(e))
             pushed += 1
     # 收决策
     for notifier in notifiers:
-        decisions = await notifier.poll_decisions()
-        for decision_item_id, action in decisions:
-            await db.update_decision(decision_item_id, action)
+        try:
+            decisions = await notifier.poll_decisions()
+            for decision_item_id, action in decisions:
+                await db.update_decision(decision_item_id, action)
+        except Exception as e:  # noqa: BLE001 - notifier poll failure is non-fatal
+            emit(logger, "notifier_poll_error", error=str(e))
     emit(logger, "tick_collect_done", run_id=run_id, pushed=pushed)
 
 
@@ -107,7 +114,10 @@ async def run_finalize_tick(
         "must_read_count": len(pres.report.must_read),
     }
     for notifier in notifiers:
-        await notifier.send_final_report(pres.markdown, summary)
+        try:
+            await notifier.send_final_report(pres.markdown, summary)
+        except Exception as e:  # noqa: BLE001 - notifier failure is non-fatal
+            emit(logger, "notifier_final_report_error", error=str(e))
     emit(logger, "tick_finalize_done", run_id=run_id,
          item_count=pres.report.item_count,
          must_read_count=len(pres.report.must_read))

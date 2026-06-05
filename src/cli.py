@@ -24,6 +24,12 @@ from src.observability.persist import run_dir, dump_jsonl, dump_json
 from src.core.config import load_enrich_config
 from src.pipeline.enrich import enrich_with_hn
 from src.adapters.enrich.hn_algolia import HNAlgoliaClient
+from src.state.db import Database
+from src.notifiers import FakeNotifier
+from src.notifiers.telegram_polling import TelegramPollingNotifier
+from src.notifiers.website import WebsiteNotifier
+from src.pipeline.tick import run_collect_tick, run_finalize_tick
+from src.core.config import load_delivery_config
 
 
 def run_dry(registry_path: str, now: datetime | None = None) -> dict:
@@ -355,6 +361,84 @@ def run_dry_feedback(registry_path: str, now: datetime | None = None,
     }
 
 
+def run_tick(tick: str, registry_path: str,
+             now: datetime | None = None,
+             db_path: str = "data/state.db",
+             embedder=None, llm=None) -> dict:
+    """统一 tick 入口: collect 或 finalize。
+    Notifier 根据 TELEGRAM_BOT_TOKEN 环境变量决定用真 bot 还是 FakeNotifier。"""
+    now = now or datetime.now(timezone.utc)
+    logger = logging.getLogger("ai-newsday")
+    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
+
+    # 初始化 DB
+    db = Database(db_path)
+    asyncio.run(db.init())
+
+    # 初始化 Notifier
+    dcfg = load_delivery_config("config/delivery.yaml")
+    notifiers = []
+    if dcfg.telegram.bot_token:
+        tg = TelegramPollingNotifier(dcfg.telegram)
+        if dcfg.telegram.mode == "polling":
+            tg.start_polling()
+        notifiers.append(tg)
+    else:
+        notifiers.append(FakeNotifier())  # 无 token = dry 模式
+    if dcfg.website.enabled:
+        notifiers.append(WebsiteNotifier(dcfg.website))
+
+
+    # 完整 pipeline (collect → interpret)
+    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
+    ecfg = load_enrich_config("config/enrich.yaml")
+
+    async def _collect_and_interpret():
+        c = await collect(coll_cfg, ctx)
+        if ecfg.enabled and c.items:
+            await enrich_with_hn(c.items, HNAlgoliaClient(ecfg.timeout_s),
+                                 ecfg, ctx)
+        dcfg2 = load_dedup_config("config/dedup.yaml")
+        dcfg2.sources_registry_path = registry_path
+        _embedder = embedder or ModelScopeEmbedder(
+            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
+            model=dcfg2.embedding_model, batch_size=dcfg2.batch_size)
+        dres = dedup(c.items, dcfg2, ctx, embedder=_embedder,
+                     store=InMemoryVectorStore())
+        scfg = load_scoring_config("config/scoring.yaml")
+        scfg.sources_registry_path = registry_path
+        sres = score(dres.deduped_items, scfg, ctx)
+        icfg = load_interpret_config("config/interpret.yaml")
+        _llm = llm or OpenAICompatLLM(
+            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
+            model=icfg.model, timeout_s=icfg.timeout_s)
+        ires = interpret(sres.selected_items, icfg, ctx, _llm)
+        return ires
+
+    ires = asyncio.run(_collect_and_interpret())
+    date_label = now.date().isoformat()
+
+    if tick == "collect":
+        asyncio.run(run_collect_tick(
+            run_id=ctx.run_id, now=now,
+            interpreted_items=ires.interpreted_items,
+            daily_take=ires.daily_take,
+            db=db, notifiers=notifiers))
+        return {"run_id": ctx.run_id, "tick": "collect",
+                "pushed": len(ires.interpreted_items), "date": date_label}
+
+    elif tick == "finalize":
+        result = asyncio.run(run_finalize_tick(
+            run_id=ctx.run_id, now=now, date_label=date_label,
+            interpreted_items=ires.interpreted_items,
+            daily_take=ires.daily_take,
+            db=db, notifiers=notifiers))
+        result["tick"] = "finalize"
+        return result
+    else:
+        raise ValueError(f"Unknown tick: {tick!r}. Use 'collect' or 'finalize'.")
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="ai-newsday-collect")
     p.add_argument("--registry", default="config/sources.yaml")
@@ -372,8 +456,14 @@ def main(argv: list[str] | None = None) -> int:
                    help="chain collect -> ... -> publish, print daily-report Markdown")
     p.add_argument("--feedback", action="store_true",
                    help="chain collect -> ... -> review -> feedback, print quality_weights JSON")
+    p.add_argument("--tick", choices=["collect", "finalize"],
+                   help="run collect or finalize tick (HITL pipeline)")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
+    if args.tick:
+        out = run_tick(tick=args.tick, registry_path=args.registry)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
     if not args.dry_run:
         print("This circle supports --dry-run only (publishing is a later layer).",
               file=sys.stderr)
