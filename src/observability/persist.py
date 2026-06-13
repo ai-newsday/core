@@ -1,11 +1,13 @@
 """run 产物落盘: 每次跑流水线时把各层产出写到 data/runs/<run_id>/。
 便于事后核对、做信号回溯, 取代 PRD 提的 SQLite SSOT (P1 接 SQLite 时换底)。"""
+
 from __future__ import annotations
+
 import json
 from pathlib import Path
 from typing import Any
-from pydantic import BaseModel
 
+from pydantic import BaseModel
 
 _RUNS_ROOT = Path("data/runs")
 

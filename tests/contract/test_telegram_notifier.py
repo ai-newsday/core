@@ -1,7 +1,8 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-from src.notifiers.telegram_polling import TelegramPollingNotifier
+
 from src.core.types import TelegramConfig
+from src.notifiers.telegram_polling import TelegramPollingNotifier
 
 
 def _cfg():
@@ -10,6 +11,7 @@ def _cfg():
 
 def test_send_review_card_sends_two_messages():
     """发一张卡片 = 两条消息: 封面 + 正文+按钮。"""
+
     async def go():
         with patch("src.notifiers.telegram_polling.Bot") as MockBot:
             mock_bot = AsyncMock()
@@ -31,6 +33,7 @@ def test_send_review_card_sends_two_messages():
             msg_id = await notifier.send_review_card("item_1", card)
             assert mock_bot.send_message.call_count == 2
             assert msg_id == 42
+
     asyncio.run(go())
 
 
@@ -55,6 +58,7 @@ def test_poll_decisions_calls_get_updates():
             mock_bot.get_updates.assert_called_once()
             mock_query_1.answer.assert_called_once()
             mock_db.set_kv.assert_called()
+
     asyncio.run(go())
 
 
@@ -66,9 +70,11 @@ def test_send_final_report_sends_message():
             notifier = TelegramPollingNotifier(_cfg())
             await notifier.send_final_report(
                 "# AI Daily · 2026-06-05\n内容",
-                {"date_label": "2026-06-05", "must_read_count": 3, "item_count": 8})
+                {"date_label": "2026-06-05", "must_read_count": 3, "item_count": 8},
+            )
             mock_bot.send_message.assert_called_once()
             call_kwargs = mock_bot.send_message.call_args.kwargs
             assert call_kwargs["chat_id"] == "12345"
             assert "2026-06-05" in call_kwargs["text"]
+
     asyncio.run(go())

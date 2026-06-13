@@ -41,8 +41,7 @@ class FakeLLMProvider:
         self._default = default
         self.calls: list[str] = []
 
-    def complete_json(self, prompt: str, *, temperature: float,
-                      max_tokens: int) -> str:
+    def complete_json(self, prompt: str, *, temperature: float, max_tokens: int) -> str:
         self.calls.append(prompt)
         for key, resp in self._map.items():
             if key in prompt:
@@ -58,7 +57,6 @@ class FailingLLMProvider:
     def __init__(self):
         self.calls: list[str] = []
 
-    def complete_json(self, prompt: str, *, temperature: float,
-                      max_tokens: int) -> str:
+    def complete_json(self, prompt: str, *, temperature: float, max_tokens: int) -> str:
         self.calls.append(prompt)
         raise RuntimeError("llm provider unavailable")

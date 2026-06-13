@@ -4,9 +4,9 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.core.types import RawItem, SourceType, DedupConfig, RunContext
-from src.pipeline.dedup import dedup, build_embed_text
 from src.adapters.vectorstore.memory import InMemoryVectorStore
+from src.core.types import DedupConfig, RawItem, RunContext, SourceType
+from src.pipeline.dedup import build_embed_text, dedup
 from tests.fakes import FakeEmbeddingProvider, MisalignedEmbeddingProvider
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
@@ -17,8 +17,13 @@ def _ctx(name):
 
 
 def _item(title, link):
-    return RawItem(title_en=title, link=link, source="openai",
-                   source_type=SourceType.OFFICIAL, published_at=NOW)
+    return RawItem(
+        title_en=title,
+        link=link,
+        source="openai",
+        source_type=SourceType.OFFICIAL,
+        published_at=NOW,
+    )
 
 
 def _cfg():
@@ -30,9 +35,13 @@ def test_misaligned_embed_degrades_to_singletons(delta, caplog):
     items = [_item("A", "https://a/1"), _item("B", "https://b/2")]
     logger_name = f"dedup-misalign-{delta}"
     with caplog.at_level(logging.INFO, logger=logger_name):
-        res = dedup(items, _cfg(), _ctx(logger_name),
-                    embedder=MisalignedEmbeddingProvider(delta=delta),
-                    store=InMemoryVectorStore())
+        res = dedup(
+            items,
+            _cfg(),
+            _ctx(logger_name),
+            embedder=MisalignedEmbeddingProvider(delta=delta),
+            store=InMemoryVectorStore(),
+        )
 
     # spec §7: batch failure -> every item its own singleton, no crash
     assert res.cluster_count == res.input_count == 2
@@ -44,9 +53,13 @@ def test_misaligned_embed_degrades_to_singletons(delta, caplog):
 
 def test_aligned_embed_does_not_degrade():
     items = [_item("A", "https://a/1"), _item("B", "https://b/2")]
-    vecs = {build_embed_text(items[0]): [1.0, 0.0],
-            build_embed_text(items[1]): [1.0, 0.0]}
-    res = dedup(items, _cfg(), _ctx("dedup-aligned"),
-                embedder=FakeEmbeddingProvider(vecs), store=InMemoryVectorStore())
+    vecs = {build_embed_text(items[0]): [1.0, 0.0], build_embed_text(items[1]): [1.0, 0.0]}
+    res = dedup(
+        items,
+        _cfg(),
+        _ctx("dedup-aligned"),
+        embedder=FakeEmbeddingProvider(vecs),
+        store=InMemoryVectorStore(),
+    )
     # similar vectors merge -> proves vectors were actually used, not discarded
     assert res.cluster_count == 1

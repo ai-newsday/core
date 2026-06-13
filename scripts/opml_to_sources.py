@@ -1,8 +1,13 @@
 """Append HN-popularity OPML feeds to config/sources.yaml as status: manual.
 Idempotent: skips any feed whose url is already present. Run: uv run python scripts/opml_to_sources.py"""
+
 from __future__ import annotations
-import re, sys, xml.etree.ElementTree as ET
+
+import re
+import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
+
 import yaml
 
 OPML = Path("references/hn-popular-blogs-2025.opml")
@@ -26,7 +31,8 @@ def main() -> int:
         name = slug(o.get("title") or o.get("text") or url)
         lines.append(
             f'- {{name: hn-{name}, url: "{url}", type: blog, adapter: rss, '
-            f"status: manual, priority: 5}}")
+            f"status: manual, priority: 5}}"
+        )
         have.add(url)
         appended += 1
     if lines:

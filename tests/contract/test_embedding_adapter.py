@@ -1,4 +1,7 @@
-import httpx, respx, pytest
+import httpx
+import pytest
+import respx
+
 from src.adapters.embedding.modelscope import ModelScopeEmbedder
 
 URL = "https://api-inference.modelscope.cn/v1/embeddings"
@@ -18,8 +21,7 @@ def test_embed_returns_vectors_in_order():
 
 @respx.mock
 def test_embed_batches_by_batch_size():
-    route = respx.post(URL).mock(side_effect=[
-        _resp([[1.0]]), _resp([[2.0]])])
+    route = respx.post(URL).mock(side_effect=[_resp([[1.0]]), _resp([[2.0]])])
     emb = ModelScopeEmbedder(api_key="k", model="m", batch_size=1)
     out = emb.embed(["a", "b"])
     assert out == [[1.0], [2.0]]

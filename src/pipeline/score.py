@@ -1,14 +1,24 @@
 from __future__ import annotations
+
 from collections import defaultdict
 from datetime import datetime
-from src.core.types import (NewsItem, ScoredItem, ScoringConfig, RunContext,
-                            QuotaLine, ScoreResult)
+
 from src.core.registry import load_source_priorities
+from src.core.types import NewsItem, QuotaLine, RunContext, ScoredItem, ScoreResult, ScoringConfig
 from src.observability.events import emit
 
 # PRD §5.5 fixed breakdown dimension keys.
-DIMENSION_KEYS = ["机构影响力", "一手性", "技术价值", "产业影响", "扩散潜力",
-                  "可见指标", "时效", "惩罚", "读者相关度"]
+DIMENSION_KEYS = [
+    "机构影响力",
+    "一手性",
+    "技术价值",
+    "产业影响",
+    "扩散潜力",
+    "可见指标",
+    "时效",
+    "惩罚",
+    "读者相关度",
+]
 # Dimensions sourced directly from the per-type matrix (spec §5.1).
 _MATRIX_DIMS = ["一手性", "技术价值", "产业影响", "扩散潜力"]
 
@@ -53,12 +63,13 @@ def _visibility(item: NewsItem, config: ScoringConfig) -> float:
             continue
         if fv <= 0:
             continue
-        total += float(weight) * (fv ** 0.5)
+        total += float(weight) * (fv**0.5)
     return min(total, config.popularity_cap)
 
 
-def compute_scores(items: list[NewsItem], priority_of: dict[str, int],
-                   config: ScoringConfig, ctx: RunContext) -> list[ScoredItem]:
+def compute_scores(
+    items: list[NewsItem], priority_of: dict[str, int], config: ScoringConfig, ctx: RunContext
+) -> list[ScoredItem]:
     """Pure scoring (spec §5.1). Returns ScoredItems sorted by (score desc,
     published_at asc, link asc)."""
     penalty_of = _same_source_penalty(items, config)
@@ -66,8 +77,11 @@ def compute_scores(items: list[NewsItem], priority_of: dict[str, int],
     for it in items:
         dims = config.dimension_scores.get(it.source_type.value, {})
         prio = priority_of.get(it.source)
-        prio_bonus = (config.priority_bonus.get(prio, config.priority_bonus_default)
-                      if prio is not None else config.priority_bonus_default)
+        prio_bonus = (
+            config.priority_bonus.get(prio, config.priority_bonus_default)
+            if prio is not None
+            else config.priority_bonus_default
+        )
         breakdown = {
             "机构影响力": float(dims.get("机构影响力", 0)) + float(prio_bonus),
             "可见指标": round(_visibility(it, config), 4),
@@ -81,14 +95,16 @@ def compute_scores(items: list[NewsItem], priority_of: dict[str, int],
         breakdown = {k: breakdown[k] for k in DIMENSION_KEYS}
         raw = round(sum(breakdown.values()))
         score = max(0, min(100, raw))
-        scored.append(ScoredItem(**it.model_dump(), score=score,
-                                 score_breakdown=breakdown, is_explore=False))
+        scored.append(
+            ScoredItem(**it.model_dump(), score=score, score_breakdown=breakdown, is_explore=False)
+        )
     scored.sort(key=lambda s: (-s.score, s.published_at, s.link))
     return scored
 
 
-def apply_quota(scored: list[ScoredItem], config: ScoringConfig
-                ) -> tuple[list[ScoredItem], dict[str, QuotaLine]]:
+def apply_quota(
+    scored: list[ScoredItem], config: ScoringConfig
+) -> tuple[list[ScoredItem], dict[str, QuotaLine]]:
     """Strict per-type quota selection (spec §5.4). No cross-type fill.
     `scored` is assumed sorted (compute_scores output) but we re-sort defensively."""
     by_type: dict[str, list[ScoredItem]] = defaultdict(list)
@@ -102,12 +118,13 @@ def apply_quota(scored: list[ScoredItem], config: ScoringConfig
         q = config.quota.get(stype, 0)
         take = group_sorted[:q]
         selected.extend(take)
-        report[stype] = QuotaLine(source_type=stype, available=len(group),
-                                  quota=q, selected=len(take))
+        report[stype] = QuotaLine(
+            source_type=stype, available=len(group), quota=q, selected=len(take)
+        )
 
     selected.sort(key=lambda s: (-s.score, s.published_at, s.link))
     if len(selected) > config.total_limit:
-        selected = selected[:config.total_limit]
+        selected = selected[: config.total_limit]
     return selected, report
 
 
@@ -117,26 +134,48 @@ def score(items: list[NewsItem], config: ScoringConfig, ctx: RunContext) -> Scor
     emit(ctx.logger, "score_start", run_id=ctx.run_id, input_count=len(items))
     if not items:
         emit(ctx.logger, "score_done", input_count=0, selected_count=0, silent=True)
-        return ScoreResult(selected_items=[], all_scored=[], quota_report={},
-                           input_count=0, selected_count=0, is_silent=True)
+        return ScoreResult(
+            selected_items=[],
+            all_scored=[],
+            quota_report={},
+            input_count=0,
+            selected_count=0,
+            is_silent=True,
+        )
 
     priority_of = load_source_priorities(config.sources_registry_path)
     scored = compute_scores(items, priority_of, config, ctx)
     for s in scored:
-        emit(ctx.logger, "item_scored", link=s.link,
-             source_type=s.source_type.value, score=s.score)
+        emit(ctx.logger, "item_scored", link=s.link, source_type=s.source_type.value, score=s.score)
 
     selected, report = apply_quota(scored, config)
     for stype, line in report.items():
-        emit(ctx.logger, "quota_applied", source_type=stype,
-             available=line.available, quota=line.quota, selected=line.selected)
+        emit(
+            ctx.logger,
+            "quota_applied",
+            source_type=stype,
+            available=line.available,
+            quota=line.quota,
+            selected=line.selected,
+        )
     for s in selected:
-        emit(ctx.logger, "item_selected", link=s.link,
-             source_type=s.source_type.value, score=s.score)
+        emit(
+            ctx.logger, "item_selected", link=s.link, source_type=s.source_type.value, score=s.score
+        )
 
-    result = ScoreResult(selected_items=selected, all_scored=scored,
-                         quota_report=report, input_count=len(items),
-                         selected_count=len(selected), is_silent=False)
-    emit(ctx.logger, "score_done", input_count=result.input_count,
-         selected_count=result.selected_count, silent=False)
+    result = ScoreResult(
+        selected_items=selected,
+        all_scored=scored,
+        quota_report=report,
+        input_count=len(items),
+        selected_count=len(selected),
+        is_silent=False,
+    )
+    emit(
+        ctx.logger,
+        "score_done",
+        input_count=result.input_count,
+        selected_count=result.selected_count,
+        silent=False,
+    )
     return result

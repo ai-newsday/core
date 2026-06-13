@@ -1,7 +1,10 @@
 from __future__ import annotations
+
 from datetime import datetime, timezone
+
 import httpx
-from src.core.types import SourceSpec, RunContext, RawItem
+
+from src.core.types import RawItem, RunContext, SourceSpec
 
 
 def _parse_dt(s: str | None) -> datetime | None:
@@ -12,8 +15,7 @@ def _parse_dt(s: str | None) -> datetime | None:
 
 
 class HFPapersAdapter:
-    async def fetch(self, source: SourceSpec, ctx: RunContext,
-                    timeout_s: int) -> list[RawItem]:
+    async def fetch(self, source: SourceSpec, ctx: RunContext, timeout_s: int) -> list[RawItem]:
         async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=True) as client:
             resp = await client.get(source.url)
             resp.raise_for_status()
@@ -36,10 +38,16 @@ class HFPapersAdapter:
                 "submitted_on_daily_at": paper.get("submittedOnDailyAt"),
             }
             signals = {k: v for k, v in signals.items() if v not in (None, [], "")}
-            items.append(RawItem(
-                title_en=title, link=f"https://huggingface.co/papers/{pid}",
-                source=source.name, source_type=source.type,
-                published_at=published, raw_summary=paper.get("summary"),
-                fetched_via="native", signals=signals,
-            ))
+            items.append(
+                RawItem(
+                    title_en=title,
+                    link=f"https://huggingface.co/papers/{pid}",
+                    source=source.name,
+                    source_type=source.type,
+                    published_at=published,
+                    raw_summary=paper.get("summary"),
+                    fetched_via="native",
+                    signals=signals,
+                )
+            )
         return items

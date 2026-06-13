@@ -1,6 +1,8 @@
 """HN Algolia by-URL search 客户端 (免费, 限速 ~10000/h/IP)。
 协议: async def search_url(url) -> list[{points, num_comments, objectID, title, url}]。"""
+
 from __future__ import annotations
+
 import httpx
 
 _URL = "https://hn.algolia.com/api/v1/search"

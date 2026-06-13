@@ -1,20 +1,31 @@
-import logging
 from datetime import datetime, timezone
-import pytest
-from pydantic import ValidationError
-from src.core.types import (RawItem, NewsItem, ScoredItem, SourceType,
-                            Evidence, InterpretedItem, InterpretConfig,
-                            InterpretResult)
+
+from src.core.types import (
+    Evidence,
+    InterpretConfig,
+    InterpretedItem,
+    InterpretResult,
+    ScoredItem,
+    SourceType,
+)
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
 
 def _scored(**over):
-    base = dict(title_en="GLM-5 released", link="https://hf.co/glm5",
-                source="Hugging Face", source_type=SourceType.MODEL,
-                published_at=NOW, raw_summary="MoE open weights model.",
-                cluster_id="evt-1", related_links=["https://blog/glm5"],
-                score=88, score_breakdown={"机构影响力": 88}, is_explore=False)
+    base = dict(
+        title_en="GLM-5 released",
+        link="https://hf.co/glm5",
+        source="Hugging Face",
+        source_type=SourceType.MODEL,
+        published_at=NOW,
+        raw_summary="MoE open weights model.",
+        cluster_id="evt-1",
+        related_links=["https://blog/glm5"],
+        score=88,
+        score_breakdown={"机构影响力": 88},
+        is_explore=False,
+    )
     base.update(over)
     return ScoredItem(**base)
 
@@ -34,13 +45,17 @@ def test_evidence_schema():
 
 def test_interpreted_item_extends_scored_item():
     it = _scored()
-    interp = InterpretedItem(**it.model_dump(), title="智谱发布 GLM-5",
-                             summary="开源 MoE 模型。", takeaway="可自建推理。",
-                             hot_take="护城河又薄了。",
-                             tags=["#开源", "#MoE", "#GLM"],
-                             evidence=[Evidence(claim="MoE", anchor="https://hf.co/glm5")],
-                             interpretation_status="ok",
-                             eligible_for_must_read=True)
+    interp = InterpretedItem(
+        **it.model_dump(),
+        title="智谱发布 GLM-5",
+        summary="开源 MoE 模型。",
+        takeaway="可自建推理。",
+        hot_take="护城河又薄了。",
+        tags=["#开源", "#MoE", "#GLM"],
+        evidence=[Evidence(claim="MoE", anchor="https://hf.co/glm5")],
+        interpretation_status="ok",
+        eligible_for_must_read=True,
+    )
     # inherits ScoredItem invariants
     assert interp.score == 88 and interp.cluster_id == "evt-1"
     assert interp.is_explore is False
@@ -50,14 +65,24 @@ def test_interpreted_item_extends_scored_item():
 
 def test_interpreted_item_defaults_for_fallback():
     it = _scored()
-    interp = InterpretedItem(**it.model_dump(), title="GLM-5 released",
-                             summary="MoE open weights model.", takeaway="",
-                             interpretation_status="extractive_fallback",
-                             eligible_for_must_read=False)
+    interp = InterpretedItem(
+        **it.model_dump(),
+        title="GLM-5 released",
+        summary="MoE open weights model.",
+        takeaway="",
+        interpretation_status="extractive_fallback",
+        eligible_for_must_read=False,
+    )
     assert interp.hot_take == "" and interp.tags == [] and interp.evidence == []
 
 
 def test_interpret_result_shape():
-    r = InterpretResult(interpreted_items=[], daily_take=None, input_count=0,
-                        interpreted_count=0, fallback_count=0, is_silent=True)
+    r = InterpretResult(
+        interpreted_items=[],
+        daily_take=None,
+        input_count=0,
+        interpreted_count=0,
+        fallback_count=0,
+        is_silent=True,
+    )
     assert r.is_silent is True and r.daily_take is None

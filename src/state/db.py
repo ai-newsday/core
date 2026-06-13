@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import json
 from datetime import datetime, timezone
+
 import aiosqlite
 
 _SCHEMA = """
@@ -69,32 +71,57 @@ class Database:
         async with aiosqlite.connect(self._path) as conn:
             await conn.execute(
                 "INSERT OR IGNORE INTO runs(run_id,tick,ts,status) VALUES(?,?,?,?)",
-                (run_id, tick, ts, "running"))
+                (run_id, tick, ts, "running"),
+            )
             await conn.commit()
 
     async def get_run(self, run_id: str) -> dict | None:
         async with aiosqlite.connect(self._path) as conn:
             conn.row_factory = aiosqlite.Row
-            async with conn.execute(
-                    "SELECT * FROM runs WHERE run_id=?", (run_id,)) as cur:
+            async with conn.execute("SELECT * FROM runs WHERE run_id=?", (run_id,)) as cur:
                 row = await cur.fetchone()
                 return dict(row) if row else None
 
     async def upsert_pending_review(
-            self, *, item_id: str, run_id: str, link: str, source: str,
-            title_en: str, title_zh: str | None, summary_zh: str | None,
-            takeaway: str | None, hot_take: str | None,
-            score: int, signals: dict, date: str) -> None:
+        self,
+        *,
+        item_id: str,
+        run_id: str,
+        link: str,
+        source: str,
+        title_en: str,
+        title_zh: str | None,
+        summary_zh: str | None,
+        takeaway: str | None,
+        hot_take: str | None,
+        score: int,
+        signals: dict,
+        date: str,
+    ) -> None:
         """INSERT OR IGNORE — 同一 item_id 今天已有记录则跳过。"""
         async with aiosqlite.connect(self._path) as conn:
-            await conn.execute("""
+            await conn.execute(
+                """
                 INSERT OR IGNORE INTO pending_reviews
                 (item_id,run_id,link,source,title_en,title_zh,summary_zh,
                  takeaway,hot_take,score,signals,date)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (item_id, run_id, link, source, title_en, title_zh,
-                  summary_zh, takeaway, hot_take, score,
-                  json.dumps(signals, ensure_ascii=False), date))
+            """,
+                (
+                    item_id,
+                    run_id,
+                    link,
+                    source,
+                    title_en,
+                    title_zh,
+                    summary_zh,
+                    takeaway,
+                    hot_take,
+                    score,
+                    json.dumps(signals, ensure_ascii=False),
+                    date,
+                ),
+            )
             await conn.commit()
 
     async def update_decision(self, item_id: str, action: str) -> None:
@@ -102,22 +129,23 @@ class Database:
         async with aiosqlite.connect(self._path) as conn:
             await conn.execute(
                 "UPDATE pending_reviews SET status=?,decided_at=? WHERE item_id=?",
-                (action, ts, item_id))
+                (action, ts, item_id),
+            )
             await conn.commit()
 
     async def update_msg_id(self, item_id: str, msg_id: int) -> None:
         async with aiosqlite.connect(self._path) as conn:
             await conn.execute(
-                "UPDATE pending_reviews SET msg_id=? WHERE item_id=?",
-                (msg_id, item_id))
+                "UPDATE pending_reviews SET msg_id=? WHERE item_id=?", (msg_id, item_id)
+            )
             await conn.commit()
 
     async def get_pending_reviews_for_date(self, date: str) -> list[dict]:
         async with aiosqlite.connect(self._path) as conn:
             conn.row_factory = aiosqlite.Row
             async with conn.execute(
-                    "SELECT * FROM pending_reviews WHERE date=? ORDER BY score DESC",
-                    (date,)) as cur:
+                "SELECT * FROM pending_reviews WHERE date=? ORDER BY score DESC", (date,)
+            ) as cur:
                 rows = await cur.fetchall()
                 result = []
                 for row in rows:
@@ -128,20 +156,18 @@ class Database:
 
     async def get_kv(self, key: str) -> str | None:
         async with aiosqlite.connect(self._path) as conn:
-            async with conn.execute(
-                    "SELECT value FROM kv_state WHERE key=?", (key,)) as cur:
+            async with conn.execute("SELECT value FROM kv_state WHERE key=?", (key,)) as cur:
                 row = await cur.fetchone()
                 return row[0] if row else None
 
     async def set_kv(self, key: str, value: str) -> None:
         async with aiosqlite.connect(self._path) as conn:
             await conn.execute(
-                "INSERT OR REPLACE INTO kv_state(key,value) VALUES(?,?)",
-                (key, value))
+                "INSERT OR REPLACE INTO kv_state(key,value) VALUES(?,?)", (key, value)
+            )
             await conn.commit()
 
     async def get_decisions_dict(self, date: str) -> dict[str, str]:
         """返回 {link: action} 只含已明确决策（keep/drop）的条目。"""
         rows = await self.get_pending_reviews_for_date(date)
-        return {r["link"]: r["status"]
-                for r in rows if r["status"] in ("keep", "drop")}
+        return {r["link"]: r["status"] for r in rows if r["status"] in ("keep", "drop")}

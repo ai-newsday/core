@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import subprocess
 from pathlib import Path
+
 from src.core.types import WebsiteConfig
 
 
@@ -22,13 +24,11 @@ class WebsiteNotifier:
         out_file.write_text(markdown, encoding="utf-8")
         if self._cfg.git_push:
             try:
+                subprocess.run(["git", "add", str(out_file)], check=True, capture_output=True)
                 subprocess.run(
-                    ["git", "add", str(out_file)], check=True, capture_output=True)
-                subprocess.run(
-                    ["git", "commit", "-m", f"daily: {date_str}"],
-                    check=True, capture_output=True)
-                subprocess.run(
-                    ["git", "push"], check=True, capture_output=True)
+                    ["git", "commit", "-m", f"daily: {date_str}"], check=True, capture_output=True
+                )
+                subprocess.run(["git", "push"], check=True, capture_output=True)
             except subprocess.CalledProcessError:
                 pass
 

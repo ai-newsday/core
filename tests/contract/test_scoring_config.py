@@ -23,7 +23,8 @@ def test_loads_and_flattens_nested_recency_and_penalty(tmp_path):
         "  same_source: -8\n"
         "quota: {paper: 1, model: 1}\n"
         "total_limit: 5\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     c = load_scoring_config(str(p))
     assert c.fresh_hours == 12 and c.fresh_bonus == 20
     assert c.mid_hours == 36 and c.mid_bonus == 5

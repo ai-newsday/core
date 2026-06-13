@@ -1,8 +1,9 @@
 import json
+
 import pytest
 from pydantic import ValidationError
-from src.core.config import (load_feedback_config, load_feedback_events,
-                             load_quality_weights)
+
+from src.core.config import load_feedback_config, load_feedback_events, load_quality_weights
 from src.core.types import FeedbackConfig
 
 
@@ -13,8 +14,9 @@ def test_load_feedback_config_missing_returns_defaults(tmp_path):
 
 def test_load_feedback_config_overrides_fields(tmp_path):
     p = tmp_path / "feedback.yaml"
-    p.write_text("step: 0.1\nmin_events: 3\nedit_factor: 0.25\n"
-                 'events_path: "x/ev.json"\n', encoding="utf-8")
+    p.write_text(
+        'step: 0.1\nmin_events: 3\nedit_factor: 0.25\nevents_path: "x/ev.json"\n', encoding="utf-8"
+    )
     cfg = load_feedback_config(str(p))
     assert cfg.step == 0.1 and cfg.min_events == 3
     assert cfg.edit_factor == 0.25 and cfg.events_path == "x/ev.json"
@@ -28,20 +30,40 @@ def test_load_feedback_events_missing_returns_empty(tmp_path):
 
 def test_load_feedback_events_parses_and_validates(tmp_path):
     p = tmp_path / "ev.json"
-    p.write_text(json.dumps([
-        {"link": "https://a/1", "source": "s", "action": "keep",
-         "run_id": "r1", "ts": "2026-05-30T12:00:00+00:00"}]),
-        encoding="utf-8")
+    p.write_text(
+        json.dumps(
+            [
+                {
+                    "link": "https://a/1",
+                    "source": "s",
+                    "action": "keep",
+                    "run_id": "r1",
+                    "ts": "2026-05-30T12:00:00+00:00",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
     evs = load_feedback_events(str(p))
     assert len(evs) == 1 and evs[0].action == "keep" and evs[0].source == "s"
 
 
 def test_load_feedback_events_rejects_bad_action(tmp_path):
     p = tmp_path / "ev.json"
-    p.write_text(json.dumps([
-        {"link": "https://a/1", "source": "s", "action": "nope",
-         "run_id": "r1", "ts": "2026-05-30T12:00:00+00:00"}]),
-        encoding="utf-8")
+    p.write_text(
+        json.dumps(
+            [
+                {
+                    "link": "https://a/1",
+                    "source": "s",
+                    "action": "nope",
+                    "run_id": "r1",
+                    "ts": "2026-05-30T12:00:00+00:00",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
     with pytest.raises(ValidationError):
         load_feedback_events(str(p))
 

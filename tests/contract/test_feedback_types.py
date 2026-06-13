@@ -1,13 +1,12 @@
 from datetime import datetime, timezone
-from src.core.types import (FeedbackEvent, SourceFeedbackStats,
-                            FeedbackConfig, FeedbackResult)
+
+from src.core.types import FeedbackConfig, FeedbackEvent, FeedbackResult, SourceFeedbackStats
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
 
 def test_feedback_event_shape():
-    e = FeedbackEvent(link="https://a/1", source="src", action="drop",
-                      run_id="r1", ts=NOW)
+    e = FeedbackEvent(link="https://a/1", source="src", action="drop", run_id="r1", ts=NOW)
     assert e.action == "drop" and e.source == "src"
     assert e.link == "https://a/1" and e.run_id == "r1"
     assert e.ts == NOW
@@ -30,10 +29,13 @@ def test_feedback_config_defaults():
 
 def test_feedback_result_shape():
     res = FeedbackResult(
-        source_stats=[SourceFeedbackStats(source="src", keep=1, edit=0,
-                                          drop=0, total=1)],
-        quality_weights={"src": 1.2}, weight_diff={"src": (1.0, 1.2)},
-        event_count=1, source_count=1, is_silent=False)
+        source_stats=[SourceFeedbackStats(source="src", keep=1, edit=0, drop=0, total=1)],
+        quality_weights={"src": 1.2},
+        weight_diff={"src": (1.0, 1.2)},
+        event_count=1,
+        source_count=1,
+        is_silent=False,
+    )
     assert res.quality_weights == {"src": 1.2}
     assert res.weight_diff["src"] == (1.0, 1.2)
     assert res.event_count == 1 and res.source_count == 1

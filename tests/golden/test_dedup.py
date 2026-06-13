@@ -1,9 +1,10 @@
 import logging
 from datetime import datetime, timezone
-from src.core.types import RawItem, SourceType, DedupConfig, RunContext
-from src.pipeline.dedup import dedup, build_embed_text
+
 from src.adapters.vectorstore.memory import InMemoryVectorStore
-from tests.fakes import FakeEmbeddingProvider, FailingEmbeddingProvider
+from src.core.types import DedupConfig, RawItem, RunContext, SourceType
+from src.pipeline.dedup import build_embed_text, dedup
+from tests.fakes import FailingEmbeddingProvider, FakeEmbeddingProvider
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
@@ -13,8 +14,7 @@ def _ctx():
 
 
 def _item(title, link, source, st):
-    return RawItem(title_en=title, link=link, source=source, source_type=st,
-                   published_at=NOW)
+    return RawItem(title_en=title, link=link, source=source, source_type=st, published_at=NOW)
 
 
 def _cfg():
@@ -27,12 +27,13 @@ def test_golden_cross_source_merge():
         _item("Event X take", "https://b/2", "some-blog", SourceType.BLOG),
         _item("Event X recap", "https://c/3", "some-blog", SourceType.BLOG),
     ]
-    vecs = {build_embed_text(items[0]): [1.0, 0.0],
-            build_embed_text(items[1]): [0.99, 0.10],
-            build_embed_text(items[2]): [0.98, 0.12]}
+    vecs = {
+        build_embed_text(items[0]): [1.0, 0.0],
+        build_embed_text(items[1]): [0.99, 0.10],
+        build_embed_text(items[2]): [0.98, 0.12],
+    }
     store = InMemoryVectorStore()
-    res = dedup(items, _cfg(), _ctx(),
-                embedder=FakeEmbeddingProvider(vecs), store=store)
+    res = dedup(items, _cfg(), _ctx(), embedder=FakeEmbeddingProvider(vecs), store=store)
     assert res.cluster_count == 1
     assert res.duplicate_count == 2
     assert res.deduped_items[0].source == "openai"
@@ -46,11 +47,14 @@ def test_golden_no_duplicates():
         _item("Beta", "https://b/2", "openai", SourceType.OFFICIAL),
         _item("Gamma", "https://c/3", "openai", SourceType.OFFICIAL),
     ]
-    vecs = {build_embed_text(items[0]): [1.0, 0.0, 0.0],
-            build_embed_text(items[1]): [0.0, 1.0, 0.0],
-            build_embed_text(items[2]): [0.0, 0.0, 1.0]}
-    res = dedup(items, _cfg(), _ctx(),
-                embedder=FakeEmbeddingProvider(vecs), store=InMemoryVectorStore())
+    vecs = {
+        build_embed_text(items[0]): [1.0, 0.0, 0.0],
+        build_embed_text(items[1]): [0.0, 1.0, 0.0],
+        build_embed_text(items[2]): [0.0, 0.0, 1.0],
+    }
+    res = dedup(
+        items, _cfg(), _ctx(), embedder=FakeEmbeddingProvider(vecs), store=InMemoryVectorStore()
+    )
     assert res.cluster_count == 3 and res.duplicate_count == 0
     assert len(res.deduped_items) == res.cluster_count
 
@@ -60,10 +64,10 @@ def test_golden_primary_selection_official_over_blog():
         _item("E blog", "https://b/1", "some-blog", SourceType.BLOG),
         _item("E official", "https://o/2", "openai", SourceType.OFFICIAL),
     ]
-    vecs = {build_embed_text(items[0]): [1.0, 0.02],
-            build_embed_text(items[1]): [1.0, 0.0]}
-    res = dedup(items, _cfg(), _ctx(),
-                embedder=FakeEmbeddingProvider(vecs), store=InMemoryVectorStore())
+    vecs = {build_embed_text(items[0]): [1.0, 0.02], build_embed_text(items[1]): [1.0, 0.0]}
+    res = dedup(
+        items, _cfg(), _ctx(), embedder=FakeEmbeddingProvider(vecs), store=InMemoryVectorStore()
+    )
     assert res.cluster_count == 1
     assert res.deduped_items[0].source == "openai"
     assert res.deduped_items[0].related_links == ["https://b/1"]
@@ -75,11 +79,14 @@ def test_golden_threshold_boundary():
         _item("P near", "https://b/2", "openai", SourceType.OFFICIAL),
         _item("Q far", "https://c/3", "openai", SourceType.OFFICIAL),
     ]
-    vecs = {build_embed_text(items[0]): [1.0, 0.0],
-            build_embed_text(items[1]): [0.95, 0.31],
-            build_embed_text(items[2]): [0.0, 1.0]}
-    res = dedup(items, _cfg(), _ctx(),
-                embedder=FakeEmbeddingProvider(vecs), store=InMemoryVectorStore())
+    vecs = {
+        build_embed_text(items[0]): [1.0, 0.0],
+        build_embed_text(items[1]): [0.95, 0.31],
+        build_embed_text(items[2]): [0.0, 1.0],
+    }
+    res = dedup(
+        items, _cfg(), _ctx(), embedder=FakeEmbeddingProvider(vecs), store=InMemoryVectorStore()
+    )
     assert res.cluster_count == 2
     sizes = sorted(c.size for c in res.clusters)
     assert sizes == [1, 2]
@@ -94,11 +101,14 @@ def test_golden_duplicate_link_collapsed_first_wins():
         _item("Second dupe link", "https://a/1", "some-blog", SourceType.BLOG),
         _item("Other", "https://b/2", "openai", SourceType.OFFICIAL),
     ]
-    vecs = {build_embed_text(items[0]): [1.0, 0.0],
-            build_embed_text(items[1]): [0.0, 1.0],
-            build_embed_text(items[2]): [0.0, 1.0]}
-    res = dedup(items, _cfg(), _ctx(),
-                embedder=FakeEmbeddingProvider(vecs), store=InMemoryVectorStore())
+    vecs = {
+        build_embed_text(items[0]): [1.0, 0.0],
+        build_embed_text(items[1]): [0.0, 1.0],
+        build_embed_text(items[2]): [0.0, 1.0],
+    }
+    res = dedup(
+        items, _cfg(), _ctx(), embedder=FakeEmbeddingProvider(vecs), store=InMemoryVectorStore()
+    )
     assert res.input_count == 2
     links = {d.link for d in res.deduped_items}
     assert links == {"https://a/1", "https://b/2"}
@@ -107,8 +117,7 @@ def test_golden_duplicate_link_collapsed_first_wins():
 
 
 def test_golden_empty_input():
-    res = dedup([], _cfg(), _ctx(),
-                embedder=FakeEmbeddingProvider({}), store=InMemoryVectorStore())
+    res = dedup([], _cfg(), _ctx(), embedder=FakeEmbeddingProvider({}), store=InMemoryVectorStore())
     assert res.clusters == [] and res.deduped_items == []
     assert res.input_count == res.cluster_count == res.duplicate_count == 0
 
@@ -118,7 +127,8 @@ def test_golden_embedding_degraded_all_singletons():
         _item("A", "https://a/1", "openai", SourceType.OFFICIAL),
         _item("B", "https://b/2", "openai", SourceType.OFFICIAL),
     ]
-    res = dedup(items, _cfg(), _ctx(),
-                embedder=FailingEmbeddingProvider(), store=InMemoryVectorStore())
+    res = dedup(
+        items, _cfg(), _ctx(), embedder=FailingEmbeddingProvider(), store=InMemoryVectorStore()
+    )
     assert res.cluster_count == res.input_count == 2
     assert res.duplicate_count == 0

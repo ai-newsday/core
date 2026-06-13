@@ -1,7 +1,8 @@
 import json
 from datetime import datetime, timezone
+
 from src.cli import run_tick
-from tests.fakes import FakeEmbeddingProvider, FailingLLMProvider
+from tests.fakes import FailingLLMProvider, FakeEmbeddingProvider
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
@@ -12,9 +13,11 @@ def test_run_tick_collect_shape(tmp_path, monkeypatch):
     out = run_tick(
         tick="collect",
         registry_path="tests/golden/data/registry_min.yaml",
-        now=NOW, db_path=str(tmp_path / "state.db"),
+        now=NOW,
+        db_path=str(tmp_path / "state.db"),
         embedder=FakeEmbeddingProvider({}),
-        llm=FailingLLMProvider())
+        llm=FailingLLMProvider(),
+    )
     for k in ("run_id", "tick", "pushed", "date"):
         assert k in out
 
@@ -25,15 +28,19 @@ def test_run_tick_finalize_shape(tmp_path, monkeypatch):
     run_tick(
         tick="collect",
         registry_path="tests/golden/data/registry_min.yaml",
-        now=NOW, db_path=str(tmp_path / "state.db"),
+        now=NOW,
+        db_path=str(tmp_path / "state.db"),
         embedder=FakeEmbeddingProvider({}),
-        llm=FailingLLMProvider())
+        llm=FailingLLMProvider(),
+    )
     out = run_tick(
         tick="finalize",
         registry_path="tests/golden/data/registry_min.yaml",
-        now=NOW, db_path=str(tmp_path / "state.db"),
+        now=NOW,
+        db_path=str(tmp_path / "state.db"),
         embedder=FakeEmbeddingProvider({}),
-        llm=FailingLLMProvider())
+        llm=FailingLLMProvider(),
+    )
     for k in ("run_id", "tick", "item_count", "must_read_count"):
         assert k in out
     json.dumps(out, ensure_ascii=False)

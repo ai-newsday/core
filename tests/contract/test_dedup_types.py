@@ -1,20 +1,29 @@
 from datetime import datetime, timezone
+
 import pytest
 from pydantic import ValidationError
-from src.core.types import (RawItem, NewsItem, SourceType,
-                            DedupConfig, Cluster, DedupResult)
+
+from src.core.types import Cluster, DedupConfig, DedupResult, NewsItem, RawItem, SourceType
 
 
-def _raw(title="GPT-X released", link="https://e.com/a", src="openai",
-         st=SourceType.OFFICIAL):
-    return RawItem(title_en=title, link=link, source=src, source_type=st,
-                   published_at=datetime(2026, 5, 30, 12, tzinfo=timezone.utc))
+def _raw(title="GPT-X released", link="https://e.com/a", src="openai", st=SourceType.OFFICIAL):
+    return RawItem(
+        title_en=title,
+        link=link,
+        source=src,
+        source_type=st,
+        published_at=datetime(2026, 5, 30, 12, tzinfo=timezone.utc),
+    )
 
 
 def test_newsitem_inherits_rawitem_and_adds_fields():
     raw = _raw()
-    ni = NewsItem(**raw.model_dump(), cluster_id="evt-2026-05-30-001",
-                  related_links=["https://e.com/b"], embedding_id="abc123")
+    ni = NewsItem(
+        **raw.model_dump(),
+        cluster_id="evt-2026-05-30-001",
+        related_links=["https://e.com/b"],
+        embedding_id="abc123",
+    )
     assert ni.title_en == "GPT-X released"
     assert ni.cluster_id == "evt-2026-05-30-001"
     assert ni.related_links == ["https://e.com/b"]
@@ -45,8 +54,10 @@ def test_dedupconfig_defaults():
 def test_cluster_and_result_construct():
     raw = _raw()
     primary = NewsItem(**raw.model_dump(), cluster_id="evt-2026-05-30-001")
-    cl = Cluster(cluster_id="evt-2026-05-30-001", primary=primary,
-                 members=[raw], related_links=[], size=1)
-    res = DedupResult(clusters=[cl], deduped_items=[primary],
-                      input_count=1, cluster_count=1, duplicate_count=0)
+    cl = Cluster(
+        cluster_id="evt-2026-05-30-001", primary=primary, members=[raw], related_links=[], size=1
+    )
+    res = DedupResult(
+        clusters=[cl], deduped_items=[primary], input_count=1, cluster_count=1, duplicate_count=0
+    )
     assert res.cluster_count == 1 and res.duplicate_count == 0

@@ -1,13 +1,18 @@
 from datetime import datetime, timezone
+
 from src.core.types import RawItem, SourceType
-from src.pipeline.dedup import build_embed_text, embedding_id, _cosine
+from src.pipeline.dedup import _cosine, build_embed_text, embedding_id
 
 
 def _raw(title, summary=None, link="https://e.com/a"):
-    return RawItem(title_en=title, link=link, source="s",
-                   source_type=SourceType.OFFICIAL,
-                   published_at=datetime(2026, 5, 30, tzinfo=timezone.utc),
-                   raw_summary=summary)
+    return RawItem(
+        title_en=title,
+        link=link,
+        source="s",
+        source_type=SourceType.OFFICIAL,
+        published_at=datetime(2026, 5, 30, tzinfo=timezone.utc),
+        raw_summary=summary,
+    )
 
 
 def test_build_embed_text_with_summary():
@@ -34,18 +39,25 @@ def test_cosine_zero_vector_is_zero():
 
 
 import logging
+
 from src.core.types import DedupConfig, RunContext
 from src.pipeline.dedup import cluster
 
 
 def _ctx():
-    return RunContext(run_id="t", now=datetime(2026, 5, 30, tzinfo=timezone.utc),
-                      logger=logging.getLogger("t"))
+    return RunContext(
+        run_id="t", now=datetime(2026, 5, 30, tzinfo=timezone.utc), logger=logging.getLogger("t")
+    )
 
 
 def _item(title, link, source, st, when=None):
-    return RawItem(title_en=title, link=link, source=source, source_type=st,
-                   published_at=when or datetime(2026, 5, 30, 12, tzinfo=timezone.utc))
+    return RawItem(
+        title_en=title,
+        link=link,
+        source=source,
+        source_type=st,
+        published_at=when or datetime(2026, 5, 30, 12, tzinfo=timezone.utc),
+    )
 
 
 def test_cluster_merges_similar_above_threshold():
@@ -72,8 +84,7 @@ def test_cluster_keeps_dissimilar_separate():
     vectors = [[1.0, 0.0], [0.0, 1.0]]
     clusters = cluster(items, vectors, {"openai": 2}, DedupConfig(), _ctx())
     assert len(clusters) == 2
-    assert [c.cluster_id for c in clusters] == [
-        "evt-2026-05-30-001", "evt-2026-05-30-002"]
+    assert [c.cluster_id for c in clusters] == ["evt-2026-05-30-001", "evt-2026-05-30-002"]
     assert all(c.size == 1 and c.related_links == [] for c in clusters)
 
 

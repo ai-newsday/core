@@ -1,7 +1,7 @@
 from src.adapters.sources import ADAPTERS
-from src.adapters.sources.rss import RSSAdapter
-from src.adapters.sources.hf_papers import HFPapersAdapter
 from src.adapters.sources.hf_models import HFModelsAdapter
+from src.adapters.sources.hf_papers import HFPapersAdapter
+from src.adapters.sources.rss import RSSAdapter
 
 
 def test_adapters_map_covers_all_adapter_keys():

@@ -1,23 +1,46 @@
 from datetime import datetime, timezone
-from src.core.types import (SourceType, Evidence, ReviewedItem,
-                            Overview, CategorySection, DailyReport,
-                            PublishConfig, PublishResult)
+
+from src.core.types import (
+    CategorySection,
+    DailyReport,
+    Evidence,
+    Overview,
+    PublishConfig,
+    PublishResult,
+    ReviewedItem,
+    SourceType,
+)
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
 
-def _ri(link="https://a/1", source_type=SourceType.MODEL, score=80,
-        eligible=True, is_explore=False):
+def _ri(
+    link="https://a/1", source_type=SourceType.MODEL, score=80, eligible=True, is_explore=False
+):
     return ReviewedItem(
-        title_en="X released", link=link, source="src",
-        source_type=source_type, published_at=NOW, raw_summary="A.",
-        cluster_id="evt-1", related_links=[], score=score,
-        score_breakdown={"机构影响力": float(score)}, is_explore=is_explore,
-        title="中文标题", summary="中文摘要。", takeaway="怎么用。",
-        hot_take="锐评。", tags=["#a", "#b", "#c"],
+        title_en="X released",
+        link=link,
+        source="src",
+        source_type=source_type,
+        published_at=NOW,
+        raw_summary="A.",
+        cluster_id="evt-1",
+        related_links=[],
+        score=score,
+        score_breakdown={"机构影响力": float(score)},
+        is_explore=is_explore,
+        title="中文标题",
+        summary="中文摘要。",
+        takeaway="怎么用。",
+        hot_take="锐评。",
+        tags=["#a", "#b", "#c"],
         evidence=[Evidence(claim="事实", anchor=link)],
-        interpretation_status="ok", eligible_for_must_read=eligible,
-        review_action="keep", was_edited=False, edited_fields=[])
+        interpretation_status="ok",
+        eligible_for_must_read=eligible,
+        review_action="keep",
+        was_edited=False,
+        edited_fields=[],
+    )
 
 
 def test_overview_shape():
@@ -34,12 +57,15 @@ def test_category_section_shape():
 
 def test_daily_report_shape():
     rep = DailyReport(
-        date_label="2026-05-30（周六）", daily_take="看点。",
+        date_label="2026-05-30（周六）",
+        daily_take="看点。",
         must_read=[_ri()],
-        categories=[CategorySection(source_type="model", label="模型",
-                                    items=[_ri()])],
+        categories=[CategorySection(source_type="model", label="模型", items=[_ri()])],
         overview=Overview(type_distribution={"model": 1}, keywords=["a"]),
-        is_pending=False, item_count=1, explore_count=0)
+        is_pending=False,
+        item_count=1,
+        explore_count=0,
+    )
     assert rep.date_label == "2026-05-30（周六）"
     assert rep.daily_take == "看点。" and rep.is_pending is False
     assert rep.item_count == 1 and rep.explore_count == 0
@@ -47,10 +73,16 @@ def test_daily_report_shape():
 
 
 def test_daily_report_daily_take_optional():
-    rep = DailyReport(date_label="d", daily_take=None, must_read=[],
-                      categories=[],
-                      overview=Overview(type_distribution={}, keywords=[]),
-                      is_pending=True, item_count=0, explore_count=0)
+    rep = DailyReport(
+        date_label="d",
+        daily_take=None,
+        must_read=[],
+        categories=[],
+        overview=Overview(type_distribution={}, keywords=[]),
+        is_pending=True,
+        item_count=0,
+        explore_count=0,
+    )
     assert rep.daily_take is None and rep.is_pending is True
 
 
@@ -65,10 +97,19 @@ def test_publish_config_defaults():
 
 def test_publish_result_shape():
     res = PublishResult(
-        report=DailyReport(date_label="d", daily_take=None, must_read=[],
-                           categories=[],
-                           overview=Overview(type_distribution={}, keywords=[]),
-                           is_pending=True, item_count=0, explore_count=0),
-        markdown="", is_pending=True, is_silent=True)
+        report=DailyReport(
+            date_label="d",
+            daily_take=None,
+            must_read=[],
+            categories=[],
+            overview=Overview(type_distribution={}, keywords=[]),
+            is_pending=True,
+            item_count=0,
+            explore_count=0,
+        ),
+        markdown="",
+        is_pending=True,
+        is_silent=True,
+    )
     assert res.markdown == "" and res.is_silent is True
     assert res.is_pending is True

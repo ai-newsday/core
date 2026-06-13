@@ -1,18 +1,20 @@
 import logging
 from datetime import datetime, timezone
-from src.core.registry import load_registry, FALLBACK_SOURCES
+
+from src.core.registry import FALLBACK_SOURCES, load_registry
 from src.core.types import RunContext
 
 
 def _ctx():
-    return RunContext(run_id="t", now=datetime.now(timezone.utc),
-                      logger=logging.getLogger("test.registry"))
+    return RunContext(
+        run_id="t", now=datetime.now(timezone.utc), logger=logging.getLogger("test.registry")
+    )
 
 
 def test_load_returns_only_working_sources():
     specs = load_registry("tests/golden/data/registry_min.yaml", _ctx())
     names = {s.name for s in specs}
-    assert names == {"hf-papers", "openai"}        # 'some-blog' is manual -> excluded
+    assert names == {"hf-papers", "openai"}  # 'some-blog' is manual -> excluded
 
 
 def test_missing_file_falls_back_and_warns(caplog):

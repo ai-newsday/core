@@ -1,7 +1,8 @@
 import logging
-from datetime import datetime, timezone, timedelta
-from src.core.types import RawItem, NewsItem, SourceType, ScoringConfig, RunContext
-from src.pipeline.score import recency_band, compute_scores
+from datetime import datetime, timedelta, timezone
+
+from src.core.types import NewsItem, RunContext, ScoringConfig, SourceType
+from src.pipeline.score import compute_scores, recency_band
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
@@ -11,15 +12,21 @@ def _ctx():
 
 
 def _ni(title, link, source, st, published=NOW):
-    return NewsItem(title_en=title, link=link, source=source, source_type=st,
-                    published_at=published, cluster_id="evt-x")
+    return NewsItem(
+        title_en=title,
+        link=link,
+        source=source,
+        source_type=st,
+        published_at=published,
+        cluster_id="evt-x",
+    )
 
 
 def test_recency_band_four_zones():
     c = ScoringConfig()
-    assert recency_band(NOW, NOW, c) == c.fresh_bonus                       # 0h
-    assert recency_band(NOW - timedelta(hours=36), NOW, c) == c.mid_bonus   # 36h
-    assert recency_band(NOW - timedelta(hours=60), NOW, c) == 0.0           # 60h
+    assert recency_band(NOW, NOW, c) == c.fresh_bonus  # 0h
+    assert recency_band(NOW - timedelta(hours=36), NOW, c) == c.mid_bonus  # 36h
+    assert recency_band(NOW - timedelta(hours=60), NOW, c) == 0.0  # 60h
     assert recency_band(NOW - timedelta(hours=100), NOW, c) == c.stale_penalty
 
 
@@ -27,8 +34,17 @@ def test_compute_scores_breakdown_has_nine_keys_and_sums_to_score():
     items = [_ni("A", "https://a/1", "openai", SourceType.OFFICIAL)]
     scored = compute_scores(items, {"openai": 1}, ScoringConfig(), _ctx())
     bd = scored[0].score_breakdown
-    assert set(bd) == {"机构影响力", "一手性", "技术价值", "产业影响", "扩散潜力",
-                       "可见指标", "时效", "惩罚", "读者相关度"}
+    assert set(bd) == {
+        "机构影响力",
+        "一手性",
+        "技术价值",
+        "产业影响",
+        "扩散潜力",
+        "可见指标",
+        "时效",
+        "惩罚",
+        "读者相关度",
+    }
     assert bd["可见指标"] == 0.0 and bd["读者相关度"] == 0.0
     assert scored[0].is_explore is False
     assert scored[0].score == max(0, min(100, round(sum(bd.values()))))
@@ -38,7 +54,7 @@ def test_compute_scores_breakdown_has_nine_keys_and_sums_to_score():
 
 def test_compute_scores_missing_priority_uses_default():
     items = [_ni("A", "https://a/1", "unknown-src", SourceType.PAPER)]
-    scored = compute_scores(items, {}, ScoringConfig(), _ctx())   # source not in map
+    scored = compute_scores(items, {}, ScoringConfig(), _ctx())  # source not in map
     # priority_bonus_default == 0 -> 机构影响力 == paper base 14 + 0
     assert scored[0].score_breakdown["机构影响力"] == 14
 
@@ -54,14 +70,14 @@ def test_compute_scores_same_source_penalty_by_published_order():
     ]
     scored = compute_scores(items, {}, ScoringConfig(), _ctx())
     pen = {s.link: s.score_breakdown["惩罚"] for s in scored}
-    assert pen["https://s/1"] == 0.0                          # earliest: no penalty
+    assert pen["https://s/1"] == 0.0  # earliest: no penalty
     assert pen["https://s/2"] == ScoringConfig().same_source_penalty
     assert pen["https://s/3"] == ScoringConfig().same_source_penalty
 
 
 def test_compute_scores_sorted_desc_by_score():
     items = [
-        _ni("blog", "https://b/1", "b", SourceType.BLOG),       # low base
+        _ni("blog", "https://b/1", "b", SourceType.BLOG),  # low base
         _ni("official", "https://o/2", "o", SourceType.OFFICIAL),  # high base
     ]
     scored = compute_scores(items, {}, ScoringConfig(), _ctx())
@@ -97,7 +113,7 @@ def test_apply_quota_trims_to_quota_keeping_top_scored():
     assert report["paper"].quota == 2
     assert report["paper"].selected == 2
     links = {s.link for s in selected}
-    assert links == {"https://p/1", "https://p/2"}      # stale dropped (lowest)
+    assert links == {"https://p/1", "https://p/2"}  # stale dropped (lowest)
 
 
 def test_apply_quota_keeps_all_when_under_quota():
@@ -107,7 +123,7 @@ def test_apply_quota_keeps_all_when_under_quota():
     cfg.quota = {"tool": 2}
     selected, report = apply_quota(scored, cfg)
     assert report["tool"].available == 1
-    assert report["tool"].selected == 1                 # min(quota, available)
+    assert report["tool"].selected == 1  # min(quota, available)
     assert len(selected) == 1
 
 
@@ -115,7 +131,7 @@ def test_apply_quota_zero_for_unlisted_type():
     ctx = _ctx()
     scored = _scored_list(ctx, ("n", "https://n/1", "n1", SourceType.NEWS, NOW))
     cfg = ScoringConfig()
-    cfg.quota = {"paper": 2}                             # news not listed
+    cfg.quota = {"paper": 2}  # news not listed
     selected, report = apply_quota(scored, cfg)
     assert report["news"].quota == 0 and report["news"].selected == 0
     assert selected == []
@@ -133,6 +149,6 @@ def test_apply_quota_respects_total_limit():
     cfg.quota = {"paper": 1, "model": 1, "tool": 1}
     cfg.total_limit = 2
     selected, _ = apply_quota(scored, cfg)
-    assert len(selected) == 2                            # trimmed to total_limit
+    assert len(selected) == 2  # trimmed to total_limit
     # kept the 2 highest-scored
     assert selected[0].score >= selected[1].score

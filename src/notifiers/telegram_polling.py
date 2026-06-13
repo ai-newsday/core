@@ -1,8 +1,10 @@
 from __future__ import annotations
-import asyncio
+
 import html as html_lib
 import logging
+
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
+
 from src.core.types import TelegramConfig
 from src.state.db import Database
 
@@ -36,13 +38,11 @@ def _make_card_messages(item_id: str, card: dict) -> tuple[str, str]:
         f"<b>[{source_label}]</b>  {title_zh}\n"
         f"<i>{title_en}</i>\n\n"
         f"📊 <b>{score}</b> 分"
-        + (f"  ｜  {sig_line}" if sig_line else "") +
-        f"\n🔗 <a href=\"{link}\">{source}</a>"
+        + (f"  ｜  {sig_line}" if sig_line else "")
+        + f'\n🔗 <a href="{link}">{source}</a>'
     )
     body = (
-        f"💬 <b>一句话</b>\n{summary_zh}\n\n"
-        f"🛠 <b>对你</b>\n{takeaway}\n\n"
-        f"⚡️ <b>锐评</b>\n{hot_take}"
+        f"💬 <b>一句话</b>\n{summary_zh}\n\n🛠 <b>对你</b>\n{takeaway}\n\n⚡️ <b>锐评</b>\n{hot_take}"
     )
     return cover, body
 
@@ -55,32 +55,39 @@ class TelegramPollingNotifier:
 
     async def send_review_card(self, item_id: str, card: dict) -> int | None:
         cover, body = _make_card_messages(item_id, card)
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ 留", callback_data=f"{item_id}:keep"),
-            InlineKeyboardButton("❌ 删", callback_data=f"{item_id}:drop"),
-            InlineKeyboardButton("⏭ 跳", callback_data=f"{item_id}:skip"),
-        ]])
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton("✅ 留", callback_data=f"{item_id}:keep"),
+                    InlineKeyboardButton("❌ 删", callback_data=f"{item_id}:drop"),
+                    InlineKeyboardButton("⏭ 跳", callback_data=f"{item_id}:skip"),
+                ]
+            ]
+        )
         # 消息 1: 封面
         await self._bot.send_message(
-            chat_id=self._cfg.chat_id, text=cover,
-            parse_mode="HTML", disable_web_page_preview=True)
+            chat_id=self._cfg.chat_id, text=cover, parse_mode="HTML", disable_web_page_preview=True
+        )
         # 消息 2: 正文 + 按钮
         msg = await self._bot.send_message(
-            chat_id=self._cfg.chat_id, text=body,
-            parse_mode="HTML", reply_markup=keyboard)
+            chat_id=self._cfg.chat_id, text=body, parse_mode="HTML", reply_markup=keyboard
+        )
         return msg.message_id
 
     async def send_final_report(self, markdown: str, summary: dict) -> None:
         date_label = summary.get("date_label", "")
         must_read = summary.get("must_read_count", 0)
         item_count = summary.get("item_count", 0)
-        header = (f"📰 <b>AI Daily · {html_lib.escape(date_label)}</b>\n"
-                  f"共 {item_count} 条  |  必读 {must_read} 篇\n\n")
+        header = (
+            f"📰 <b>AI Daily · {html_lib.escape(date_label)}</b>\n"
+            f"共 {item_count} 条  |  必读 {must_read} 篇\n\n"
+        )
         body = markdown[:3800]
         await self._bot.send_message(
             chat_id=self._cfg.chat_id,
             text=header + f"<pre>{html_lib.escape(body)}</pre>",
-            parse_mode="HTML")
+            parse_mode="HTML",
+        )
 
     async def _fetch_once(self) -> list[tuple[str, str]]:
         """单次 getUpdates，处理 callback_query 并持久化 offset。"""
@@ -91,7 +98,8 @@ class TelegramPollingNotifier:
         offset = int(offset_str) if offset_str else None
         try:
             updates = await self._bot.get_updates(
-                offset=offset, timeout=10, allowed_updates=["callback_query"])
+                offset=offset, timeout=10, allowed_updates=["callback_query"]
+            )
         except Exception as e:
             logger.warning("getUpdates failed: %s", e)
             return []
@@ -116,7 +124,8 @@ class TelegramPollingNotifier:
                                 chat_id=query.message.chat_id,
                                 message_id=query.message.message_id,
                                 text=f"{old_text}\n\n{label}",
-                                parse_mode="HTML")
+                                parse_mode="HTML",
+                            )
                     except Exception:
                         pass
             await self._db.set_kv("telegram_offset", str(update.update_id + 1))
@@ -127,7 +136,8 @@ class TelegramPollingNotifier:
         return await self._fetch_once()
 
     async def poll_decisions_loop(
-            self, expected: int, timeout_secs: int = 120) -> list[tuple[str, str]]:
+        self, expected: int, timeout_secs: int = 120
+    ) -> list[tuple[str, str]]:
         """持续轮询直到收齐 expected 条决策或超时。
 
         Telegram long-poll timeout=10s，所以每轮 ~10s 循环一次。
@@ -145,6 +155,10 @@ class TelegramPollingNotifier:
                     all_decisions.append((item_id, action))
             if len(seen_items) < expected and elapsed < timeout_secs:
                 elapsed += 10  # long-poll 本身就等了 ~10s
-                logger.info("poll_decisions_loop: %d/%d decided, %.0fs elapsed",
-                            len(seen_items), expected, elapsed)
+                logger.info(
+                    "poll_decisions_loop: %d/%d decided, %.0fs elapsed",
+                    len(seen_items),
+                    expected,
+                    elapsed,
+                )
         return all_decisions

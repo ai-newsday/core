@@ -1,9 +1,21 @@
 from __future__ import annotations
+
 import yaml
-from src.core.types import (DedupConfig, ScoringConfig, InterpretConfig,
-                            ReviewConfig, ReviewDecision, PublishConfig,
-                            FeedbackConfig, FeedbackEvent, EnrichConfig,
-                            DeliveryConfig, TelegramConfig, WebsiteConfig)
+
+from src.core.types import (
+    DedupConfig,
+    DeliveryConfig,
+    EnrichConfig,
+    FeedbackConfig,
+    FeedbackEvent,
+    InterpretConfig,
+    PublishConfig,
+    ReviewConfig,
+    ReviewDecision,
+    ScoringConfig,
+    TelegramConfig,
+    WebsiteConfig,
+)
 
 
 def load_dedup_config(path: str) -> DedupConfig:
@@ -96,6 +108,7 @@ def load_review_decisions(path: str) -> dict[str, ReviewDecision]:
     """Read审阅决策 JSON(按 link 索引); 缺文件 -> {}(全 keep/待审).
     每个 value 过 ReviewDecision 校验(非法 action 即抛 ValidationError)。"""
     import json
+
     try:
         with open(path, encoding="utf-8") as f:
             raw = json.load(f) or {}
@@ -161,6 +174,7 @@ def load_feedback_events(path: str) -> list[FeedbackEvent]:
     """读 JSON 事件账本(数组); 缺文件 -> []。
     每个元素过 FeedbackEvent 校验(非法 action 即抛 ValidationError)。"""
     import json
+
     try:
         with open(path, encoding="utf-8") as f:
             raw = json.load(f) or []
@@ -172,6 +186,7 @@ def load_feedback_events(path: str) -> list[FeedbackEvent]:
 def load_quality_weights(path: str) -> dict[str, float]:
     """读权重账本 JSON 对象 {source: float}; 缺文件 -> {}。只读不写。"""
     import json
+
     try:
         with open(path, encoding="utf-8") as f:
             return json.load(f) or {}
@@ -182,6 +197,7 @@ def load_quality_weights(path: str) -> dict[str, float]:
 def load_delivery_config(path: str) -> DeliveryConfig:
     """通道配置; 缺文件 -> 默认。bot_token / chat_id 优先读环境变量。"""
     import os
+
     try:
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
@@ -190,10 +206,8 @@ def load_delivery_config(path: str) -> DeliveryConfig:
     tg_data = data.get("telegram", {})
     web_data = data.get("website", {})
     tg = TelegramConfig(
-        bot_token=os.environ.get("TELEGRAM_BOT_TOKEN",
-                                 tg_data.get("bot_token", "")),
-        chat_id=os.environ.get("TELEGRAM_CHAT_ID",
-                               tg_data.get("chat_id", "")),
+        bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", tg_data.get("bot_token", "")),
+        chat_id=os.environ.get("TELEGRAM_CHAT_ID", tg_data.get("chat_id", "")),
         mode=tg_data.get("mode", "polling"),
         webhook_url=tg_data.get("webhook_url", ""),
     )

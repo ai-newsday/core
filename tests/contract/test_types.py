@@ -1,7 +1,9 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from pydantic import ValidationError
-from src.core.types import RawItem, SourceType, SourceReport, SourceSpec
+
+from src.core.types import RawItem, SourceReport, SourceSpec, SourceType
 
 
 def _utc(h_ago=0):
@@ -23,7 +25,9 @@ def test_rawitem_minimal_valid():
 def test_rawitem_rejects_naive_datetime():
     with pytest.raises(ValidationError):
         RawItem(
-            title_en="x", link="https://e.com", source="s",
+            title_en="x",
+            link="https://e.com",
+            source="s",
             source_type=SourceType.PAPER,
             published_at=datetime(2026, 5, 30, 12, 0, 0),  # naive
         )
@@ -32,8 +36,11 @@ def test_rawitem_rejects_naive_datetime():
 def test_rawitem_rejects_empty_required():
     with pytest.raises(ValidationError):
         RawItem(
-            title_en="", link="https://e.com", source="s",
-            source_type=SourceType.PAPER, published_at=_utc(),
+            title_en="",
+            link="https://e.com",
+            source="s",
+            source_type=SourceType.PAPER,
+            published_at=_utc(),
         )
 
 
@@ -47,6 +54,10 @@ def test_sourcereport_status_literal():
 
 
 def test_sourcespec_defaults():
-    s = SourceSpec(name="hf-papers", url="https://huggingface.co/api/papers",
-                   type=SourceType.PAPER, adapter="hf_papers")
+    s = SourceSpec(
+        name="hf-papers",
+        url="https://huggingface.co/api/papers",
+        type=SourceType.PAPER,
+        adapter="hf_papers",
+    )
     assert s.status == "working" and s.priority == 3 and s.needs_firecrawl is False

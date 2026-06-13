@@ -1,0 +1,38 @@
+name: Finalize (Draft Preview)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - run: uv sync
+
+      - name: Poll pending decisions
+        run: uv run python -m src.cli --tick collect --poll-only 2>/dev/null || true
+
+      - name: Run finalize tick
+        run: uv run python -m src.cli --tick finalize
+
+      - name: Generate draft page
+        run: |
+          mkdir -p docs/daily
+          DATE=$(date -u +%Y-%m-%d)
+          cp data/daily-report.md "docs/daily/${DATE}-draft.md" 2>/dev/null || true
+
+      - name: Persist state + draft
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/ docs/daily/
+          git diff --cached --quiet || git commit -m "chore: finalize draft ${DATE} [skip ci]"
+          git push

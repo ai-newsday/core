@@ -1,8 +1,10 @@
 """golden: enrich_with_hn 用伪 HN 客户端, 验证 signals 注入 + 跳过规则 + 不修上游字段。"""
+
 import asyncio
 import logging
 from datetime import datetime, timezone
-from src.core.types import (RawItem, SourceType, EnrichConfig, RunContext)
+
+from src.core.types import EnrichConfig, RawItem, RunContext, SourceType
 from src.pipeline.enrich import enrich_with_hn
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
@@ -10,6 +12,7 @@ NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
 class FakeHNClient:
     """注入式: url → hits。模拟 HN Algolia search_by_url。"""
+
     def __init__(self, mapping: dict[str, list[dict]]):
         self._map = mapping
         self.calls: list[str] = []
@@ -20,9 +23,14 @@ class FakeHNClient:
 
 
 def _item(link, source="src", source_type=SourceType.BLOG, signals=None):
-    return RawItem(title_en="X", link=link, source=source,
-                   source_type=source_type, published_at=NOW,
-                   signals=signals or {})
+    return RawItem(
+        title_en="X",
+        link=link,
+        source=source,
+        source_type=source_type,
+        published_at=NOW,
+        signals=signals or {},
+    )
 
 
 def _ctx():
@@ -31,16 +39,15 @@ def _ctx():
 
 def test_enrich_injects_hn_points_and_comments():
     items = [_item("https://a/1"), _item("https://a/2")]
-    client = FakeHNClient({
-        "https://a/1": [
-            {"points": 120, "num_comments": 30,
-             "objectID": "111", "title": "post1"},
-            {"points": 80, "num_comments": 10,
-             "objectID": "112", "title": "post1 repost"},
-        ],
-        "https://a/2": [{"points": 5, "num_comments": 1,
-                          "objectID": "222", "title": "post2"}],
-    })
+    client = FakeHNClient(
+        {
+            "https://a/1": [
+                {"points": 120, "num_comments": 30, "objectID": "111", "title": "post1"},
+                {"points": 80, "num_comments": 10, "objectID": "112", "title": "post1 repost"},
+            ],
+            "https://a/2": [{"points": 5, "num_comments": 1, "objectID": "222", "title": "post2"}],
+        }
+    )
     out = asyncio.run(enrich_with_hn(items, client, EnrichConfig(), _ctx()))
     a1 = next(i for i in out if i.link == "https://a/1")
     a2 = next(i for i in out if i.link == "https://a/2")
@@ -56,18 +63,22 @@ def test_enrich_no_match_no_signals():
     items = [_item("https://nothing/here")]
     client = FakeHNClient({})
     out = asyncio.run(enrich_with_hn(items, client, EnrichConfig(), _ctx()))
-    assert out[0].signals == {}              # 没匹配, 不注入 hn_* (不污染)
+    assert out[0].signals == {}  # 没匹配, 不注入 hn_* (不污染)
 
 
 def test_enrich_skips_by_source_type():
-    items = [_item("https://p/1", source_type=SourceType.PAPER),
-             _item("https://m/1", source_type=SourceType.MODEL),
-             _item("https://b/1", source_type=SourceType.BLOG)]
-    client = FakeHNClient({
-        "https://p/1": [{"points": 99, "num_comments": 1, "objectID": "1"}],
-        "https://m/1": [{"points": 99, "num_comments": 1, "objectID": "2"}],
-        "https://b/1": [{"points": 99, "num_comments": 1, "objectID": "3"}],
-    })
+    items = [
+        _item("https://p/1", source_type=SourceType.PAPER),
+        _item("https://m/1", source_type=SourceType.MODEL),
+        _item("https://b/1", source_type=SourceType.BLOG),
+    ]
+    client = FakeHNClient(
+        {
+            "https://p/1": [{"points": 99, "num_comments": 1, "objectID": "1"}],
+            "https://m/1": [{"points": 99, "num_comments": 1, "objectID": "2"}],
+            "https://b/1": [{"points": 99, "num_comments": 1, "objectID": "3"}],
+        }
+    )
     cfg = EnrichConfig(skip_source_types=["paper", "model"])
     out = asyncio.run(enrich_with_hn(items, client, cfg, _ctx()))
     by_link = {i.link: i for i in out}
@@ -81,12 +92,16 @@ def test_enrich_skips_by_source_type():
 
 def test_enrich_skips_items_already_having_popularity():
     # hf-papers 上游已经带 upvotes, 不再查 HN
-    items = [_item("https://hf/p/1", source="hf-papers",
-                   source_type=SourceType.PAPER,
-                   signals={"upvotes": 88})]
-    client = FakeHNClient({"https://hf/p/1": [
-        {"points": 99, "num_comments": 1, "objectID": "1"}]})
-    cfg = EnrichConfig(skip_source_types=[])      # 不靠类型跳, 靠已有信号跳
+    items = [
+        _item(
+            "https://hf/p/1",
+            source="hf-papers",
+            source_type=SourceType.PAPER,
+            signals={"upvotes": 88},
+        )
+    ]
+    client = FakeHNClient({"https://hf/p/1": [{"points": 99, "num_comments": 1, "objectID": "1"}]})
+    cfg = EnrichConfig(skip_source_types=[])  # 不靠类型跳, 靠已有信号跳
     out = asyncio.run(enrich_with_hn(items, client, cfg, _ctx()))
     # 不覆盖 upvotes, 也不重复查
     assert out[0].signals["upvotes"] == 88
@@ -96,11 +111,9 @@ def test_enrich_skips_items_already_having_popularity():
 
 def test_enrich_disabled_passes_through():
     items = [_item("https://a/1")]
-    client = FakeHNClient({"https://a/1": [
-        {"points": 50, "num_comments": 2, "objectID": "1"}]})
-    out = asyncio.run(
-        enrich_with_hn(items, client, EnrichConfig(enabled=False), _ctx()))
-    assert out[0].signals == {}                # 关了就完全跳过
+    client = FakeHNClient({"https://a/1": [{"points": 50, "num_comments": 2, "objectID": "1"}]})
+    out = asyncio.run(enrich_with_hn(items, client, EnrichConfig(enabled=False), _ctx()))
+    assert out[0].signals == {}  # 关了就完全跳过
     assert client.calls == []
 
 
@@ -116,6 +129,7 @@ def test_enrich_client_failure_does_not_crash():
     class BoomClient:
         async def search_url(self, url):
             raise RuntimeError("network down")
+
     items = [_item("https://a/1")]
     out = asyncio.run(enrich_with_hn(items, BoomClient(), EnrichConfig(), _ctx()))
     # 单个失败 = 该条不加 signals, 不挂整批

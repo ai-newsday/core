@@ -1,8 +1,19 @@
 from __future__ import annotations
+
 import hashlib
+
 import numpy as np
-from src.core.types import RawItem, NewsItem, Cluster, DedupConfig, RunContext, SourceType, DedupResult
+
 from src.core.registry import load_source_priorities
+from src.core.types import (
+    Cluster,
+    DedupConfig,
+    DedupResult,
+    NewsItem,
+    RawItem,
+    RunContext,
+    SourceType,
+)
 from src.observability.events import emit
 
 
@@ -30,26 +41,27 @@ def _rank_index(source_type: SourceType, order: list[str]) -> int:
     try:
         return order.index(source_type.value)
     except ValueError:
-        return len(order)            # unknown types sort last
+        return len(order)  # unknown types sort last
 
 
-def cluster(items: list[RawItem],
-            vectors: list[list[float] | None],
-            priority_of: dict[str, int],
-            config: DedupConfig,
-            ctx: RunContext) -> list[Cluster]:
+def cluster(
+    items: list[RawItem],
+    vectors: list[list[float] | None],
+    priority_of: dict[str, int],
+    config: DedupConfig,
+    ctx: RunContext,
+) -> list[Cluster]:
     """Pure greedy-threshold clustering. `vectors` aligns to `items` by index;
     None means that item has no embedding and is forced into its own singleton.
     Seeds are primaries by construction because of the priority sort (spec §5)."""
-    indexed = [
-        (it, vectors[i], embedding_id(it.link))
-        for i, it in enumerate(items)
-    ]
-    indexed.sort(key=lambda t: (
-        _rank_index(t[0].source_type, config.source_type_rank),
-        priority_of.get(t[0].source, 3),
-        t[0].published_at,
-    ))
+    indexed = [(it, vectors[i], embedding_id(it.link)) for i, it in enumerate(items)]
+    indexed.sort(
+        key=lambda t: (
+            _rank_index(t[0].source_type, config.source_type_rank),
+            priority_of.get(t[0].source, 3),
+            t[0].published_at,
+        )
+    )
 
     open_clusters: list[dict] = []
     for it, vec, emb_id in indexed:
@@ -67,8 +79,8 @@ def cluster(items: list[RawItem],
                 joined = True
         if not joined:
             open_clusters.append(
-                {"seed_vec": vec, "seed_item": it, "seed_emb": emb_id,
-                 "members": [(it, emb_id)]})
+                {"seed_vec": vec, "seed_item": it, "seed_emb": emb_id, "members": [(it, emb_id)]}
+            )
 
     clusters: list[Cluster] = []
     for n, oc in enumerate(open_clusters, start=1):
@@ -76,11 +88,21 @@ def cluster(items: list[RawItem],
         seed_item = oc["seed_item"]
         members = [m for m, _ in oc["members"]]
         related = [m.link for m in members if m is not seed_item]
-        primary = NewsItem(**seed_item.model_dump(), cluster_id=cid,
-                           related_links=related, embedding_id=oc["seed_emb"])
-        clusters.append(Cluster(cluster_id=cid, primary=primary,
-                                members=members, related_links=related,
-                                size=len(members)))
+        primary = NewsItem(
+            **seed_item.model_dump(),
+            cluster_id=cid,
+            related_links=related,
+            embedding_id=oc["seed_emb"],
+        )
+        clusters.append(
+            Cluster(
+                cluster_id=cid,
+                primary=primary,
+                members=members,
+                related_links=related,
+                size=len(members),
+            )
+        )
     return clusters
 
 
@@ -98,14 +120,17 @@ def _unique_by_link(items: list[RawItem]) -> list[RawItem]:
     return out
 
 
-def dedup(items: list[RawItem], config: DedupConfig, ctx: RunContext, *,
-          embedder, store) -> DedupResult:
+def dedup(
+    items: list[RawItem], config: DedupConfig, ctx: RunContext, *, embedder, store
+) -> DedupResult:
     emit(ctx.logger, "dedup_start", run_id=ctx.run_id, input_count=len(items))
     if not items:
-        emit(ctx.logger, "dedup_done", input_count=0, cluster_count=0,
-             duplicate_count=0, silent=True)
-        return DedupResult(clusters=[], deduped_items=[], input_count=0,
-                           cluster_count=0, duplicate_count=0)
+        emit(
+            ctx.logger, "dedup_done", input_count=0, cluster_count=0, duplicate_count=0, silent=True
+        )
+        return DedupResult(
+            clusters=[], deduped_items=[], input_count=0, cluster_count=0, duplicate_count=0
+        )
 
     items = _unique_by_link(items)
 
@@ -116,7 +141,8 @@ def dedup(items: list[RawItem], config: DedupConfig, ctx: RunContext, *,
         if len(vectors) != len(items):
             raise ValueError(
                 f"embedder returned {len(vectors)} vectors for {len(items)} items "
-                "(EmbeddingProvider 1:1 alignment contract violated)")
+                "(EmbeddingProvider 1:1 alignment contract violated)"
+            )
     except Exception as e:  # noqa: BLE001 - degrade is non-fatal (spec §7)
         emit(ctx.logger, "dedup_embedding_degraded", reason=str(e))
         vectors = [None] * len(items)
@@ -133,10 +159,19 @@ def dedup(items: list[RawItem], config: DedupConfig, ctx: RunContext, *,
     store.upsert(points)
 
     deduped = [c.primary for c in clusters]
-    result = DedupResult(clusters=clusters, deduped_items=deduped,
-                         input_count=len(items), cluster_count=len(clusters),
-                         duplicate_count=len(items) - len(clusters))
-    emit(ctx.logger, "dedup_done", input_count=result.input_count,
-         cluster_count=result.cluster_count,
-         duplicate_count=result.duplicate_count, silent=False)
+    result = DedupResult(
+        clusters=clusters,
+        deduped_items=deduped,
+        input_count=len(items),
+        cluster_count=len(clusters),
+        duplicate_count=len(items) - len(clusters),
+    )
+    emit(
+        ctx.logger,
+        "dedup_done",
+        input_count=result.input_count,
+        cluster_count=result.cluster_count,
+        duplicate_count=result.duplicate_count,
+        silent=False,
+    )
     return result

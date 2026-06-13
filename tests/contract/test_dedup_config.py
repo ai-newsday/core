@@ -6,8 +6,7 @@ def test_load_dedup_config_reads_yaml():
     c = load_dedup_config("config/dedup.yaml")
     assert c.similarity_threshold == 0.83
     assert c.embedding_model == "Qwen/Qwen3-Embedding-8B"
-    assert c.source_type_rank == [
-        "official", "paper", "model", "tool", "news", "community", "blog"]
+    assert c.source_type_rank == ["official", "paper", "model", "tool", "news", "community", "blog"]
 
 
 def test_load_dedup_config_missing_file_returns_defaults():

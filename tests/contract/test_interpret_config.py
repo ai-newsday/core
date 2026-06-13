@@ -21,7 +21,8 @@ def test_loads_overrides(tmp_path):
         "min_evidence: 2\n"
         "item_prompt_path: a.md\n"
         "daily_prompt_path: b.md\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     c = load_interpret_config(str(p))
     assert c.model == "my-model" and c.temperature == 0.0
     assert c.max_tokens == 500 and c.timeout_s == 30

@@ -1,25 +1,35 @@
-import json, logging
+import json
+import logging
 from datetime import datetime, timezone
-import httpx, respx
+
+import httpx
+import respx
+
 from src.adapters.sources.hf_papers import HFPapersAdapter
-from src.core.types import SourceSpec, SourceType, RunContext
+from src.core.types import RunContext, SourceSpec, SourceType
 
 
 def _ctx():
-    return RunContext(run_id="t", now=datetime(2026, 5, 30, 12, 0, tzinfo=timezone.utc),
-                      logger=logging.getLogger("test.hfp"))
+    return RunContext(
+        run_id="t",
+        now=datetime(2026, 5, 30, 12, 0, tzinfo=timezone.utc),
+        logger=logging.getLogger("test.hfp"),
+    )
 
 
 def _spec():
-    return SourceSpec(name="hf-papers", url="https://huggingface.co/api/papers",
-                      type=SourceType.PAPER, adapter="hf_papers")
+    return SourceSpec(
+        name="hf-papers",
+        url="https://huggingface.co/api/papers",
+        type=SourceType.PAPER,
+        adapter="hf_papers",
+    )
 
 
 @respx.mock
 async def test_hf_papers_maps_fields():
     data = json.load(open("fixtures/sources/hf_papers_sample.json"))
-    respx.get("https://huggingface.co/api/papers").mock(
-        return_value=httpx.Response(200, json=data))
+    respx.get("https://huggingface.co/api/papers").mock(return_value=httpx.Response(200, json=data))
     items = await HFPapersAdapter().fetch(_spec(), _ctx(), timeout_s=15)
     assert len(items) == 2
     it = items[0]

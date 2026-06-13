@@ -1,4 +1,6 @@
-import json, logging
+import json
+import logging
+
 from src.observability.events import emit
 
 

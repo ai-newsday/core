@@ -1,8 +1,9 @@
 import logging
-from datetime import datetime, timezone, timedelta
-from src.core.types import NewsItem, SourceType, RunContext, ScoringConfig
+from datetime import datetime, timedelta, timezone
+
 from src.core.config import load_scoring_config
-from src.pipeline.score import score, compute_scores
+from src.core.types import NewsItem, RunContext, ScoringConfig, SourceType
+from src.pipeline.score import compute_scores, score
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
@@ -12,8 +13,14 @@ def _ctx():
 
 
 def _ni(title, link, source, st, published=NOW):
-    return NewsItem(title_en=title, link=link, source=source, source_type=st,
-                    published_at=published, cluster_id="evt-x")
+    return NewsItem(
+        title_en=title,
+        link=link,
+        source=source,
+        source_type=st,
+        published_at=published,
+        cluster_id="evt-x",
+    )
 
 
 def _cfg():
@@ -28,15 +35,15 @@ def test_golden_quota_trims_top_scored():
         _ni("p-stale", "https://p/3", "p3", SourceType.PAPER, NOW - timedelta(hours=100)),
     ]
     res = score(items, _cfg(), _ctx())
-    assert res.quota_report["paper"].selected == 2          # quota paper=2
+    assert res.quota_report["paper"].selected == 2  # quota paper=2
     assert res.quota_report["paper"].available == 3
     kept = {s.link for s in res.selected_items}
-    assert kept == {"https://p/1", "https://p/2"}           # stale dropped
+    assert kept == {"https://p/1", "https://p/2"}  # stale dropped
 
 
 # Case 2 (spec §9.2): under-quota type fully kept, no fabrication
 def test_golden_under_quota_keeps_all():
-    items = [_ni("t", "https://t/1", "t1", SourceType.TOOL, NOW)]   # quota tool=2
+    items = [_ni("t", "https://t/1", "t1", SourceType.TOOL, NOW)]  # quota tool=2
     res = score(items, _cfg(), _ctx())
     assert res.quota_report["tool"].available == 1
     assert res.quota_report["tool"].selected == 1
@@ -68,7 +75,7 @@ def test_golden_same_source_penalty():
     ]
     scored = compute_scores(items, {}, _cfg(), _ctx())
     pen = {s.link: s.score_breakdown["惩罚"] for s in scored}
-    assert pen["https://s/1"] == 0       # earliest
+    assert pen["https://s/1"] == 0  # earliest
     assert pen["https://s/2"] == -5
     assert pen["https://s/3"] == -5
 
@@ -86,15 +93,17 @@ def test_golden_clamp_and_breakdown_sum_and_determinism():
     items = [_ni("a", "https://a/1", "s1", SourceType.OFFICIAL, NOW)]
     # high config -> clamp to 100
     hi = ScoringConfig()
-    hi.dimension_scores = {"official": {"机构影响力": 90, "一手性": 90,
-                                        "技术价值": 0, "产业影响": 0, "扩散潜力": 0}}
+    hi.dimension_scores = {
+        "official": {"机构影响力": 90, "一手性": 90, "技术价值": 0, "产业影响": 0, "扩散潜力": 0}
+    }
     s1 = compute_scores(items, {}, hi, _ctx())
     assert s1[0].score == 100
     assert s1[0].score == max(0, min(100, round(sum(s1[0].score_breakdown.values()))))
     # low/negative config -> clamp to 0
     lo = ScoringConfig()
-    lo.dimension_scores = {"official": {"机构影响力": -50, "一手性": -50,
-                                        "技术价值": 0, "产业影响": 0, "扩散潜力": 0}}
+    lo.dimension_scores = {
+        "official": {"机构影响力": -50, "一手性": -50, "技术价值": 0, "产业影响": 0, "扩散潜力": 0}
+    }
     lo.fresh_bonus = 0
     s2 = compute_scores(items, {}, lo, _ctx())
     assert s2[0].score == 0
