@@ -13,7 +13,35 @@ from datetime import datetime, timezone
 from src.adapters.embedding.modelscope import ModelScopeEmbedder
 from src.adapters.enrich.hn_algolia import HNAlgoliaClient
 from src.adapters.llm.openai_compat import OpenAICompatLLM
-from src.core.types import InterpretConfig
+from src.adapters.vectorstore.memory import InMemoryVectorStore
+from src.core.config import (
+    load_dedup_config,
+    load_delivery_config,
+    load_enrich_config,
+    load_feedback_config,
+    load_feedback_events,
+    load_interpret_config,
+    load_publish_config,
+    load_quality_weights,
+    load_review_config,
+    load_review_decisions,
+    load_scoring_config,
+)
+from src.core.types import CollectionConfig, InterpretConfig, RunContext
+from src.notifiers import FakeNotifier
+from src.notifiers.telegram_polling import TelegramPollingNotifier
+from src.notifiers.website import WebsiteNotifier
+from src.observability.persist import dump_json, dump_jsonl, run_dir
+from src.pipeline.collect import collect
+from src.pipeline.dedup import dedup
+from src.pipeline.enrich import enrich_with_hn
+from src.pipeline.feedback import derive_events, feedback
+from src.pipeline.interpret import interpret
+from src.pipeline.publish import publish
+from src.pipeline.review import review
+from src.pipeline.score import score
+from src.pipeline.tick import run_collect_tick, run_finalize_tick
+from src.state.db import Database
 
 
 def _make_llm(icfg: InterpretConfig) -> OpenAICompatLLM:
@@ -29,35 +57,6 @@ def _make_llm(icfg: InterpretConfig) -> OpenAICompatLLM:
         timeout_s=icfg.timeout_s,
         fallback_models=fallbacks,
     )
-from src.adapters.vectorstore.memory import InMemoryVectorStore
-from src.core.config import (
-    load_dedup_config,
-    load_delivery_config,
-    load_enrich_config,
-    load_feedback_config,
-    load_feedback_events,
-    load_interpret_config,
-    load_publish_config,
-    load_quality_weights,
-    load_review_config,
-    load_review_decisions,
-    load_scoring_config,
-)
-from src.core.types import CollectionConfig, RunContext
-from src.notifiers import FakeNotifier
-from src.notifiers.telegram_polling import TelegramPollingNotifier
-from src.notifiers.website import WebsiteNotifier
-from src.observability.persist import dump_json, dump_jsonl, run_dir
-from src.pipeline.collect import collect
-from src.pipeline.dedup import dedup
-from src.pipeline.enrich import enrich_with_hn
-from src.pipeline.feedback import derive_events, feedback
-from src.pipeline.interpret import interpret
-from src.pipeline.publish import publish
-from src.pipeline.review import review
-from src.pipeline.score import score
-from src.pipeline.tick import run_collect_tick, run_finalize_tick
-from src.state.db import Database
 
 
 def run_dry(registry_path: str, now: datetime | None = None) -> dict:
