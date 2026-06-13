@@ -75,6 +75,8 @@ def load_interpret_config(path: str) -> InterpretConfig:
     d = InterpretConfig()
     return InterpretConfig(
         model=data.get("model", d.model),
+        models=data.get("models", d.models),
+        fallback_models=data.get("fallback_models", d.fallback_models),
         temperature=data.get("temperature", d.temperature),
         max_tokens=data.get("max_tokens", d.max_tokens),
         timeout_s=data.get("timeout_s", d.timeout_s),

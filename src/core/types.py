@@ -229,6 +229,8 @@ class InterpretedItem(ScoredItem):  # ScoredItem 的下游演进; 本圈加解�
 @dataclass
 class InterpretConfig:
     model: str = "Qwen/Qwen2.5-72B-Instruct"
+    models: list[str] = field(default_factory=list)
+    fallback_models: list[str] = field(default_factory=list)
     temperature: float = 0.3
     max_tokens: int = 800
     timeout_s: int = 60

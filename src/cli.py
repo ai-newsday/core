@@ -13,6 +13,22 @@ from datetime import datetime, timezone
 from src.adapters.embedding.modelscope import ModelScopeEmbedder
 from src.adapters.enrich.hn_algolia import HNAlgoliaClient
 from src.adapters.llm.openai_compat import OpenAICompatLLM
+from src.core.types import InterpretConfig
+
+
+def _make_llm(icfg: InterpretConfig) -> OpenAICompatLLM:
+    if icfg.models:
+        primary = icfg.models[0]
+        fallbacks = icfg.models[1:] + icfg.fallback_models
+    else:
+        primary = icfg.model
+        fallbacks = icfg.fallback_models
+    return OpenAICompatLLM(
+        api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
+        model=primary,
+        timeout_s=icfg.timeout_s,
+        fallback_models=fallbacks,
+    )
 from src.adapters.vectorstore.memory import InMemoryVectorStore
 from src.core.config import (
     load_dedup_config,
@@ -145,11 +161,7 @@ def run_dry_interpret(
 
     icfg = load_interpret_config("config/interpret.yaml")
     if llm is None:
-        llm = OpenAICompatLLM(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=icfg.model,
-            timeout_s=icfg.timeout_s,
-        )
+        llm = _make_llm(icfg)
     ires = interpret(sres.selected_items, icfg, ctx, llm)
     return {
         "run_id": ctx.run_id,
@@ -189,11 +201,7 @@ def run_dry_review(
 
     icfg = load_interpret_config("config/interpret.yaml")
     if llm is None:
-        llm = OpenAICompatLLM(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=icfg.model,
-            timeout_s=icfg.timeout_s,
-        )
+        llm = _make_llm(icfg)
     ires = interpret(sres.selected_items, icfg, ctx, llm)
 
     rcfg = load_review_config("config/review.yaml")
@@ -248,11 +256,7 @@ def run_dry_publish(
 
     icfg = load_interpret_config("config/interpret.yaml")
     if llm is None:
-        llm = OpenAICompatLLM(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=icfg.model,
-            timeout_s=icfg.timeout_s,
-        )
+        llm = _make_llm(icfg)
     ires = interpret(sres.selected_items, icfg, ctx, llm)
 
     rcfg = load_review_config("config/review.yaml")
@@ -339,11 +343,7 @@ def run_dry_feedback(
 
     icfg = load_interpret_config("config/interpret.yaml")
     if llm is None:
-        llm = OpenAICompatLLM(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=icfg.model,
-            timeout_s=icfg.timeout_s,
-        )
+        llm = _make_llm(icfg)
     ires = interpret(sres.selected_items, icfg, ctx, llm)
 
     rcfg = load_review_config("config/review.yaml")
@@ -445,11 +445,7 @@ def run_tick(
         scfg.sources_registry_path = registry_path
         sres = score(dres.deduped_items, scfg, ctx)
         icfg = load_interpret_config("config/interpret.yaml")
-        _llm = llm or OpenAICompatLLM(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=icfg.model,
-            timeout_s=icfg.timeout_s,
-        )
+        _llm = llm or _make_llm(icfg)
         ires = interpret(sres.selected_items, icfg, ctx, _llm)
         return ires
 

@@ -1,8 +1,22 @@
 # 解读生成层配置 (Circle 4). 模型参数/字段约束全部可调, 不写死.
-model: "Qwen/Qwen3-235B-A22B-Instruct-2507"   # OpenAI 兼容 chat 模型 (ModelScope)
-# 旧 Qwen2.5-72B-Instruct 2026-06 被 ModelScope 下线。
-# V4-Pro 虽 AA AAI3=51.5 最强, 但默认 reasoning 吃 max_tokens 后 content=null + 429 限流, 不实用。
-# 当前 Instruct-2507: AA AAI3=25.0, 实测 2.1s/53 tokens 干净中文 JSON, 限流友好。换模型见 /tmp/ms_models2.json。
+# 主模型链: 按顺序尝试, 第一个成功的生效
+models:
+  - "MiniMax/MiniMax-M2.7"
+  - "deepseek-ai/DeepSeek-V4-Pro"
+  - "inclusionAI/Ring-2.6-1T"
+  - "deepseek-ai/DeepSeek-V4-Flash"
+  - "ZhipuAI/GLM-5.1"
+# 备用模型链: 主模型全挂时 fallback
+fallback_models:
+  - "MiniMax/MiniMax-M2.5"
+  - "ZhipuAI/GLM-5"
+  - "inclusionAI/Ling-2.6-1T"
+  - "stepfun-ai/Step-3.7-Flash"
+  - "moonshotai/Kimi-K2.6"
+  - "moonshotai/Kimi-K2.5"
+  - "Qwen/Qwen3.5-397B-A17B"
+  - "Shanghai_AI_Laboratory/Intern-S1-Pro"
+  - "Shanghai_AI_Laboratory/Intern-S2-Preview"
 temperature: 0.3
 max_tokens: 800
 timeout_s: 60
