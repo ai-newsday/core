@@ -1,10 +1,10 @@
 from __future__ import annotations
 import asyncio
 import html as html_lib
-import queue
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Application, CallbackQueryHandler
+import logging
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from src.core.types import TelegramConfig
+from src.state.db import Database
 
 
 def _fmt_signals(signals: dict) -> str:
@@ -48,11 +48,10 @@ def _make_card_messages(item_id: str, card: dict) -> tuple[str, str]:
 
 
 class TelegramPollingNotifier:
-    def __init__(self, config: TelegramConfig):
+    def __init__(self, config: TelegramConfig, db: Database | None = None):
         self._cfg = config
         self._bot = Bot(token=config.bot_token)
-        self._decision_queue: queue.SimpleQueue[tuple[str, str]] = queue.SimpleQueue()
-        self._app: Application | None = None
+        self._db = db
 
     async def send_review_card(self, item_id: str, card: dict) -> int | None:
         cover, body = _make_card_messages(item_id, card)
@@ -83,46 +82,69 @@ class TelegramPollingNotifier:
             text=header + f"<pre>{html_lib.escape(body)}</pre>",
             parse_mode="HTML")
 
-    async def poll_decisions(self) -> list[tuple[str, str]]:
-        out = []
+    async def _fetch_once(self) -> list[tuple[str, str]]:
+        """单次 getUpdates，处理 callback_query 并持久化 offset。"""
+        logger = logging.getLogger("ai-newsday")
+        if self._db is None:
+            return []
+        offset_str = await self._db.get_kv("telegram_offset")
+        offset = int(offset_str) if offset_str else None
         try:
-            while True:
-                out.append(self._decision_queue.get_nowait())
-        except queue.Empty:
-            pass
-        return out
-
-    def start_polling(self) -> None:
-        """启动后台 polling 线程（长期运行时调用一次）。"""
-        import threading
-
-        self._app = (Application.builder()
-                     .token(self._cfg.bot_token)
-                     .build())
-
-        decision_queue = self._decision_queue  # capture for closure
-
-        async def _callback_handler(update: Update, context) -> None:
+            updates = await self._bot.get_updates(
+                offset=offset, timeout=10, allowed_updates=["callback_query"])
+        except Exception as e:
+            logger.warning("getUpdates failed: %s", e)
+            return []
+        out: list[tuple[str, str]] = []
+        action_labels = {"keep": "✅ 已保留", "drop": "❌ 已删除", "skip": "⏭ 已跳过"}
+        for update in updates:
             query = update.callback_query
             if query and query.data:
                 parts = query.data.split(":", 1)
                 if len(parts) == 2:
                     item_id, action = parts
-                    decision_queue.put((item_id, action))
-            if query:
-                try:
-                    await query.answer()
-                except Exception:
-                    pass
+                    out.append((item_id, action))
+                    label = action_labels.get(action, action)
+                    try:
+                        await query.answer(text=label)
+                    except Exception:
+                        pass
+                    try:
+                        if query.message:
+                            old_text = query.message.text or ""
+                            await self._bot.edit_message_text(
+                                chat_id=query.message.chat_id,
+                                message_id=query.message.message_id,
+                                text=f"{old_text}\n\n{label}",
+                                parse_mode="HTML")
+                    except Exception:
+                        pass
+            await self._db.set_kv("telegram_offset", str(update.update_id + 1))
+        return out
 
-        self._app.add_handler(CallbackQueryHandler(_callback_handler))
+    async def poll_decisions(self) -> list[tuple[str, str]]:
+        """单次拉取已有 callback_query（向后兼容）。"""
+        return await self._fetch_once()
 
-        def _run():
-            self._app.run_polling(stop_signals=None)
+    async def poll_decisions_loop(
+            self, expected: int, timeout_secs: int = 120) -> list[tuple[str, str]]:
+        """持续轮询直到收齐 expected 条决策或超时。
 
-        t = threading.Thread(target=_run, daemon=True)
-        t.start()
-
-    def stop_polling(self) -> None:
-        if self._app:
-            self._app.stop()
+        Telegram long-poll timeout=10s，所以每轮 ~10s 循环一次。
+        用户点击后秒级响应，answer() 弹 toast + 编辑消息。
+        """
+        logger = logging.getLogger("ai-newsday")
+        all_decisions: list[tuple[str, str]] = []
+        seen_items: set[str] = set()
+        elapsed = 0
+        while len(seen_items) < expected and elapsed < timeout_secs:
+            batch = await self._fetch_once()
+            for item_id, action in batch:
+                if item_id not in seen_items:
+                    seen_items.add(item_id)
+                    all_decisions.append((item_id, action))
+            if len(seen_items) < expected and elapsed < timeout_secs:
+                elapsed += 10  # long-poll 本身就等了 ~10s
+                logger.info("poll_decisions_loop: %d/%d decided, %.0fs elapsed",
+                            len(seen_items), expected, elapsed)
+        return all_decisions

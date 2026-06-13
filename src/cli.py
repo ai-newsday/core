@@ -379,9 +379,7 @@ def run_tick(tick: str, registry_path: str,
     dcfg = load_delivery_config("config/delivery.yaml")
     notifiers = []
     if dcfg.telegram.bot_token:
-        tg = TelegramPollingNotifier(dcfg.telegram)
-        if dcfg.telegram.mode == "polling":
-            tg.start_polling()
+        tg = TelegramPollingNotifier(dcfg.telegram, db=db)
         notifiers.append(tg)
     else:
         notifiers.append(FakeNotifier())  # 无 token = dry 模式

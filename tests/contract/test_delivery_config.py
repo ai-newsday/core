@@ -3,12 +3,16 @@ from src.core.config import load_delivery_config
 from src.core.types import DeliveryConfig, TelegramConfig, WebsiteConfig
 
 
-def test_load_delivery_config_missing_returns_defaults(tmp_path):
+def test_load_delivery_config_missing_returns_defaults(tmp_path, monkeypatch):
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
     cfg = load_delivery_config(str(tmp_path / "nope.yaml"))
     assert cfg == DeliveryConfig()
 
 
-def test_load_delivery_config_telegram_fields(tmp_path):
+def test_load_delivery_config_telegram_fields(tmp_path, monkeypatch):
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
     p = tmp_path / "delivery.yaml"
     p.write_text(
         "telegram:\n  mode: webhook\n  webhook_url: https://x.com\n",

@@ -45,6 +45,11 @@ CREATE TABLE IF NOT EXISTS quality_weights (
     weight     REAL NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS kv_state (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -120,6 +125,20 @@ class Database:
                     d["signals"] = json.loads(d["signals"] or "{}")
                     result.append(d)
                 return result
+
+    async def get_kv(self, key: str) -> str | None:
+        async with aiosqlite.connect(self._path) as conn:
+            async with conn.execute(
+                    "SELECT value FROM kv_state WHERE key=?", (key,)) as cur:
+                row = await cur.fetchone()
+                return row[0] if row else None
+
+    async def set_kv(self, key: str, value: str) -> None:
+        async with aiosqlite.connect(self._path) as conn:
+            await conn.execute(
+                "INSERT OR REPLACE INTO kv_state(key,value) VALUES(?,?)",
+                (key, value))
+            await conn.commit()
 
     async def get_decisions_dict(self, date: str) -> dict[str, str]:
         """返回 {link: action} 只含已明确决策（keep/drop）的条目。"""
