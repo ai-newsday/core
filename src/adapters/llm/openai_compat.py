@@ -50,7 +50,9 @@ class OpenAICompatLLM:
             try:
                 result = self._call(model, prompt, temperature=temperature, max_tokens=max_tokens)
                 if model != self._model:
-                    logger.info("LLM fallback: %s succeeded (primary %s failed)", model, self._model)
+                    logger.info(
+                        "LLM fallback: %s succeeded (primary %s failed)", model, self._model
+                    )
                 return result
             except Exception as e:
                 logger.warning("LLM %s failed: %s", model, e)
