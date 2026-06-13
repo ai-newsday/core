@@ -34,15 +34,27 @@ def test_send_review_card_sends_two_messages():
     asyncio.run(go())
 
 
-def test_poll_decisions_returns_queued():
+def test_poll_decisions_calls_get_updates():
     async def go():
-        with patch("src.notifiers.telegram_polling.Bot"):
-            notifier = TelegramPollingNotifier(_cfg())
-            notifier._decision_queue.put(("item_1", "keep"))
-            notifier._decision_queue.put(("item_2", "drop"))
+        with patch("src.notifiers.telegram_polling.Bot") as MockBot:
+            mock_bot = AsyncMock()
+            MockBot.return_value = mock_bot
+            mock_db = AsyncMock()
+            mock_db.get_kv.return_value = None
+            mock_query_1 = MagicMock(data="item_1:keep")
+            mock_query_1.answer = AsyncMock()
+            mock_query_2 = MagicMock(data="item_2:drop")
+            mock_query_2.answer = AsyncMock()
+            mock_bot.get_updates.return_value = [
+                MagicMock(callback_query=mock_query_1, update_id=100),
+                MagicMock(callback_query=mock_query_2, update_id=101),
+            ]
+            notifier = TelegramPollingNotifier(_cfg(), db=mock_db)
             decisions = await notifier.poll_decisions()
             assert set(decisions) == {("item_1", "keep"), ("item_2", "drop")}
-            assert await notifier.poll_decisions() == []
+            mock_bot.get_updates.assert_called_once()
+            mock_query_1.answer.assert_called_once()
+            mock_db.set_kv.assert_called()
     asyncio.run(go())
 
 
