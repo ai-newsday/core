@@ -152,3 +152,47 @@ def test_finalize_tick_returns_dict_keys(tmp_path):
             assert k in result
 
     asyncio.run(go())
+
+
+def test_finalize_tick_persists_feedback_and_is_idempotent(tmp_path):
+    async def go():
+        import aiosqlite
+        from src.pipeline.tick import _item_id
+
+        db = Database(str(tmp_path / "state.db"))
+        await db.init()
+        notifier = FakeNotifier()
+        item = _make_item("https://a/1", source="hf-models", cluster_id="c1")
+
+        # seed a 'keep' decision for this item under run id "r-fin"
+        iid = _item_id(item)
+        await db.insert_run("r-fin", "finalize")
+        await db.upsert_pending_review(
+            item_id=iid, run_id="r-fin", link=item.link, source=item.source,
+            title_en=item.title_en, title_zh=item.title, summary_zh=item.summary,
+            takeaway=item.takeaway, hot_take=item.hot_take, score=item.score,
+            signals=item.signals, date=TODAY,
+        )
+        await db.update_decision(iid, "keep")
+
+        # run finalize twice with the SAME run_id
+        for _ in range(2):
+            await run_finalize_tick(
+                run_id="r-fin", now=NOW, date_label=TODAY,
+                interpreted_items=[item], daily_take="x", db=db, notifiers=[notifier],
+            )
+
+        # keep -> 升权 from baseline 1.0 by step 0.2
+        weights = await db.get_quality_weights()
+        assert weights["hf-models"] == 1.2
+
+        # idempotent: exactly one event row for (run_id, link)
+        async with aiosqlite.connect(db._path) as conn:
+            async with conn.execute(
+                "SELECT COUNT(*) FROM feedback_events WHERE run_id=? AND link=?",
+                ("r-fin", item.link),
+            ) as cur:
+                (n,) = await cur.fetchone()
+        assert n == 1
+
+    asyncio.run(go())

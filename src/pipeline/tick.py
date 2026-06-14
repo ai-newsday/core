@@ -144,6 +144,21 @@ async def run_finalize_tick(
         item_count=pres.report.item_count,
         must_read_count=len(pres.report.must_read),
     )
+    # 反馈闭环 (PRD §4.5): 派生 → 幂等入账 → 增量重算权重 → 写回。非致命。
+    if not await db.has_feedback_for_run(run_id):
+        from src.core.config import load_feedback_config
+        from src.pipeline.feedback import derive_events, feedback
+
+        try:
+            fcfg = load_feedback_config("config/feedback.yaml")
+            run_events = derive_events(interpreted_items, decisions, run_id=run_id, now=now)
+            await db.append_feedback_events(run_events)
+            prior = await db.get_quality_weights()
+            fres = feedback(run_events, prior, fcfg, ctx)
+            if not fres.is_silent:
+                await db.upsert_quality_weights(fres.quality_weights)
+        except Exception as e:  # noqa: BLE001 - feedback persistence is non-fatal
+            emit(logger, "feedback_persist_error", run_id=run_id, error=str(e))
     return {
         "run_id": run_id,
         "date_label": date_label,
