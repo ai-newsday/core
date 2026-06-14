@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
 from src.core.types import RawItem, RunContext, SourceSpec
+
+_TRENDING_MAX_AGE_DAYS = 30
 
 
 def _parse_dt(s: str | None) -> datetime | None:
@@ -26,8 +28,8 @@ class HFModelsAdapter:
             if not mid:
                 continue
             created = _parse_dt(row.get("createdAt"))
-            # surfacing time = ctx.now (这是 trending 榜的语义, 不是 firehose 创建时间)
-            # 老 createdAt 进 signals 保留信息
+            if created and ctx.now - created > timedelta(days=_TRENDING_MAX_AGE_DAYS):
+                continue
             signals = {
                 "likes": row.get("likes"),
                 "downloads": row.get("downloads"),
@@ -45,7 +47,7 @@ class HFModelsAdapter:
                     link=f"https://huggingface.co/{mid}",
                     source=source.name,
                     source_type=source.type,
-                    published_at=ctx.now,
+                    published_at=created or ctx.now,
                     raw_summary=None,
                     fetched_via="native",
                     signals=signals,
