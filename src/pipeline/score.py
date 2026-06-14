@@ -80,7 +80,11 @@ def _topic_relevance(item: NewsItem, config: ScoringConfig) -> float:
 
 
 def compute_scores(
-    items: list[NewsItem], priority_of: dict[str, int], config: ScoringConfig, ctx: RunContext
+    items: list[NewsItem],
+    priority_of: dict[str, int],
+    config: ScoringConfig,
+    ctx: RunContext,
+    quality_of: dict[str, float] | None = None,
 ) -> list[ScoredItem]:
     """Pure scoring (spec §5.1). Returns ScoredItems sorted by (score desc,
     published_at asc, link asc)."""
@@ -94,8 +98,9 @@ def compute_scores(
             if prio is not None
             else config.priority_bonus_default
         )
+        qw = (quality_of or {}).get(it.source, 1.0)
         breakdown = {
-            "机构影响力": float(dims.get("机构影响力", 0)) + float(prio_bonus),
+            "机构影响力": round((float(dims.get("机构影响力", 0)) + float(prio_bonus)) * qw, 4),
             "可见指标": round(_visibility(it, config), 4),
             "时效": recency_band(it.published_at, ctx.now, config),
             "惩罚": penalty_of[it.link],
@@ -140,7 +145,12 @@ def apply_quota(
     return selected, report
 
 
-def score(items: list[NewsItem], config: ScoringConfig, ctx: RunContext) -> ScoreResult:
+def score(
+    items: list[NewsItem],
+    config: ScoringConfig,
+    ctx: RunContext,
+    quality_of: dict[str, float] | None = None,
+) -> ScoreResult:
     """Orchestrate scoring: load registry priority map, run pure compute_scores +
     apply_quota, emit runs events (spec §3, §11)."""
     emit(ctx.logger, "score_start", run_id=ctx.run_id, input_count=len(items))
@@ -156,7 +166,7 @@ def score(items: list[NewsItem], config: ScoringConfig, ctx: RunContext) -> Scor
         )
 
     priority_of = load_source_priorities(config.sources_registry_path)
-    scored = compute_scores(items, priority_of, config, ctx)
+    scored = compute_scores(items, priority_of, config, ctx, quality_of=quality_of)
     for s in scored:
         emit(ctx.logger, "item_scored", link=s.link, source_type=s.source_type.value, score=s.score)
 

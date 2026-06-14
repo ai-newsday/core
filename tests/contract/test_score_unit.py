@@ -194,6 +194,26 @@ def test_topic_relevance_integrated_in_scoring():
     assert by_link["https://a/1"].score > by_link["https://b/2"].score
 
 
+def test_quality_weight_multiplies_institution_dimension():
+    items = [_ni("A", "https://a/1", "openai", SourceType.OFFICIAL)]
+    base = compute_scores(items, {"openai": 1}, ScoringConfig(), _ctx())[0]
+    boosted = compute_scores(
+        items, {"openai": 1}, ScoringConfig(), _ctx(), quality_of={"openai": 1.5}
+    )[0]
+    assert base.score_breakdown["机构影响力"] == 24.0  # official 18 + priority-1 bonus 6
+    assert boosted.score_breakdown["机构影响力"] == 36.0  # 24 * 1.5
+
+
+def test_quality_weight_defaults_to_one_when_source_missing():
+    items = [_ni("A", "https://a/1", "openai", SourceType.OFFICIAL)]
+    default = compute_scores(items, {"openai": 1}, ScoringConfig(), _ctx())[0]
+    other = compute_scores(
+        items, {"openai": 1}, ScoringConfig(), _ctx(), quality_of={"someone-else": 0.5}
+    )[0]
+    assert default.score_breakdown["机构影响力"] == 24.0
+    assert other.score_breakdown["机构影响力"] == 24.0  # openai not in map -> weight 1.0
+
+
 def test_recency_band_with_production_config():
     """Verify tightened recency windows from production scoring.yaml."""
     from src.core.config import load_scoring_config
