@@ -147,6 +147,12 @@ def render_front_matter(report: DailyReport, config: PublishConfig,
     return "\n".join(lines)
 
 
+def flip_draft(text: str) -> str:
+    """把 front matter 里的 `draft: true` 行替换为 `draft: false`(幂等)。
+    仅匹配行首(允许前导空格)的 draft 键, 避免误伤正文。无匹配则原样返回。"""
+    return re.sub(r"(?m)^(\s*draft:\s*)true\s*$", r"\1false", text)
+
+
 def render_markdown(report: DailyReport, config: PublishConfig) -> str:
     """把 DailyReport 渲染成 Markdown(确定性, 无 now)。"""
     label_of = config.type_labels

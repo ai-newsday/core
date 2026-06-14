@@ -5,7 +5,7 @@ from src.core.types import (SourceType, Evidence, ReviewedItem, PublishConfig,
                             DailyReport, ReviewResult, RunContext)
 from src.pipeline.publish import (select_must_read, group_by_category,
                                   build_overview, build_report, render_markdown,
-                                  render_front_matter, publish)
+                                  render_front_matter, publish, flip_draft)
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 CFG = PublishConfig()
@@ -262,3 +262,21 @@ def test_front_matter_escapes_double_quotes():
                        "2026-05-30", CFG)
     fm = render_front_matter(rep, CFG, draft=True)
     assert 'summary: "含\\"引号\\"的看点"' in fm
+
+
+def test_flip_draft_true_to_false():
+    text = "---\ntitle: \"x\"\ndraft: true\ntags: []\n---\n# body\n"
+    out = flip_draft(text)
+    assert "draft: false" in out
+    assert "draft: true" not in out
+    assert "# body" in out          # 正文不动
+
+
+def test_flip_draft_idempotent_when_already_false():
+    text = "---\ndraft: false\n---\nbody"
+    assert flip_draft(text) == text
+
+
+def test_flip_draft_no_front_matter_unchanged():
+    text = "# just a body, no front matter\n"
+    assert flip_draft(text) == text
