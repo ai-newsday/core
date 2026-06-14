@@ -1,7 +1,8 @@
 import logging
-from datetime import datetime, timezone, timedelta
-from src.core.types import RawItem, NewsItem, SourceType, ScoringConfig, RunContext
-from src.pipeline.score import recency_band, compute_scores
+from datetime import datetime, timedelta, timezone
+
+from src.core.types import NewsItem, RunContext, ScoringConfig, SourceType
+from src.pipeline.score import _topic_relevance, apply_quota, compute_scores, recency_band
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
@@ -29,7 +30,7 @@ def test_compute_scores_breakdown_has_nine_keys_and_sums_to_score():
     bd = scored[0].score_breakdown
     assert set(bd) == {"机构影响力", "一手性", "技术价值", "产业影响", "扩散潜力",
                        "可见指标", "时效", "惩罚", "读者相关度"}
-    assert bd["可见指标"] == 0.0 and bd["读者相关度"] == 0.0
+    assert bd["可见指标"] == 0.0 and bd["读者相关度"] == 0.0  # no topic_keywords configured
     assert scored[0].is_explore is False
     assert scored[0].score == max(0, min(100, round(sum(bd.values()))))
     # official base 一手性=20, priority 1 bonus folded into 机构影响力
@@ -67,9 +68,6 @@ def test_compute_scores_sorted_desc_by_score():
     scored = compute_scores(items, {}, ScoringConfig(), _ctx())
     assert [s.source_type for s in scored][0] == SourceType.OFFICIAL
     assert scored[0].score >= scored[1].score
-
-
-from src.pipeline.score import apply_quota
 
 
 def _scored_list(ctx, *specs):
@@ -136,3 +134,58 @@ def test_apply_quota_respects_total_limit():
     assert len(selected) == 2                            # trimmed to total_limit
     # kept the 2 highest-scored
     assert selected[0].score >= selected[1].score
+
+
+# --- topic relevance tests ---
+
+
+def test_topic_relevance_returns_zero_when_no_keywords():
+    item = _ni("Unified Image Generation Model", "https://a/1", "hf", SourceType.PAPER)
+    cfg = ScoringConfig()  # topic_keywords defaults to []
+    assert _topic_relevance(item, cfg) == 0.0
+
+
+def test_topic_relevance_matches_keyword_in_title():
+    item = _ni("A New Unified Generation Framework", "https://a/1", "hf", SourceType.PAPER)
+    cfg = ScoringConfig(topic_keywords=["unified generation", "multimodal"], topic_bonus=5.0)
+    assert _topic_relevance(item, cfg) == 5.0
+
+
+def test_topic_relevance_case_insensitive():
+    item = _ni("MULTIMODAL Learning at Scale", "https://a/1", "hf", SourceType.PAPER)
+    cfg = ScoringConfig(topic_keywords=["multimodal"], topic_bonus=7.0)
+    assert _topic_relevance(item, cfg) == 7.0
+
+
+def test_topic_relevance_no_match_returns_zero():
+    item = _ni("Optimizing SQL Queries", "https://a/1", "hf", SourceType.PAPER)
+    cfg = ScoringConfig(topic_keywords=["unified generation", "multimodal", "agent"], topic_bonus=5.0)
+    assert _topic_relevance(item, cfg) == 0.0
+
+
+def test_topic_relevance_integrated_in_scoring():
+    """读者相关度 dimension reflects topic_bonus when keyword matches."""
+    items = [
+        _ni("Agent Framework for Automation", "https://a/1", "s1", SourceType.PAPER),
+        _ni("Database Internals", "https://b/2", "s2", SourceType.PAPER),
+    ]
+    cfg = ScoringConfig(topic_keywords=["agent"], topic_bonus=5.0)
+    scored = compute_scores(items, {}, cfg, _ctx())
+    by_link = {s.link: s for s in scored}
+    assert by_link["https://a/1"].score_breakdown["读者相关度"] == 5.0
+    assert by_link["https://b/2"].score_breakdown["读者相关度"] == 0.0
+    assert by_link["https://a/1"].score > by_link["https://b/2"].score
+
+
+def test_recency_band_with_production_config():
+    """Verify tightened recency windows from production scoring.yaml."""
+    from src.core.config import load_scoring_config
+    cfg = load_scoring_config("config/scoring.yaml")
+    assert cfg.fresh_hours == 18
+    assert cfg.stale_hours == 48
+    # 20h old -> mid band (18 < 20 <= 36)
+    assert recency_band(NOW - timedelta(hours=20), NOW, cfg) == cfg.mid_bonus
+    # 40h old -> neutral (36 < 40 <= 48)
+    assert recency_band(NOW - timedelta(hours=40), NOW, cfg) == 0.0
+    # 50h old -> stale penalty (> 48)
+    assert recency_band(NOW - timedelta(hours=50), NOW, cfg) == cfg.stale_penalty

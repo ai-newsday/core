@@ -1,9 +1,11 @@
 from __future__ import annotations
+
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Literal
-import logging
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -22,7 +24,7 @@ class RawItem(BaseModel):
     link: str = Field(min_length=1)
     source: str = Field(min_length=1)
     source_type: SourceType
-    published_at: datetime              # MUST be tz-aware
+    published_at: datetime  # MUST be tz-aware
     raw_summary: str | None = None
     image_url: str | None = None
     fetched_via: Literal["native", "firecrawl"] = "native"
@@ -54,14 +56,14 @@ class SourceSpec(BaseModel):
     status: Literal["working", "manual", "failed"] = "working"
     priority: int = 3
     needs_firecrawl: bool = False
-    max_items: int | None = None       # truncate fetched items to this cap (e.g. arXiv firehose)
+    max_items: int | None = None  # truncate fetched items to this cap (e.g. arXiv firehose)
 
 
 @dataclass
 class CollectionConfig:
     sources_registry_path: str
-    window_hours: int = 72       # 拉宽到 3 天: paper/tool/blog 周更慢更不漏 (原 24 把它们都砍了)
-    max_window_hours: int = 96   # 同步上调; spec §7.1 不变量仍按此参数
+    window_hours: int = 72  # 拉宽到 3 天: paper/tool/blog 周更慢更不漏 (原 24 把它们都砍了)
+    max_window_hours: int = 96  # 同步上调; spec §7.1 不变量仍按此参数
     concurrency: int = 10
     timeout_s: int = 15
     firecrawl_enabled: bool = False
@@ -70,7 +72,7 @@ class CollectionConfig:
 @dataclass
 class RunContext:
     run_id: str
-    now: datetime                       # injected for determinism; MUST be tz-aware
+    now: datetime  # injected for determinism; MUST be tz-aware
     logger: logging.Logger
 
 
@@ -93,8 +95,9 @@ class DedupConfig:
     similarity_threshold: float = 0.83
     embedding_model: str = "Qwen/Qwen3-Embedding-8B"
     batch_size: int = 32
-    source_type_rank: list[str] = field(default_factory=lambda: [
-        "official", "paper", "model", "tool", "news", "community", "blog"])
+    source_type_rank: list[str] = field(
+        default_factory=lambda: ["official", "paper", "model", "tool", "news", "community", "blog"]
+    )
     sources_registry_path: str = "config/sources.yaml"
 
 
@@ -125,15 +128,41 @@ class ScoredItem(NewsItem):
 
 @dataclass
 class ScoringConfig:
-    dimension_scores: dict[str, dict[str, float]] = field(default_factory=lambda: {
-        "official":  {"机构影响力": 18, "一手性": 20, "技术价值": 10, "产业影响": 12, "扩散潜力": 9},
-        "paper":     {"机构影响力": 14, "一手性": 20, "技术价值": 16, "产业影响": 8,  "扩散潜力": 7},
-        "model":     {"机构影响力": 15, "一手性": 18, "技术价值": 14, "产业影响": 10, "扩散潜力": 9},
-        "tool":      {"机构影响力": 10, "一手性": 14, "技术价值": 12, "产业影响": 10, "扩散潜力": 10},
-        "news":      {"机构影响力": 12, "一手性": 8,  "技术价值": 6,  "产业影响": 12, "扩散潜力": 11},
-        "community": {"机构影响力": 6,  "一手性": 10, "技术价值": 8,  "产业影响": 6,  "扩散潜力": 12},
-        "blog":      {"机构影响力": 6,  "一手性": 8,  "技术价值": 8,  "产业影响": 6,  "扩散潜力": 8},
-    })
+    dimension_scores: dict[str, dict[str, float]] = field(
+        default_factory=lambda: {
+            "official": {
+                "机构影响力": 18,
+                "一手性": 20,
+                "技术价值": 10,
+                "产业影响": 12,
+                "扩散潜力": 9,
+            },
+            "paper": {"机构影响力": 14, "一手性": 20, "技术价值": 16, "产业影响": 8, "扩散潜力": 7},
+            "model": {
+                "机构影响力": 15,
+                "一手性": 18,
+                "技术价值": 14,
+                "产业影响": 10,
+                "扩散潜力": 9,
+            },
+            "tool": {
+                "机构影响力": 10,
+                "一手性": 14,
+                "技术价值": 12,
+                "产业影响": 10,
+                "扩散潜力": 10,
+            },
+            "news": {"机构影响力": 12, "一手性": 8, "技术价值": 6, "产业影响": 12, "扩散潜力": 11},
+            "community": {
+                "机构影响力": 6,
+                "一手性": 10,
+                "技术价值": 8,
+                "产业影响": 6,
+                "扩散潜力": 12,
+            },
+            "blog": {"机构影响力": 6, "一手性": 8, "技术价值": 8, "产业影响": 6, "扩散潜力": 8},
+        }
+    )
     priority_bonus: dict[int, int] = field(default_factory=lambda: {1: 6, 2: 3, 3: 0, 4: -2, 5: -4})
     priority_bonus_default: int = 0
     fresh_hours: int = 24
@@ -146,11 +175,22 @@ class ScoringConfig:
     # 可见指标 = sum(weight * sqrt(signals[key]))  → 接 popularity 信号到 "可见指标" 维度。
     # 缺省空 = 0 (向后兼容)。production yaml 里配上 weights 才激活。
     popularity_weights: dict[str, float] = field(default_factory=dict)
-    popularity_cap: float = 15.0       # 单条最高加 15 分, 防异常超大数值
-    quota: dict[str, int] = field(default_factory=lambda: {
-        "paper": 2, "model": 1, "tool": 2, "official": 1, "community": 1, "news": 1, "blog": 0})
+    popularity_cap: float = 15.0  # 单条最高加 15 分, 防异常超大数值
+    quota: dict[str, int] = field(
+        default_factory=lambda: {
+            "paper": 2,
+            "model": 1,
+            "tool": 2,
+            "official": 1,
+            "community": 1,
+            "news": 1,
+            "blog": 0,
+        }
+    )
     total_limit: int = 8
     sources_registry_path: str = "config/sources.yaml"
+    topic_keywords: list[str] = field(default_factory=list)
+    topic_bonus: float = 5.0
 
 
 @dataclass
@@ -174,17 +214,17 @@ class ScoreResult:
 # --- interpret layer (Circle 4) ---
 class Evidence(BaseModel):
     claim: str = Field(min_length=1)
-    anchor: str = Field(min_length=1)        # must be ∈ item.link ∪ related_links
+    anchor: str = Field(min_length=1)  # must be ∈ item.link ∪ related_links
 
 
-class InterpretedItem(ScoredItem):           # ScoredItem 的下游演进; 本圈加解读字段
-    title: str                               # 中文标题, ≤ title_max_chars
-    summary: str                             # 中文摘要, ≤ summary_max_chars
-    takeaway: str                            # 对你意味着什么/怎么用; 回退时 ""
-    hot_take: str = ""                       # 锐评 AI 草稿(待人工定稿)
-    tags: list[str] = Field(default_factory=list)        # 恰好 tags_count 个或回退时 []
+class InterpretedItem(ScoredItem):  # ScoredItem 的下游演进; 本圈加解读字段
+    title: str  # 中文标题, ≤ title_max_chars
+    summary: str  # 中文摘要, ≤ summary_max_chars
+    takeaway: str  # 对你意味着什么/怎么用; 回退时 ""
+    hot_take: str = ""  # 锐评 AI 草稿(待人工定稿)
+    tags: list[str] = Field(default_factory=list)  # 恰好 tags_count 个或回退时 []
     evidence: list[Evidence] = Field(default_factory=list)
-    interpretation_status: str               # "ok" | "extractive_fallback"
+    interpretation_status: str  # "ok" | "extractive_fallback"
     eligible_for_must_read: bool
 
 
@@ -215,12 +255,12 @@ class InterpretResult:
 # --- review layer (Circle 5) ---
 class ReviewDecision(BaseModel):
     action: Literal["keep", "drop", "edit"] = "keep"
-    order: int | None = None                   # 重排序号(升序); None=不指定
+    order: int | None = None  # 重排序号(升序); None=不指定
     edits: dict = Field(default_factory=dict)  # action==edit 时覆盖的字段
 
 
-class ReviewedItem(InterpretedItem):           # InterpretedItem 的下游演进
-    review_action: Literal["keep", "edit"]     # drop 的条目不进结果
+class ReviewedItem(InterpretedItem):  # InterpretedItem 的下游演进
+    review_action: Literal["keep", "edit"]  # drop 的条目不进结果
     was_edited: bool
     edited_fields: list[str] = Field(default_factory=list)
 
@@ -275,15 +315,17 @@ class PublishConfig:
     must_read_count: int = 3
     top_keywords: int = 4
     pending_watermark: str = "⚠ 未审草稿（待人工定稿，勿直接发布）"
-    type_labels: dict[str, str] = field(default_factory=lambda: {
-        "official": "官方",
-        "paper": "论文",
-        "model": "模型",
-        "tool": "工具 / 开源",
-        "news": "新闻",
-        "community": "社区",
-        "blog": "博客",
-    })
+    type_labels: dict[str, str] = field(
+        default_factory=lambda: {
+            "official": "官方",
+            "paper": "论文",
+            "model": "模型",
+            "tool": "工具 / 开源",
+            "news": "新闻",
+            "community": "社区",
+            "blog": "博客",
+        }
+    )
 
 
 @dataclass
@@ -300,7 +342,7 @@ class FeedbackEvent(BaseModel):
     source: str = Field(min_length=1)
     action: Literal["keep", "drop", "edit"]
     run_id: str = Field(min_length=1)
-    ts: datetime                              # injected; layer never calls now()
+    ts: datetime  # injected; layer never calls now()
 
 
 class SourceFeedbackStats(BaseModel):
@@ -314,12 +356,12 @@ class SourceFeedbackStats(BaseModel):
 @dataclass
 class EnrichConfig:
     """RSS 类源天然无 popularity, 用 HN Algolia by URL 反查补 signals.hn_*。"""
+
     enabled: bool = True
     concurrency: int = 5
     timeout_s: int = 8
     # 已经带原生 popularity 信号的源类型不查 HN (省请求, 不覆盖)
-    skip_source_types: list[str] = field(
-        default_factory=lambda: ["paper", "model"])
+    skip_source_types: list[str] = field(default_factory=lambda: ["paper", "model"])
 
 
 @dataclass
@@ -347,17 +389,17 @@ class FeedbackResult:
 # --- delivery layer (P1) ---
 @dataclass
 class TelegramConfig:
-    bot_token: str = ""           # 优先从 TELEGRAM_BOT_TOKEN 环境变量读
-    chat_id: str = ""             # 优先从 TELEGRAM_CHAT_ID 环境变量读
-    mode: str = "polling"         # "polling" | "webhook"
-    webhook_url: str = ""         # mode=webhook 时填
+    bot_token: str = ""  # 优先从 TELEGRAM_BOT_TOKEN 环境变量读
+    chat_id: str = ""  # 优先从 TELEGRAM_CHAT_ID 环境变量读
+    mode: str = "polling"  # "polling" | "webhook"
+    webhook_url: str = ""  # mode=webhook 时填
 
 
 @dataclass
 class WebsiteConfig:
     enabled: bool = True
     output_dir: str = "docs/daily"
-    git_push: bool = False        # True = finalize 后自动 git add + commit
+    git_push: bool = False  # True = finalize 后自动 git add + commit
 
 
 @dataclass
