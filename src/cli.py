@@ -442,7 +442,8 @@ def run_tick(
         dres = dedup(c.items, dcfg2, ctx, embedder=_embedder, store=InMemoryVectorStore())
         scfg = load_scoring_config("config/scoring.yaml")
         scfg.sources_registry_path = registry_path
-        sres = score(dres.deduped_items, scfg, ctx)
+        quality_of = await db.get_quality_weights()
+        sres = score(dres.deduped_items, scfg, ctx, quality_of=quality_of)
         icfg = load_interpret_config("config/interpret.yaml")
         _llm = llm or _make_llm(icfg)
         ires = interpret(sres.selected_items, icfg, ctx, _llm)
