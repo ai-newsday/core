@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 from collections import Counter
 from src.core.types import (ReviewedItem, PublishConfig, Overview,
                             CategorySection, DailyReport, PublishResult,
@@ -119,6 +120,31 @@ def _render_overview(report: DailyReport, label_of: dict[str, str]) -> list[str]
         lines.append("- 高频关键词：" + "、".join(report.overview.keywords))
     lines.append("")
     return lines
+
+
+def _yaml_quote(s: str) -> str:
+    """双引号包裹并转义内嵌双引号(够用的最小 YAML 标量转义)。"""
+    return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
+def render_front_matter(report: DailyReport, config: PublishConfig,
+                        draft: bool) -> str:
+    """Hugo front matter(确定性, 无 now)。date 取 date_label 的 YYYY-MM-DD 前缀,
+    固定东八区 08:00。tags = categories 的 label(已去重 + type_labels 序)。"""
+    m = re.match(r"\d{4}-\d{2}-\d{2}", report.date_label)
+    iso_date = m.group(0) if m else report.date_label
+    tags = ", ".join(_yaml_quote(c.label) for c in report.categories)
+    summary = (report.daily_take or "")[:140]
+    lines = [
+        "---",
+        f"title: {_yaml_quote('AI Daily · ' + report.date_label)}",
+        f"date: {iso_date}T08:00:00+08:00",
+        f"draft: {'true' if draft else 'false'}",
+        f"tags: [{tags}]",
+        f"summary: {_yaml_quote(summary)}",
+        "---",
+    ]
+    return "\n".join(lines)
 
 
 def render_markdown(report: DailyReport, config: PublishConfig) -> str:

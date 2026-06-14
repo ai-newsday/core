@@ -5,7 +5,7 @@ from src.core.types import (SourceType, Evidence, ReviewedItem, PublishConfig,
                             DailyReport, ReviewResult, RunContext)
 from src.pipeline.publish import (select_must_read, group_by_category,
                                   build_overview, build_report, render_markdown,
-                                  publish)
+                                  render_front_matter, publish)
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 CFG = PublishConfig()
@@ -220,3 +220,45 @@ def test_publish_markdown_snapshot():
         SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
         SNAPSHOT.write_text(res.markdown, encoding="utf-8")
     assert res.markdown == SNAPSHOT.read_text(encoding="utf-8")
+
+
+def test_front_matter_draft_true():
+    items = [_ri("https://a/1", source_type=SourceType.MODEL),
+             _ri("https://a/2", source_type=SourceType.PAPER)]
+    rep = build_report(_rr(items, daily_take="今天有两条。"), "2026-05-30（周六）", CFG)
+    fm = render_front_matter(rep, CFG, draft=True)
+    assert fm.startswith("---\n") and fm.rstrip().endswith("---")
+    assert 'title: "AI Daily · 2026-05-30（周六）"' in fm
+    assert "date: 2026-05-30T08:00:00+08:00" in fm
+    assert "draft: true" in fm
+    # tags = categories 的 label, type_labels 序: paper 在 model 前
+    assert 'tags: ["论文", "模型"]' in fm
+    assert 'summary: "今天有两条。"' in fm
+
+
+def test_front_matter_draft_false():
+    rep = build_report(_rr([_ri("https://a/1")]), "2026-05-30", CFG)
+    fm = render_front_matter(rep, CFG, draft=False)
+    assert "draft: false" in fm
+    assert "date: 2026-05-30T08:00:00+08:00" in fm
+
+
+def test_front_matter_empty_daily_take():
+    rep = build_report(_rr([_ri("https://a/1")], daily_take=None), "2026-05-30", CFG)
+    fm = render_front_matter(rep, CFG, draft=True)
+    assert 'summary: ""' in fm
+
+
+def test_front_matter_truncates_summary_to_140():
+    long = "看" * 200
+    rep = build_report(_rr([_ri("https://a/1")], daily_take=long), "2026-05-30", CFG)
+    fm = render_front_matter(rep, CFG, draft=True)
+    assert "看" * 140 in fm
+    assert "看" * 141 not in fm
+
+
+def test_front_matter_escapes_double_quotes():
+    rep = build_report(_rr([_ri("https://a/1")], daily_take='含"引号"的看点'),
+                       "2026-05-30", CFG)
+    fm = render_front_matter(rep, CFG, draft=True)
+    assert 'summary: "含\\"引号\\"的看点"' in fm
