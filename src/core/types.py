@@ -189,6 +189,8 @@ class ScoringConfig:
     )
     total_limit: int = 8
     sources_registry_path: str = "config/sources.yaml"
+    topic_keywords: list[str] = field(default_factory=list)
+    topic_bonus: float = 5.0
 
 
 @dataclass

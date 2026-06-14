@@ -14,7 +14,7 @@
 - {name: aws-ml, url: "https://aws.amazon.com/blogs/machine-learning/feed", type: official, adapter: rss, status: working, priority: 2}
 - {name: meta-ai, url: "https://ai.meta.com/blog/rss/", type: official, adapter: rss, status: manual, priority: 2}  # 404, feed 路径变更, P2 找新端点
 # --- tools / infra ---
-- {name: pytorch, url: "https://pytorch.org/blog/feed.xml", type: tool, adapter: rss, status: working, priority: 2}
+- {name: pytorch, url: "https://pytorch.org/blog/feed.xml", type: news, adapter: rss, status: working, priority: 2}
 - {name: comfy, url: "https://blog.comfy.org/feed.xml", type: tool, adapter: rss, status: working, priority: 3}
 - {name: replicate, url: "https://replicate.com/blog/rss", type: tool, adapter: rss, status: working, priority: 3}
 - {name: ollama, url: "https://ollama.com/blog/rss.xml", type: tool, adapter: rss, status: working, priority: 3}
@@ -43,10 +43,10 @@
 - {name: qbitai, url: "https://www.qbitai.com/feed", type: news, adapter: rss, status: manual, priority: 2}  # 403 反爬, P2 找绕过方式
 - {name: jiqizhixin, url: "https://www.jiqizhixin.com/rss", type: news, adapter: rss, status: manual, priority: 2}  # 返回 HTML 非 RSS, 站无公开 feed
 # --- paper (arXiv 分类) ---
-# papers.cool: Kimi 出品, 对每篇 arxiv 论文带"一句话评论"作质量信号 → 优先级 2, 比 raw arxiv 高
-- {name: papers-cool-ai, url: "https://papers.cool/arxiv/cs.AI/feed", type: paper, adapter: rss, status: working, priority: 2, max_items: 30}
-- {name: papers-cool-cl, url: "https://papers.cool/arxiv/cs.CL/feed", type: paper, adapter: rss, status: working, priority: 2, max_items: 30}
-- {name: papers-cool-lg, url: "https://papers.cool/arxiv/cs.LG/feed", type: paper, adapter: rss, status: working, priority: 2, max_items: 30}
+# papers.cool: Kimi 出品, 对每篇 arxiv 论文带"一句话评论"; 降为 priority 3, hf-papers 为主
+- {name: papers-cool-ai, url: "https://papers.cool/arxiv/cs.AI/feed", type: paper, adapter: rss, status: working, priority: 3, max_items: 30}
+- {name: papers-cool-cl, url: "https://papers.cool/arxiv/cs.CL/feed", type: paper, adapter: rss, status: working, priority: 3, max_items: 30}
+- {name: papers-cool-lg, url: "https://papers.cool/arxiv/cs.LG/feed", type: paper, adapter: rss, status: working, priority: 3, max_items: 30}
 - {name: papers-cool-cv, url: "https://papers.cool/arxiv/cs.CV/feed", type: paper, adapter: rss, status: working, priority: 3, max_items: 30}
 # arxiv raw firehose 降为备胎: priority 3 + max_items 15, 让 hf-papers / papers.cool 优先
 - {name: arxiv-cs-cl, url: "http://export.arxiv.org/rss/cs.CL", type: paper, adapter: rss, status: working, priority: 3, max_items: 15}
