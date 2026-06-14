@@ -216,6 +216,10 @@ def _snapshot_items():
 def test_publish_markdown_snapshot():
     res = publish(_rr(_snapshot_items(), daily_take="看点一句话。"),
                   "2026-05-30（周六）", CFG, _ctx())
+    # publish 产物 = front matter(draft:true) + body
+    assert res.markdown.startswith("---\n")
+    assert "draft: true" in res.markdown.split("---", 2)[1]
+    assert "# AI Daily · 2026-05-30（周六）" in res.markdown
     if not SNAPSHOT.exists():               # 首次运行固化快照
         SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
         SNAPSHOT.write_text(res.markdown, encoding="utf-8")

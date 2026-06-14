@@ -187,7 +187,8 @@ def publish(review_result: ReviewResult, date_label: str,
     emit(ctx.logger, "report_built", must_read_count=len(report.must_read),
          category_count=len(report.categories), item_count=report.item_count,
          is_pending=report.is_pending)
-    markdown = render_markdown(report, config)
+    markdown = (render_front_matter(report, config, draft=True)
+                + "\n" + render_markdown(report, config))
     emit(ctx.logger, "publish_done", item_count=report.item_count,
          must_read_count=len(report.must_read), is_pending=report.is_pending,
          silent=False)
