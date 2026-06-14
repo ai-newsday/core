@@ -33,10 +33,10 @@ jobs:
         with:
           hugo-version: "latest"
           extended: true
+      - uses: actions/configure-pages@v5
+        id: pages           # 必须在 build 之前: build 用其 base_url 输出
       - name: Build (include drafts for preview)
         run: hugo --gc --minify -D --baseURL "${{ steps.pages.outputs.base_url }}/"
-      - uses: actions/configure-pages@v5
-        id: pages
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./public
