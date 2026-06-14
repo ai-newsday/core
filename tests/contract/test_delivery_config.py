@@ -40,3 +40,10 @@ def test_telegram_config_reads_env(monkeypatch):
     cfg = load_delivery_config("nonexistent.yaml")
     assert cfg.telegram.bot_token == "tok123"
     assert cfg.telegram.chat_id == "99"
+
+
+def test_website_default_output_dir_is_content_posts(monkeypatch):
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    cfg = load_delivery_config("does/not/exist.yaml")
+    assert cfg.website.output_dir == "content/posts"

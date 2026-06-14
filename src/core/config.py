@@ -215,7 +215,7 @@ def load_delivery_config(path: str) -> DeliveryConfig:
     )
     web = WebsiteConfig(
         enabled=web_data.get("enabled", True),
-        output_dir=web_data.get("output_dir", "docs/daily"),
+        output_dir=web_data.get("output_dir", "content/posts"),
         git_push=web_data.get("git_push", False),
     )
     return DeliveryConfig(telegram=tg, website=web)
