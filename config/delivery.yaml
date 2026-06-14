@@ -5,5 +5,5 @@ telegram:
 
 website:
   enabled: true
-  output_dir: "docs/daily"
+  output_dir: "content/posts"
   git_push: false

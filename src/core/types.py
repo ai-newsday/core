@@ -400,7 +400,7 @@ class TelegramConfig:
 @dataclass
 class WebsiteConfig:
     enabled: bool = True
-    output_dir: str = "docs/daily"
+    output_dir: str = "content/posts"
     git_push: bool = False  # True = finalize 后自动 git add + commit
 
 
