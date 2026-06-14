@@ -132,8 +132,13 @@ def _render_overview(report: DailyReport, label_of: dict[str, str]) -> list[str]
 
 
 def _yaml_quote(s: str) -> str:
-    """双引号包裹并转义内嵌双引号(够用的最小 YAML 标量转义)。"""
-    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    """双引号包裹并转义内嵌双引号 + 换行(够用的最小 YAML 标量转义)。
+    换行必须转义: daily_take 是 LLM 输出, 裸换行会把单行 front matter 标量撑断, Hugo 解析失败。"""
+    return (
+        '"'
+        + s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r")
+        + '"'
+    )
 
 
 def render_front_matter(report: DailyReport, config: PublishConfig, draft: bool) -> str:
@@ -157,8 +162,9 @@ def render_front_matter(report: DailyReport, config: PublishConfig, draft: bool)
 
 def flip_draft(text: str) -> str:
     """把 front matter 里的 `draft: true` 行替换为 `draft: false`(幂等)。
-    仅匹配行首(允许前导空格)的 draft 键, 避免误伤正文。无匹配则原样返回。"""
-    return re.sub(r"(?m)^(\s*draft:\s*)true\s*$", r"\1false", text)
+    只改第一处 (count=1): front matter 在文件最前, 故首个 draft 键即 front matter,
+    正文里出现的 `draft: true`(如代码块/引用) 不受影响。无匹配则原样返回。"""
+    return re.sub(r"(?m)^(\s*draft:\s*)true\s*$", r"\1false", text, count=1)
 
 
 def render_markdown(report: DailyReport, config: PublishConfig) -> str:

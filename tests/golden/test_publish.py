@@ -365,6 +365,24 @@ def test_flip_draft_no_front_matter_unchanged():
     assert flip_draft(text) == text
 
 
+def test_flip_draft_only_touches_front_matter_not_body():
+    # 正文里出现 `draft: true`(如代码示例) 不应被改; 只改 front matter 那一处
+    text = "---\ndraft: true\n---\n# body\n\n```yaml\ndraft: true\n```\n"
+    out = flip_draft(text)
+    assert out.count("draft: false") == 1
+    assert out.count("draft: true") == 1  # 正文那一处保留
+
+
+def test_front_matter_escapes_newline_in_summary():
+    # daily_take 含换行(LLM 输出常见): 必须转义成 \n, 不能撑断单行标量
+    rep = build_report(_rr([_ri("https://a/1")], daily_take="第一行\n第二行"), "2026-05-30", CFG)
+    fm = render_front_matter(rep, CFG, draft=True)
+    assert "summary: " in fm
+    assert "\\n" in fm  # 字面 \n 转义
+    # front matter 仍是 7 行(未被裸换行撑断)
+    assert fm.count("\n") == 6
+
+
 def test_categories_render_takeaway_when_present():
     items = [
         _ri(
