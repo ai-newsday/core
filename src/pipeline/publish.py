@@ -1,21 +1,28 @@
 from __future__ import annotations
+
 import re
 from collections import Counter
-from src.core.types import (ReviewedItem, PublishConfig, Overview,
-                            CategorySection, DailyReport, PublishResult,
-                            ReviewResult, RunContext)
+
+from src.core.types import (
+    CategorySection,
+    DailyReport,
+    Overview,
+    PublishConfig,
+    PublishResult,
+    ReviewedItem,
+    ReviewResult,
+    RunContext,
+)
 from src.observability.events import emit
 
 
-def select_must_read(items: list[ReviewedItem],
-                     config: PublishConfig) -> list[ReviewedItem]:
+def select_must_read(items: list[ReviewedItem], config: PublishConfig) -> list[ReviewedItem]:
     """合格(eligible)条目里按上游序取前 must_read_count 条。"""
     eligible = [it for it in items if it.eligible_for_must_read]
-    return eligible[:config.must_read_count]
+    return eligible[: config.must_read_count]
 
 
-def group_by_category(items: list[ReviewedItem],
-                      config: PublishConfig) -> list[CategorySection]:
+def group_by_category(items: list[ReviewedItem], config: PublishConfig) -> list[CategorySection]:
     """按 source_type 分组; 组间按 type_labels 键序(不在表里的排末尾);
     组内保上游序; 空类目不产 section。"""
     order = list(config.type_labels)
@@ -33,19 +40,18 @@ def group_by_category(items: list[ReviewedItem],
 
     out: list[CategorySection] = []
     for st in sorted(seen, key=rank):
-        out.append(CategorySection(
-            source_type=st, label=config.type_labels.get(st, st),
-            items=buckets[st]))
+        out.append(
+            CategorySection(source_type=st, label=config.type_labels.get(st, st), items=buckets[st])
+        )
     return out
 
 
-def build_overview(items: list[ReviewedItem],
-                   config: PublishConfig) -> Overview:
+def build_overview(items: list[ReviewedItem], config: PublishConfig) -> Overview:
     """类型分布计数(按 type_labels 键序) + 高频关键词(聚合 tags 去 # 取 Top N)。"""
     order = list(config.type_labels)
     counts = Counter(it.source_type.value for it in items)
     dist = {st: counts[st] for st in order if counts.get(st)}
-    for st in counts:                       # 不在表里的类型补在后面
+    for st in counts:  # 不在表里的类型补在后面
         if st not in dist:
             dist[st] = counts[st]
 
@@ -62,12 +68,12 @@ def build_overview(items: list[ReviewedItem],
                 seq += 1
             freq[kw] += 1
     ranked = sorted(freq, key=lambda k: (-freq[k], first_seen[k]))
-    return Overview(type_distribution=dist,
-                    keywords=ranked[:config.top_keywords])
+    return Overview(type_distribution=dist, keywords=ranked[: config.top_keywords])
 
 
-def build_report(review_result: ReviewResult, date_label: str,
-                 config: PublishConfig) -> DailyReport:
+def build_report(
+    review_result: ReviewResult, date_label: str, config: PublishConfig
+) -> DailyReport:
     """组装内容模型: 必读 + 分类速览 + 数据概览 + 元信息。"""
     items = review_result.reviewed_items
     return DailyReport(
@@ -105,8 +111,8 @@ def _render_categories(report: DailyReport) -> list[str]:
         for it in cat.items:
             mark = " 🧭探索" if it.is_explore else ""
             lines.append(
-                f"- `[{it.score}]`{mark} {it.title} — {it.summary} "
-                f"｜ [{it.source}]({it.link})")
+                f"- `[{it.score}]`{mark} {it.title} — {it.summary} ｜ [{it.source}]({it.link})"
+            )
             if it.takeaway:
                 lines.append(f"  ↳ 对你：{it.takeaway}")
         lines.append("")
@@ -115,8 +121,9 @@ def _render_categories(report: DailyReport) -> list[str]:
 
 def _render_overview(report: DailyReport, label_of: dict[str, str]) -> list[str]:
     lines = ["## 📊 数据概览"]
-    dist = "｜".join(f"{label_of.get(st, st)} {n}"
-                     for st, n in report.overview.type_distribution.items())
+    dist = "｜".join(
+        f"{label_of.get(st, st)} {n}" for st, n in report.overview.type_distribution.items()
+    )
     lines.append(f"- 分类分布：{dist}")
     if report.overview.keywords:
         lines.append("- 高频关键词：" + "、".join(report.overview.keywords))
@@ -126,11 +133,10 @@ def _render_overview(report: DailyReport, label_of: dict[str, str]) -> list[str]
 
 def _yaml_quote(s: str) -> str:
     """双引号包裹并转义内嵌双引号(够用的最小 YAML 标量转义)。"""
-    return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def render_front_matter(report: DailyReport, config: PublishConfig,
-                        draft: bool) -> str:
+def render_front_matter(report: DailyReport, config: PublishConfig, draft: bool) -> str:
     """Hugo front matter(确定性, 无 now)。date 取 date_label 的 YYYY-MM-DD 前缀,
     固定东八区 08:00。tags = categories 的 label(已去重 + type_labels 序)。"""
     m = re.match(r"\d{4}-\d{2}-\d{2}", report.date_label)
@@ -175,24 +181,44 @@ def render_markdown(report: DailyReport, config: PublishConfig) -> str:
     return "\n".join(lines)
 
 
-def publish(review_result: ReviewResult, date_label: str,
-            config: PublishConfig, ctx: RunContext) -> PublishResult:
+def publish(
+    review_result: ReviewResult, date_label: str, config: PublishConfig, ctx: RunContext
+) -> PublishResult:
     """编排: 空→静默; 否则组装内容模型并渲染 Markdown。无网络/LLM/渠道副作用。"""
     items = review_result.reviewed_items
     emit(ctx.logger, "publish_start", run_id=ctx.run_id, input_count=len(items))
     report = build_report(review_result, date_label, config)
     if not items:
-        emit(ctx.logger, "publish_done", item_count=0, must_read_count=0,
-             is_pending=report.is_pending, silent=True)
-        return PublishResult(report=report, markdown="",
-                             is_pending=report.is_pending, is_silent=True)
-    emit(ctx.logger, "report_built", must_read_count=len(report.must_read),
-         category_count=len(report.categories), item_count=report.item_count,
-         is_pending=report.is_pending)
-    markdown = (render_front_matter(report, config, draft=True)
-                + "\n" + render_markdown(report, config))
-    emit(ctx.logger, "publish_done", item_count=report.item_count,
-         must_read_count=len(report.must_read), is_pending=report.is_pending,
-         silent=False)
-    return PublishResult(report=report, markdown=markdown,
-                         is_pending=report.is_pending, is_silent=False)
+        emit(
+            ctx.logger,
+            "publish_done",
+            item_count=0,
+            must_read_count=0,
+            is_pending=report.is_pending,
+            silent=True,
+        )
+        return PublishResult(
+            report=report, markdown="", is_pending=report.is_pending, is_silent=True
+        )
+    emit(
+        ctx.logger,
+        "report_built",
+        must_read_count=len(report.must_read),
+        category_count=len(report.categories),
+        item_count=report.item_count,
+        is_pending=report.is_pending,
+    )
+    markdown = (
+        render_front_matter(report, config, draft=True) + "\n" + render_markdown(report, config)
+    )
+    emit(
+        ctx.logger,
+        "publish_done",
+        item_count=report.item_count,
+        must_read_count=len(report.must_read),
+        is_pending=report.is_pending,
+        silent=False,
+    )
+    return PublishResult(
+        report=report, markdown=markdown, is_pending=report.is_pending, is_silent=False
+    )
