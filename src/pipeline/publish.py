@@ -107,6 +107,8 @@ def _render_categories(report: DailyReport) -> list[str]:
             lines.append(
                 f"- `[{it.score}]`{mark} {it.title} — {it.summary} "
                 f"｜ [{it.source}]({it.link})")
+            if it.takeaway:
+                lines.append(f"  ↳ 对你：{it.takeaway}")
         lines.append("")
     return lines
 

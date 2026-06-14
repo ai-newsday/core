@@ -284,3 +284,21 @@ def test_flip_draft_idempotent_when_already_false():
 def test_flip_draft_no_front_matter_unchanged():
     text = "# just a body, no front matter\n"
     assert flip_draft(text) == text
+
+
+def test_categories_render_takeaway_when_present():
+    items = [_ri("https://a/1", source_type=SourceType.MODEL,
+                 title="T", summary="S。", takeaway="可本地部署。",
+                 eligible=False)]   # 非必读, 只出现在分类速览
+    md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
+    cat_block = md.split("## 📚 分类速览", 1)[1]
+    assert "可本地部署。" in cat_block
+
+
+def test_categories_skip_empty_takeaway():
+    items = [_ri("https://a/1", source_type=SourceType.MODEL,
+                 title="T", summary="S。", takeaway="", eligible=False)]
+    md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
+    cat_block = md.split("## 📚 分类速览", 1)[1]
+    # 空 takeaway 不产生孤立的 "↳" 行
+    assert "↳" not in cat_block
