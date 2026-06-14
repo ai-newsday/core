@@ -67,6 +67,18 @@ def _visibility(item: NewsItem, config: ScoringConfig) -> float:
     return min(total, config.popularity_cap)
 
 
+def _topic_relevance(item: NewsItem, config: ScoringConfig) -> float:
+    if not config.topic_keywords:
+        return 0.0
+    text = (item.title_en or "").lower()
+    if item.raw_summary:
+        text += " " + item.raw_summary.lower()
+    for kw in config.topic_keywords:
+        if kw.lower() in text:
+            return float(config.topic_bonus)
+    return 0.0
+
+
 def compute_scores(
     items: list[NewsItem], priority_of: dict[str, int], config: ScoringConfig, ctx: RunContext
 ) -> list[ScoredItem]:
@@ -87,7 +99,7 @@ def compute_scores(
             "可见指标": round(_visibility(it, config), 4),
             "时效": recency_band(it.published_at, ctx.now, config),
             "惩罚": penalty_of[it.link],
-            "读者相关度": 0.0,
+            "读者相关度": _topic_relevance(it, config),
         }
         for k in _MATRIX_DIMS:
             breakdown[k] = float(dims.get(k, 0))

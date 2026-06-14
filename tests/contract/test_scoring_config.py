@@ -40,3 +40,26 @@ def test_repo_default_config_is_consistent():
     c = load_scoring_config("config/scoring.yaml")
     # invariant: sum of quotas must not exceed the hard total limit (spec §5.4)
     assert sum(c.quota.values()) <= c.total_limit
+
+
+def test_loads_topic_boost(tmp_path):
+    p = tmp_path / "scoring.yaml"
+    p.write_text(
+        "topic_boost:\n  keywords:\n    - multimodal\n    - agent\n  bonus: 8\n", encoding="utf-8"
+    )
+    c = load_scoring_config(str(p))
+    assert c.topic_keywords == ["multimodal", "agent"]
+    assert c.topic_bonus == 8
+
+
+def test_missing_topic_boost_uses_defaults():
+    c = load_scoring_config("does/not/exist.yaml")
+    assert c.topic_keywords == []
+    assert c.topic_bonus == 5.0
+
+
+def test_production_config_has_topic_keywords():
+    c = load_scoring_config("config/scoring.yaml")
+    assert len(c.topic_keywords) > 0
+    assert c.topic_bonus > 0
+    assert "multimodal" in c.topic_keywords
