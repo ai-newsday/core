@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 
 import aiosqlite
 
+from src.core.types import FeedbackEvent
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     run_id TEXT PRIMARY KEY,
@@ -39,7 +41,8 @@ CREATE TABLE IF NOT EXISTS feedback_events (
     source  TEXT NOT NULL,
     action  TEXT NOT NULL,
     run_id  TEXT NOT NULL,
-    ts      TEXT NOT NULL
+    ts      TEXT NOT NULL,
+    UNIQUE(run_id, link)
 );
 
 CREATE TABLE IF NOT EXISTS quality_weights (
@@ -171,3 +174,41 @@ class Database:
         """返回 {link: action} 只含已明确决策（keep/drop）的条目。"""
         rows = await self.get_pending_reviews_for_date(date)
         return {r["link"]: r["status"] for r in rows if r["status"] in ("keep", "drop")}
+
+    async def append_feedback_events(self, events: list[FeedbackEvent]) -> None:
+        """追加反馈事件; (run_id, link) 唯一, 重跑用 INSERT OR IGNORE 不双计。"""
+        async with aiosqlite.connect(self._path) as conn:
+            for e in events:
+                await conn.execute(
+                    "INSERT OR IGNORE INTO feedback_events(link,source,action,run_id,ts) "
+                    "VALUES(?,?,?,?,?)",
+                    (e.link, e.source, e.action, e.run_id, e.ts.isoformat()),
+                )
+            await conn.commit()
+
+    async def has_feedback_for_run(self, run_id: str) -> bool:
+        """该 run_id 是否已贡献过反馈事件(幂等闸)。"""
+        async with aiosqlite.connect(self._path) as conn:
+            async with conn.execute(
+                "SELECT 1 FROM feedback_events WHERE run_id=? LIMIT 1", (run_id,)
+            ) as cur:
+                return await cur.fetchone() is not None
+
+    async def get_quality_weights(self) -> dict[str, float]:
+        """读权重表; 空表 → {}。"""
+        async with aiosqlite.connect(self._path) as conn:
+            async with conn.execute("SELECT source,weight FROM quality_weights") as cur:
+                rows = await cur.fetchall()
+                return {r[0]: float(r[1]) for r in rows}
+
+    async def upsert_quality_weights(self, weights: dict[str, float]) -> None:
+        """写回权重(每源一行, INSERT OR REPLACE)。"""
+        ts = datetime.now(timezone.utc).isoformat()
+        async with aiosqlite.connect(self._path) as conn:
+            for source, w in weights.items():
+                await conn.execute(
+                    "INSERT OR REPLACE INTO quality_weights(source,weight,updated_at) "
+                    "VALUES(?,?,?)",
+                    (source, float(w), ts),
+                )
+            await conn.commit()
