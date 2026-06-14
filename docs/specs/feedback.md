@@ -12,6 +12,8 @@
 | §4.3 | `reader_relevance` 冷启动权重为 0 | 本圈不产 `reader_relevance`，与冷启动一致（不动它即为 0/不参与） |
 | §2.1 #6 | 反馈可回收、可解释、能反哺 | 本圈产 `quality_weights` + `weight_diff`（旧→新可解释），但**不接回打分**，接线是显式的未来改动 |
 
+> **v1 闭环更新（2026-06-15）**：本层原标记"延后"的两项——**持久化落盘（SQLite）** 与 **接回第 3 层打分（乘 `机构影响力`，run_id 幂等）**——已在「反馈闭环 v1」实现，见 `docs/adr/0002-feedback-quality-weight-into-scoring.md` 与设计 `docs/superpowers/specs/2026-06-15-feedback-loop-v1-design.md`。纯函数契约不变；仍延后的是阅读行为/👍👎信号、`reader_relevance`、Qdrant 向量、explore 选条。
+
 ## 1. 目的
 
 一句话：**把每次运行里"人工对每条做了什么"（留/删/改）回收成按源聚合的信誉信号，增量更新每个源的 `quality_weight`，落成可解释的账本。**
@@ -38,14 +40,12 @@
 
 | 不做 | 为什么 / 归属 |
 |---|---|
-| 把 `quality_weight` 接回第 3 层打分 | 改打分行为是显式决策，需配 ADR + 改 `scoring.py`；本层只算不接，避免"偷偷改打分" |
 | 阅读行为信号（open/dwell/forward） | 依赖前端埋点/渠道回传，无数据源，P1 |
 | 显式 👍👎 信号 | 同上，需交互入口，P1 |
 | `reader_relevance` 重算 | 依赖②③信号与读者画像，冷启动为 0，P1 |
 | 正反馈向量进 Qdrant | 依赖向量库写入，本圈纯核心 + JSON 账本，P1 |
 | SQLite `feedback` 表落库 | 用 JSON 事件账本替代；真正 SSOT 落库 P1 |
 | explore-exploit 选条策略 | 反哺选条是打分/调度的事，P1 |
-| 真正写磁盘副作用 | 本圈 `--dry-run` 只打印 `quality_weights`/`weight_diff`，不落盘 |
 
 ## 3. 接口契约
 
