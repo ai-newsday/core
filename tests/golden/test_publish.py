@@ -13,8 +13,10 @@ from src.core.types import (
 from src.pipeline.publish import (
     build_overview,
     build_report,
+    flip_draft,
     group_by_category,
     publish,
+    render_front_matter,
     render_markdown,
     select_must_read,
 )
@@ -292,7 +294,105 @@ def test_publish_markdown_snapshot():
     res = publish(
         _rr(_snapshot_items(), daily_take="看点一句话。"), "2026-05-30（周六）", CFG, _ctx()
     )
+    # publish 产物 = front matter(draft:true) + body
+    assert res.markdown.startswith("---\n")
+    assert "draft: true" in res.markdown.split("---", 2)[1]
+    assert "# AI Daily · 2026-05-30（周六）" in res.markdown
     if not SNAPSHOT.exists():  # 首次运行固化快照
         SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
         SNAPSHOT.write_text(res.markdown, encoding="utf-8")
     assert res.markdown == SNAPSHOT.read_text(encoding="utf-8")
+
+
+def test_front_matter_draft_true():
+    items = [
+        _ri("https://a/1", source_type=SourceType.MODEL),
+        _ri("https://a/2", source_type=SourceType.PAPER),
+    ]
+    rep = build_report(_rr(items, daily_take="今天有两条。"), "2026-05-30（周六）", CFG)
+    fm = render_front_matter(rep, CFG, draft=True)
+    assert fm.startswith("---\n") and fm.rstrip().endswith("---")
+    assert 'title: "AI Daily · 2026-05-30（周六）"' in fm
+    assert "date: 2026-05-30T08:00:00+08:00" in fm
+    assert "draft: true" in fm
+    # tags = categories 的 label, type_labels 序: paper 在 model 前
+    assert 'tags: ["论文", "模型"]' in fm
+    assert 'summary: "今天有两条。"' in fm
+
+
+def test_front_matter_draft_false():
+    rep = build_report(_rr([_ri("https://a/1")]), "2026-05-30", CFG)
+    fm = render_front_matter(rep, CFG, draft=False)
+    assert "draft: false" in fm
+    assert "date: 2026-05-30T08:00:00+08:00" in fm
+
+
+def test_front_matter_empty_daily_take():
+    rep = build_report(_rr([_ri("https://a/1")], daily_take=None), "2026-05-30", CFG)
+    fm = render_front_matter(rep, CFG, draft=True)
+    assert 'summary: ""' in fm
+
+
+def test_front_matter_truncates_summary_to_140():
+    long = "看" * 200
+    rep = build_report(_rr([_ri("https://a/1")], daily_take=long), "2026-05-30", CFG)
+    fm = render_front_matter(rep, CFG, draft=True)
+    assert "看" * 140 in fm
+    assert "看" * 141 not in fm
+
+
+def test_front_matter_escapes_double_quotes():
+    rep = build_report(_rr([_ri("https://a/1")], daily_take='含"引号"的看点'), "2026-05-30", CFG)
+    fm = render_front_matter(rep, CFG, draft=True)
+    assert 'summary: "含\\"引号\\"的看点"' in fm
+
+
+def test_flip_draft_true_to_false():
+    text = '---\ntitle: "x"\ndraft: true\ntags: []\n---\n# body\n'
+    out = flip_draft(text)
+    assert "draft: false" in out
+    assert "draft: true" not in out
+    assert "# body" in out  # 正文不动
+
+
+def test_flip_draft_idempotent_when_already_false():
+    text = "---\ndraft: false\n---\nbody"
+    assert flip_draft(text) == text
+
+
+def test_flip_draft_no_front_matter_unchanged():
+    text = "# just a body, no front matter\n"
+    assert flip_draft(text) == text
+
+
+def test_categories_render_takeaway_when_present():
+    items = [
+        _ri(
+            "https://a/1",
+            source_type=SourceType.MODEL,
+            title="T",
+            summary="S。",
+            takeaway="可本地部署。",
+            eligible=False,
+        )
+    ]  # 非必读, 只出现在分类速览
+    md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
+    cat_block = md.split("## 📚 分类速览", 1)[1]
+    assert "可本地部署。" in cat_block
+
+
+def test_categories_skip_empty_takeaway():
+    items = [
+        _ri(
+            "https://a/1",
+            source_type=SourceType.MODEL,
+            title="T",
+            summary="S。",
+            takeaway="",
+            eligible=False,
+        )
+    ]
+    md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
+    cat_block = md.split("## 📚 分类速览", 1)[1]
+    # 空 takeaway 不产生孤立的 "↳" 行
+    assert "↳" not in cat_block

@@ -1,4 +1,4 @@
-name: Finalize (Draft Preview)
+name: Finalize (Draft)
 
 on:
   workflow_dispatch:
@@ -6,6 +6,8 @@ on:
 jobs:
   finalize:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -17,22 +19,13 @@ jobs:
           version: "latest"
       - run: uv sync
 
-      - name: Poll pending decisions
-        run: uv run python -m src.cli --tick collect --poll-only 2>/dev/null || true
-
-      - name: Run finalize tick
+      - name: Run finalize tick (writes content/posts/<date>.md, draft:true)
         run: uv run python -m src.cli --tick finalize
 
-      - name: Generate draft page
-        run: |
-          mkdir -p docs/daily
-          DATE=$(date -u +%Y-%m-%d)
-          cp data/daily-report.md "docs/daily/${DATE}-draft.md" 2>/dev/null || true
-
-      - name: Persist state + draft
+      - name: Commit draft
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/ docs/daily/
-          git diff --cached --quiet || git commit -m "chore: finalize draft ${DATE} [skip ci]"
+          git add content/ data/
+          git diff --cached --quiet || git commit -m "chore: finalize draft $(date -u +%Y-%m-%d) [skip ci]"
           git push

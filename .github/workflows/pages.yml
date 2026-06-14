@@ -1,0 +1,44 @@
+name: Pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "content/**"
+      - "hugo.toml"
+      - "themes/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: "latest"
+          extended: true
+      - uses: actions/configure-pages@v5
+        id: pages           # 必须在 build 之前: build 用其 base_url 输出
+      - name: Build (include drafts for preview)
+        run: hugo --gc --minify -D --baseURL "${{ steps.pages.outputs.base_url }}/"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public
+      - uses: actions/deploy-pages@v4
+        id: deploy

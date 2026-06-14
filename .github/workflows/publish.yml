@@ -3,14 +3,11 @@ name: Publish
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -22,30 +19,19 @@ jobs:
           version: "latest"
       - run: uv sync
 
-      - name: Promote draft to published
+      - name: Promote today's draft -> published
         run: |
           DATE=$(date -u +%Y-%m-%d)
-          DRAFT="docs/daily/${DATE}-draft.md"
-          PUBLISHED="docs/daily/${DATE}.md"
-          if [ -f "$DRAFT" ]; then
-            mv "$DRAFT" "$PUBLISHED"
-          fi
+          uv run python -m src.tools.flip_draft "content/posts/${DATE}.md"
 
       - name: Send Telegram final report
         run: uv run python -m src.cli --tick finalize --publish-only 2>/dev/null || true
 
-      - name: Generate RSS feed
-        run: uv run python -m src.tools.generate_rss 2>/dev/null || true
-
       - name: Commit published content
         run: |
+          DATE=$(date -u +%Y-%m-%d)
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/ data/
-          git diff --cached --quiet || git commit -m "publish: daily report $(date -u +%Y-%m-%d)"
+          git add content/ data/
+          git diff --cached --quiet || git commit -m "publish: daily report ${DATE}"
           git push
-
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v4
-        with:
-          path: docs/

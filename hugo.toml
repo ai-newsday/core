@@ -1,0 +1,36 @@
+baseURL = "/"
+languageCode = "zh-cn"
+title = "AI News Daily"
+theme = "PaperMod"
+defaultContentLanguage = "zh"
+enableRobotsTXT = true
+buildDrafts = false        # CI 预览用 `hugo -D` 覆盖
+pygmentsUseClasses = true
+
+[params]
+  defaultTheme = "auto"
+  ShowReadingTime = true
+  ShowShareButtons = false
+  ShowPostNavLinks = true
+  ShowBreadCrumbs = true
+  ShowCodeCopyButtons = true
+  ShowToc = true
+
+[params.homeInfoParams]
+  Title = "AI News Daily"
+  Content = "一手、经评分筛选、带人工锐评的每日 AI 资讯。"
+
+[outputs]
+  home = ["HTML", "RSS"]
+
+[[menu.main]]
+  identifier = "archive"
+  name = "归档"
+  url = "/archives/"
+  weight = 10
+
+[[menu.main]]
+  identifier = "tags"
+  name = "标签"
+  url = "/tags/"
+  weight = 20

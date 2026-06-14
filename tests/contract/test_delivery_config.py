@@ -31,6 +31,13 @@ def test_load_delivery_config_website_fields(tmp_path):
     assert cfg.website.git_push is True
 
 
+def test_website_default_output_dir_is_content_posts(monkeypatch):
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    cfg = load_delivery_config("does/not/exist.yaml")
+    assert cfg.website.output_dir == "content/posts"
+
+
 def test_telegram_config_reads_env(monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok123")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "99")
