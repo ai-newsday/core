@@ -1,8 +1,13 @@
 import asyncio
+from datetime import datetime, timezone
 
+import aiosqlite
 import pytest
 
+from src.core.types import FeedbackEvent
 from src.state.db import Database
+
+_TS = datetime(2026, 6, 5, 12, tzinfo=timezone.utc)
 
 
 @pytest.fixture
@@ -136,5 +141,43 @@ def test_get_decisions_as_dict(db):
         d = await db.get_decisions_dict("2026-06-05")
         assert d["https://a/1"] == "keep"
         assert d["https://a/2"] == "drop"
+
+    asyncio.run(go())
+
+
+def test_quality_weights_empty_returns_empty_dict(db):
+    async def go():
+        await db.init()
+        assert await db.get_quality_weights() == {}
+
+    asyncio.run(go())
+
+
+def test_upsert_and_get_quality_weights_roundtrip(db):
+    async def go():
+        await db.init()
+        await db.upsert_quality_weights({"openai": 1.2, "hf-models": 0.8})
+        assert await db.get_quality_weights() == {"openai": 1.2, "hf-models": 0.8}
+        await db.upsert_quality_weights({"openai": 1.4})  # update one
+        assert await db.get_quality_weights() == {"openai": 1.4, "hf-models": 0.8}
+
+    asyncio.run(go())
+
+
+def test_append_feedback_events_is_idempotent_per_run_and_link(db):
+    async def go():
+        await db.init()
+        ev = FeedbackEvent(link="https://a/1", source="s", action="keep", run_id="r1", ts=_TS)
+        await db.append_feedback_events([ev])
+        await db.append_feedback_events([ev])  # same (run_id, link) again
+        async with aiosqlite.connect(db._path) as conn:
+            async with conn.execute(
+                "SELECT COUNT(*) FROM feedback_events WHERE run_id=? AND link=?",
+                ("r1", "https://a/1"),
+            ) as cur:
+                (n,) = await cur.fetchone()
+        assert n == 1
+        assert await db.has_feedback_for_run("r1") is True
+        assert await db.has_feedback_for_run("r2") is False
 
     asyncio.run(go())
