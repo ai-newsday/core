@@ -24,7 +24,13 @@ class HFPapersAdapter:
         for row in data:
             paper = row.get("paper", {})
             pid, title = paper.get("id"), paper.get("title")
-            published = _parse_dt(paper.get("publishedAt") or row.get("publishedAt"))
+            # 当日精选论文按"精选日"算新鲜度(submittedOnDailyAt), 否则 arxiv 原始
+            # publishedAt 常早于采集时间窗, 整批精选集会被砍光。回退保旧行为。
+            published = _parse_dt(
+                paper.get("submittedOnDailyAt")
+                or paper.get("publishedAt")
+                or row.get("publishedAt")
+            )
             if not pid or not title or not published:
                 continue
             # HF 端的量化信号: 给下游排名/取舍用; 不写则缺省 {}
