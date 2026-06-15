@@ -264,7 +264,8 @@ class InterpretResult:
 
 @dataclass
 class SelfCheckConfig:
-    model: str = "Qwen/Qwen2.5-7B-Instruct"
+    model: str = "deepseek-ai/DeepSeek-V4-Flash"
+    fallback_models: list[str] = field(default_factory=list)
     temperature: float = 0.0
     max_tokens: int = 600
     timeout_s: int = 60
