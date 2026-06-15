@@ -157,6 +157,7 @@ def test_finalize_tick_returns_dict_keys(tmp_path):
 def test_finalize_tick_persists_feedback_and_is_idempotent(tmp_path):
     async def go():
         import aiosqlite
+
         from src.pipeline.tick import _item_id
 
         db = Database(str(tmp_path / "state.db"))
@@ -168,18 +169,31 @@ def test_finalize_tick_persists_feedback_and_is_idempotent(tmp_path):
         iid = _item_id(item)
         await db.insert_run("r-fin", "finalize")
         await db.upsert_pending_review(
-            item_id=iid, run_id="r-fin", link=item.link, source=item.source,
-            title_en=item.title_en, title_zh=item.title, summary_zh=item.summary,
-            takeaway=item.takeaway, hot_take=item.hot_take, score=item.score,
-            signals=item.signals, date=TODAY,
+            item_id=iid,
+            run_id="r-fin",
+            link=item.link,
+            source=item.source,
+            title_en=item.title_en,
+            title_zh=item.title,
+            summary_zh=item.summary,
+            takeaway=item.takeaway,
+            hot_take=item.hot_take,
+            score=item.score,
+            signals=item.signals,
+            date=TODAY,
         )
         await db.update_decision(iid, "keep")
 
         # run finalize twice with the SAME run_id
         for _ in range(2):
             await run_finalize_tick(
-                run_id="r-fin", now=NOW, date_label=TODAY,
-                interpreted_items=[item], daily_take="x", db=db, notifiers=[notifier],
+                run_id="r-fin",
+                now=NOW,
+                date_label=TODAY,
+                interpreted_items=[item],
+                daily_take="x",
+                db=db,
+                notifiers=[notifier],
             )
 
         # keep -> 升权 from baseline 1.0 by step 0.2

@@ -172,7 +172,8 @@ def test_append_feedback_events_is_idempotent_per_run_and_link(db):
         await db.append_feedback_events([ev])  # same (run_id, link) again
         async with aiosqlite.connect(db._path) as conn:
             async with conn.execute(
-                "SELECT COUNT(*) FROM feedback_events WHERE run_id=? AND link=?", ("r1", "https://a/1")
+                "SELECT COUNT(*) FROM feedback_events WHERE run_id=? AND link=?",
+                ("r1", "https://a/1"),
             ) as cur:
                 (n,) = await cur.fetchone()
         assert n == 1
