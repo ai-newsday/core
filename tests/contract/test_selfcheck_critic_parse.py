@@ -58,6 +58,21 @@ def test_parse_truncates_message_and_caps_count():
     assert all(len(f.message) <= 5 for f in flags)
 
 
+def test_parse_cap_is_per_code_not_global():
+    # cap applies independently per code: 3 consistency + 3 ai_slop @ cap=3 -> 6 flags
+    cfg = SelfCheckConfig(max_flags_per_item=3)
+    raw = json.dumps(
+        {
+            "consistency": [{"field": "takeaway", "message": "c"}] * 3,
+            "ai_slop": [{"field": "summary", "message": "s"}] * 3,
+        }
+    )
+    flags = parse_critic(raw, cfg)
+    assert sum(1 for f in flags if f.code == "consistency") == 3
+    assert sum(1 for f in flags if f.code == "ai_slop") == 3
+    assert len(flags) == 6
+
+
 def test_parse_illegal_field_becomes_star():
     raw = json.dumps({"consistency": [{"field": "bogus", "message": "x"}]})
     flags = parse_critic(raw, SelfCheckConfig())
