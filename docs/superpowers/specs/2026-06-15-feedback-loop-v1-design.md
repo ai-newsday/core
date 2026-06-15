@@ -47,7 +47,7 @@ finalize tick（每日晚）:
         → upsert_quality_weights(fres.quality_weights)
 ```
 
-**时序**：finalize 写权重 → 影响**次日** collect+finalize 的打分；当日两 tick 读同一份（昨日）权重，一致。派生事件用**进审阅前全量** `interpreted_items`，被删条目也产 `drop`（不漏负反馈）。
+**时序**：finalize 写权重 → 影响**次日** collect+finalize 的打分；当日两 tick 读同一份（昨日）权重，一致。派生只覆盖**有显式决策**的条目（显式 `drop` 仍产 `drop`，不漏负反馈；无决策=沉默=中性，不产事件）。
 
 ## 4. 组件改动（逐文件）
 
