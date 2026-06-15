@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+
 from src.core.types import Evidence, InterpretedItem, SelfCheckConfig, SourceType
 from src.pipeline.selfcheck import format_lint
 
@@ -7,12 +8,24 @@ NOW = datetime(2026, 6, 16, tzinfo=timezone.utc)
 
 def _item(**over):
     base = dict(
-        title_en="X", link="https://a/1", source="s", source_type=SourceType.MODEL,
-        published_at=NOW, raw_summary="r", cluster_id="c", related_links=["https://a/2"],
-        score=80.0, score_breakdown={"机构影响力": 80.0}, is_explore=False,
-        title="标题", summary="摘要", takeaway="用法",
-        tags=["#a", "#b", "#c"], evidence=[Evidence(claim="f", anchor="https://a/1")],
-        interpretation_status="ok", eligible_for_must_read=True,
+        title_en="X",
+        link="https://a/1",
+        source="s",
+        source_type=SourceType.MODEL,
+        published_at=NOW,
+        raw_summary="r",
+        cluster_id="c",
+        related_links=["https://a/2"],
+        score=80.0,
+        score_breakdown={"机构影响力": 80.0},
+        is_explore=False,
+        title="标题",
+        summary="摘要",
+        takeaway="用法",
+        tags=["#a", "#b", "#c"],
+        evidence=[Evidence(claim="f", anchor="https://a/1")],
+        interpretation_status="ok",
+        eligible_for_must_read=True,
     )
     base.update(over)
     return InterpretedItem(**base)

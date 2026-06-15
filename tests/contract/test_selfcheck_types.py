@@ -1,23 +1,36 @@
+from datetime import datetime, timezone
+
 from src.core.types import (
     InterpretedItem,
     QualityFlag,
-    ScoredItem,
     SelfCheckConfig,
     SelfCheckResult,
     SourceType,
 )
-from datetime import datetime, timezone
 
 NOW = datetime(2026, 6, 16, tzinfo=timezone.utc)
 
 
 def _interpreted(**over):
     base = dict(
-        title_en="X", link="https://a/1", source="s", source_type=SourceType.MODEL,
-        published_at=NOW, raw_summary="r", cluster_id="c", related_links=[],
-        score=80.0, score_breakdown={"机构影响力": 80.0}, is_explore=False,
-        title="标题", summary="摘要", takeaway="用法", hot_take="锐评",
-        tags=["#a", "#b", "#c"], evidence=[], interpretation_status="ok",
+        title_en="X",
+        link="https://a/1",
+        source="s",
+        source_type=SourceType.MODEL,
+        published_at=NOW,
+        raw_summary="r",
+        cluster_id="c",
+        related_links=[],
+        score=80.0,
+        score_breakdown={"机构影响力": 80.0},
+        is_explore=False,
+        title="标题",
+        summary="摘要",
+        takeaway="用法",
+        hot_take="锐评",
+        tags=["#a", "#b", "#c"],
+        evidence=[],
+        interpretation_status="ok",
         eligible_for_must_read=True,
     )
     base.update(over)
@@ -41,10 +54,18 @@ def test_selfcheck_config_defaults():
 
 
 def test_selfcheck_result_shape():
-    item = _interpreted(quality_flags=[QualityFlag(code="consistency", severity="warn", field="takeaway", message="原文没说")])
+    item = _interpreted(
+        quality_flags=[
+            QualityFlag(code="consistency", severity="warn", field="takeaway", message="原文没说")
+        ]
+    )
     res = SelfCheckResult(
-        interpreted_items=[item], daily_take="看点", checked_count=1,
-        flagged_count=1, flag_count_by_code={"consistency": 1},
-        llm_error_count=0, is_silent=False,
+        interpreted_items=[item],
+        daily_take="看点",
+        checked_count=1,
+        flagged_count=1,
+        flag_count_by_code={"consistency": 1},
+        llm_error_count=0,
+        is_silent=False,
     )
     assert res.flagged_count == 1 and res.flag_count_by_code["consistency"] == 1
