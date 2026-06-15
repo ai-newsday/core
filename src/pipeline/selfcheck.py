@@ -86,7 +86,13 @@ def parse_critic(raw: str, config: SelfCheckConfig) -> list[QualityFlag]:
     return flags
 
 
-def check_item(item, template, config, llm, logger=None):
+def check_item(
+    item: InterpretedItem,
+    template: str,
+    config: SelfCheckConfig,
+    llm,
+    logger=None,
+) -> tuple[list[QualityFlag], bool]:
     """Per-item flags = format_lint + critic. Critic only matters for eligible items.
     Returns (flags, llm_errored: bool). Never raises (advisor)."""
     flags = format_lint(item, config)
@@ -101,7 +107,13 @@ def check_item(item, template, config, llm, logger=None):
         return flags, False
     except Exception as e:
         if logger is not None:
-            emit(logger, "selfcheck_error", link=item.link, error_type=type(e).__name__)
+            emit(
+                logger,
+                "selfcheck_error",
+                link=item.link,
+                error_type=type(e).__name__,
+                error=str(e)[:200],
+            )
         return flags, True
 
 
