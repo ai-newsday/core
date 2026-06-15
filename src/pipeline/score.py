@@ -35,15 +35,38 @@ def recency_band(published_at: datetime, now: datetime, config: ScoringConfig) -
     return float(config.stale_penalty)
 
 
+def _popularity_proxy(item: NewsItem, config: ScoringConfig) -> float:
+    """Same-source tie-break 用. 复用 popularity_weights 信号集 (upvotes/likes/...),
+    与 _visibility 同源但**不开 sqrt/cap** —— 只作排序键, 区分度比压缩后的 _visibility 强。
+    无 popularity_weights 配置或无信号 → 0 (退化到 (published_at, link) 行为, 向后兼容)."""
+    if not config.popularity_weights:
+        return 0.0
+    total = 0.0
+    for key, weight in config.popularity_weights.items():
+        v = item.signals.get(key)
+        try:
+            fv = float(v) if v is not None else 0.0
+        except (TypeError, ValueError):
+            continue
+        if fv > 0:
+            total += float(weight) * fv
+    return total
+
+
 def _same_source_penalty(items: list[NewsItem], config: ScoringConfig) -> dict[str, float]:
     """link -> 同源惩罚. Earliest per source = 0, rest = same_source_penalty (spec §5.3).
-    Ordered by (published_at, link) so it is independent of score (deterministic)."""
+    Ordered by (published_at asc, -popularity desc, link asc): 最早发的免罚; 同 published_at
+    时取最高人气 (issue #11: HF 每日精选全部同 submittedOnDailyAt, 退化到 link 字母序不合理);
+    仍同则 link 字母序兜底 (确定性)."""
     by_source: dict[str, list[NewsItem]] = defaultdict(list)
     for it in items:
         by_source[it.source].append(it)
     out: dict[str, float] = {}
     for grp in by_source.values():
-        ordered = sorted(grp, key=lambda it: (it.published_at, it.link))
+        ordered = sorted(
+            grp,
+            key=lambda it: (it.published_at, -_popularity_proxy(it, config), it.link),
+        )
         for i, it in enumerate(ordered):
             out[it.link] = 0.0 if i == 0 else float(config.same_source_penalty)
     return out

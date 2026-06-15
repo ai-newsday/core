@@ -59,6 +59,39 @@ def test_compute_scores_missing_priority_uses_default():
     assert scored[0].score_breakdown["机构影响力"] == 14
 
 
+def test_same_source_penalty_tiebreak_prefers_more_popular():
+    """Issue #11: when same-source items share published_at, the免罚 slot should go
+    to the most-upvoted/popular item, not the lexically-smallest link."""
+    cfg = ScoringConfig(popularity_weights={"upvotes": 0.6})
+    items = [
+        _ni("low-up", "https://hf/a", "hf-papers", SourceType.PAPER),
+        _ni("high-up", "https://hf/b", "hf-papers", SourceType.PAPER),
+        _ni("mid-up", "https://hf/c", "hf-papers", SourceType.PAPER),
+    ]
+    items[0].signals = {"upvotes": 5}
+    items[1].signals = {"upvotes": 99}
+    items[2].signals = {"upvotes": 30}
+    scored = compute_scores(items, {}, cfg, _ctx())
+    pen = {s.link: s.score_breakdown["惩罚"] for s in scored}
+    assert pen["https://hf/b"] == 0.0  # highest upvotes (99) -> 免罚
+    assert pen["https://hf/a"] == cfg.same_source_penalty
+    assert pen["https://hf/c"] == cfg.same_source_penalty
+
+
+def test_same_source_penalty_tiebreak_falls_back_to_link_when_no_signals():
+    """No popularity signals on any item -> tie-break still deterministic by link."""
+    items = [
+        _ni("c", "https://b/3", "blog-x", SourceType.BLOG),
+        _ni("a", "https://b/1", "blog-x", SourceType.BLOG),
+        _ni("b", "https://b/2", "blog-x", SourceType.BLOG),
+    ]
+    scored = compute_scores(items, {}, ScoringConfig(), _ctx())
+    pen = {s.link: s.score_breakdown["惩罚"] for s in scored}
+    assert pen["https://b/1"] == 0.0  # link字母序最小 -> 免罚
+    assert pen["https://b/2"] == ScoringConfig().same_source_penalty
+    assert pen["https://b/3"] == ScoringConfig().same_source_penalty
+
+
 def test_compute_scores_same_source_penalty_by_published_order():
     t1 = NOW - timedelta(hours=3)
     t2 = NOW - timedelta(hours=2)

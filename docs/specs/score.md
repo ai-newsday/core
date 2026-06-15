@@ -93,7 +93,11 @@ class ScoreResult:
 
 ### 5.3 同源惩罚（`惩罚`）
 
-同一 `source` 出现多条时，按 `published_at` 升序：**最早一条惩罚 0，其余每条各得 `penalty.same_source`（负）**。按 published_at 定序（与分数无关）保证确定性、避免"惩罚→分数→排序"循环。
+同一 `source` 出现多条时，按 **`(published_at 升序, popularity 降序, link 升序)`** 排序：**第一条惩罚 0，其余每条各得 `penalty.same_source`（负）**。
+
+- `popularity = sum(weight * value)`，复用 `popularity_weights` 信号集（`upvotes / likes / hn_points / num_comments`）的**原始信号**，不开 `sqrt`/`cap`——只作排序键，**不是 score**。
+- **不依赖打分输出**——排序键全部来自 `item.published_at` 与 `item.signals`，均为输入侧字段，避免"惩罚→分数→排序"循环依赖。
+- 当 `published_at` 撞车（如 HF 每日精选 `submittedOnDailyAt` 全部=今日 00:00 UTC）时，由 popularity 决定谁免罚；popularity 也并列则 `link` 字母序兜底（确定性）。无 `popularity_weights` 配置或无相关 signals 时，popularity 全为 0，行为退化为旧的 `(published_at, link)`。
 
 ### 5.4 类型配额筛选（`apply_quota`，PRD §4.2）
 
