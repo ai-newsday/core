@@ -13,6 +13,7 @@
 1. **SSOT = SQLite**。复用 `db.py` 已建的 `feedback_events` / `quality_weights` 表持久化；JSON 账本（`run_dry_feedback`）保留作离线/dry-run 确定性测试。理由：PRD 明确 SSOT 为 SQLite，决策数据已在 `pending_reviews`。
 2. **`quality_weight` 乘在 `机构影响力` 维度**：`机构影响力 = (基础 + priority_bonus) * quality_weight`。理由：语义同为源信誉；保持 9 个 breakdown key 不变与纯加法可解释；默认 1.0 时数值零变化。否决"乘总分"（破坏 score=各维度之和）与"加第 10 维"（破坏固定维度集 + snapshot）。
 3. **增量公式 + run_id 幂等**：保留现有 `compute_quality_weights` 增量漂移模型及其 golden 测试；幂等闸 `UNIQUE(run_id, link)` + `has_feedback_for_run` 只加在持久化边界。否决"全量重算"（改语义、破 golden）与"不管幂等"（cron 重试污染权重）。
+4. **无决策=沉默=中性**：`derive_events` 只为有显式 keep/drop/edit 决策的条目派生事件；未审条目不产事件、不改权重。理由：真实 Telegram 审阅是部分覆盖（120s 轮询窗口），若把"没审"记作 keep，则源权重会仅因沉默而爬向 `max_weight` 上限——"忽略某源"会被误读成"主动保留某源"。显式 drop 仍回收为负反馈。
 
 ## 影响
 

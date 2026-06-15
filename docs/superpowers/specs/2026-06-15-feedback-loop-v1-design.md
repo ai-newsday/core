@@ -87,6 +87,7 @@ finalize tick（每日晚）:
 | 无事件 / `[SILENT]` 日 | `feedback` 返回 `is_silent`，权重透传，不写表 |
 | DB 写失败 | 记 `feedback_persist_error`，不阻断已发布的报 |
 | 真实环路只有 keep/drop | `get_decisions_dict` 现仅存 keep/drop；`edit` 暂不出现，`edit_factor` 保留待用 |
+| 无决策条目（未审） | `derive_events` 不为其派生事件（沉默=中性，不升不降权）；显式 `drop` 仍回收为负反馈 |
 
 ## 6. 测试（目标驱动）
 

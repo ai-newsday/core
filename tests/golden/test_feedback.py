@@ -46,7 +46,7 @@ def _ii(link="https://a/1", source="src", source_type=SourceType.MODEL):
     )
 
 
-def test_derive_events_includes_drop_and_default_keep():
+def test_derive_events_only_explicit_decisions():
     items = [
         _ii("https://a/1", source="s1"),
         _ii("https://a/2", source="s2"),
@@ -57,12 +57,12 @@ def test_derive_events_includes_drop_and_default_keep():
         "https://a/2": ReviewDecision(action="edit"),
     }
     evs = derive_events(items, decisions, run_id="r1", now=NOW)
-    # 每条进审阅前条目恰产一个事件(被删的也在)
-    assert len(evs) == 3
+    # 只为有显式决策的条目产事件; 无决策(a/3)=沉默=不计
+    assert len(evs) == 2
     by_link = {e.link: e for e in evs}
-    assert by_link["https://a/1"].action == "drop"  # 删也回收
+    assert by_link["https://a/1"].action == "drop"  # 显式删仍回收(负反馈)
     assert by_link["https://a/2"].action == "edit"
-    assert by_link["https://a/3"].action == "keep"  # 无决策默认 keep
+    assert "https://a/3" not in by_link  # 无决策不产事件
     assert by_link["https://a/1"].source == "s1"
     assert all(e.run_id == "r1" and e.ts == NOW for e in evs)
 
@@ -74,7 +74,11 @@ def test_aggregate_by_source_counts_and_alpha_order():
             _ii("https://a/2", source="b"),
             _ii("https://a/3", source="a"),
         ],
-        {"https://a/1": ReviewDecision(action="drop")},
+        {
+            "https://a/1": ReviewDecision(action="drop"),
+            "https://a/2": ReviewDecision(action="keep"),
+            "https://a/3": ReviewDecision(action="keep"),
+        },
         run_id="r1",
         now=NOW,
     )

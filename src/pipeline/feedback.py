@@ -17,14 +17,15 @@ from src.observability.events import emit
 def derive_events(
     items: list[InterpretedItem], decisions: dict[str, ReviewDecision], run_id: str, now: datetime
 ) -> list[FeedbackEvent]:
-    """从进审阅前全量条目派生事件; 无决策默认 keep; 带 source; ts 注入。
-    遍历审阅前条目(非保留结果)→ 被删条目也产 drop 事件。"""
+    """只为有显式决策(keep/drop/edit)的条目派生事件; 无决策=沉默=中性(不产事件)。
+    显式 drop 仍产 drop 事件(保留负反馈); 带 source; ts 注入。"""
     out: list[FeedbackEvent] = []
     for it in items:
         dec = decisions.get(it.link)
-        action = dec.action if dec is not None else "keep"
+        if dec is None:
+            continue
         out.append(
-            FeedbackEvent(link=it.link, source=it.source, action=action, run_id=run_id, ts=now)
+            FeedbackEvent(link=it.link, source=it.source, action=dec.action, run_id=run_id, ts=now)
         )
     return out
 
