@@ -113,7 +113,10 @@ class SelfCheckResult:
 
 ### 7.1 `config/selfcheck.yaml`
 ```yaml
-model: "Qwen/Qwen2.5-7B-Instruct"    # critic 用便宜模型; 可换
+model: "deepseek-ai/DeepSeek-V4-Flash"   # critic = 便宜判定步, 用 Flash 档; 可换
+fallback_models:                         # 主模型失败时按序回退
+  - "stepfun-ai/Step-3.7-Flash"
+  - "MiniMax/MiniMax-M2.5"
 temperature: 0.0                     # 判定型任务, 求稳定
 max_tokens: 600
 timeout_s: 60

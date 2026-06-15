@@ -211,6 +211,7 @@ def run_dry_selfcheck(
         api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
         model=sccfg.model,
         timeout_s=sccfg.timeout_s,
+        fallback_models=sccfg.fallback_models,
     )
     sc = self_check(ires, sccfg, ctx, critic_llm)
     return {

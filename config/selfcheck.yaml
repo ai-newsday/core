@@ -1,4 +1,7 @@
-model: "Qwen/Qwen2.5-7B-Instruct"
+model: "deepseek-ai/DeepSeek-V4-Flash"   # critic = 便宜判定步, 用 Flash 档; 可换
+fallback_models:                         # 主模型失败时按序回退
+  - "stepfun-ai/Step-3.7-Flash"
+  - "MiniMax/MiniMax-M2.5"
 temperature: 0.0
 max_tokens: 600
 timeout_s: 60

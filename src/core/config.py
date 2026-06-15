@@ -102,6 +102,7 @@ def load_selfcheck_config(path: str) -> SelfCheckConfig:
     d = SelfCheckConfig()
     return SelfCheckConfig(
         model=data.get("model", d.model),
+        fallback_models=data.get("fallback_models", d.fallback_models),
         temperature=data.get("temperature", d.temperature),
         max_tokens=data.get("max_tokens", d.max_tokens),
         timeout_s=data.get("timeout_s", d.timeout_s),
