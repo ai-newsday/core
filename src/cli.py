@@ -61,6 +61,46 @@ def _make_llm(icfg: InterpretConfig) -> OpenAICompatLLM:
     )
 
 
+def _dry_run_prefix(
+    registry_path: str, ctx: RunContext, embedder=None, llm=None, *, enrich: bool = False
+):
+    """Shared dry-run pipeline prefix: collect -> [enrich] -> dedup -> score -> interpret.
+    Returns (coll, dres, sres, ires, llm) for the calling layer to consume."""
+    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
+    if enrich:
+        ecfg = load_enrich_config("config/enrich.yaml")
+
+        async def _collect_then_enrich():
+            c = await collect(coll_cfg, ctx)
+            if ecfg.enabled and c.items:
+                await enrich_with_hn(c.items, HNAlgoliaClient(ecfg.timeout_s), ecfg, ctx)
+            return c
+
+        coll = asyncio.run(_collect_then_enrich())
+    else:
+        coll = asyncio.run(collect(coll_cfg, ctx))
+
+    dcfg = load_dedup_config("config/dedup.yaml")
+    dcfg.sources_registry_path = registry_path
+    if embedder is None:
+        embedder = ModelScopeEmbedder(
+            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
+            model=dcfg.embedding_model,
+            batch_size=dcfg.batch_size,
+        )
+    dres = dedup(coll.items, dcfg, ctx, embedder=embedder, store=InMemoryVectorStore())
+
+    scfg = load_scoring_config("config/scoring.yaml")
+    scfg.sources_registry_path = registry_path
+    sres = score(dres.deduped_items, scfg, ctx)
+
+    icfg = load_interpret_config("config/interpret.yaml")
+    if llm is None:
+        llm = _make_llm(icfg)
+    ires = interpret(sres.selected_items, icfg, ctx, llm)
+    return coll, dres, sres, ires, llm
+
+
 def run_dry(registry_path: str, now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     logger = logging.getLogger("ai-newsday")
@@ -143,27 +183,7 @@ def run_dry_interpret(
     logger = logging.getLogger("ai-newsday")
     ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
 
-    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
-    coll = asyncio.run(collect(coll_cfg, ctx))
-
-    dcfg = load_dedup_config("config/dedup.yaml")
-    dcfg.sources_registry_path = registry_path
-    if embedder is None:
-        embedder = ModelScopeEmbedder(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=dcfg.embedding_model,
-            batch_size=dcfg.batch_size,
-        )
-    dres = dedup(coll.items, dcfg, ctx, embedder=embedder, store=InMemoryVectorStore())
-
-    scfg = load_scoring_config("config/scoring.yaml")
-    scfg.sources_registry_path = registry_path
-    sres = score(dres.deduped_items, scfg, ctx)
-
-    icfg = load_interpret_config("config/interpret.yaml")
-    if llm is None:
-        llm = _make_llm(icfg)
-    ires = interpret(sres.selected_items, icfg, ctx, llm)
+    _, _, _, ires, _ = _dry_run_prefix(registry_path, ctx, embedder, llm)
     return {
         "run_id": ctx.run_id,
         "now": now.isoformat(),
@@ -183,27 +203,7 @@ def run_dry_selfcheck(
     logger = logging.getLogger("ai-newsday")
     ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
 
-    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
-    coll = asyncio.run(collect(coll_cfg, ctx))
-
-    dcfg = load_dedup_config("config/dedup.yaml")
-    dcfg.sources_registry_path = registry_path
-    if embedder is None:
-        embedder = ModelScopeEmbedder(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=dcfg.embedding_model,
-            batch_size=dcfg.batch_size,
-        )
-    dres = dedup(coll.items, dcfg, ctx, embedder=embedder, store=InMemoryVectorStore())
-
-    scfg = load_scoring_config("config/scoring.yaml")
-    scfg.sources_registry_path = registry_path
-    sres = score(dres.deduped_items, scfg, ctx)
-
-    icfg = load_interpret_config("config/interpret.yaml")
-    if llm is None:
-        llm = _make_llm(icfg)
-    ires = interpret(sres.selected_items, icfg, ctx, llm)
+    _, _, _, ires, _ = _dry_run_prefix(registry_path, ctx, embedder, llm)
 
     sccfg = load_selfcheck_config("config/selfcheck.yaml")
     # critic runs on its own (cheaper) model per config; not the interpret LLM
@@ -233,27 +233,7 @@ def run_dry_review(
     logger = logging.getLogger("ai-newsday")
     ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
 
-    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
-    coll = asyncio.run(collect(coll_cfg, ctx))
-
-    dcfg = load_dedup_config("config/dedup.yaml")
-    dcfg.sources_registry_path = registry_path
-    if embedder is None:
-        embedder = ModelScopeEmbedder(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=dcfg.embedding_model,
-            batch_size=dcfg.batch_size,
-        )
-    dres = dedup(coll.items, dcfg, ctx, embedder=embedder, store=InMemoryVectorStore())
-
-    scfg = load_scoring_config("config/scoring.yaml")
-    scfg.sources_registry_path = registry_path
-    sres = score(dres.deduped_items, scfg, ctx)
-
-    icfg = load_interpret_config("config/interpret.yaml")
-    if llm is None:
-        llm = _make_llm(icfg)
-    ires = interpret(sres.selected_items, icfg, ctx, llm)
+    _, _, _, ires, _ = _dry_run_prefix(registry_path, ctx, embedder, llm)
 
     rcfg = load_review_config("config/review.yaml")
     decisions = load_review_decisions(decisions_path or rcfg.decisions_path)
@@ -280,35 +260,7 @@ def run_dry_publish(
     logger = logging.getLogger("ai-newsday")
     ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
 
-    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
-    ecfg = load_enrich_config("config/enrich.yaml")
-
-    async def _collect_then_enrich():
-        c = await collect(coll_cfg, ctx)
-        if ecfg.enabled and c.items:
-            await enrich_with_hn(c.items, HNAlgoliaClient(ecfg.timeout_s), ecfg, ctx)
-        return c
-
-    coll = asyncio.run(_collect_then_enrich())
-
-    dcfg = load_dedup_config("config/dedup.yaml")
-    dcfg.sources_registry_path = registry_path
-    if embedder is None:
-        embedder = ModelScopeEmbedder(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=dcfg.embedding_model,
-            batch_size=dcfg.batch_size,
-        )
-    dres = dedup(coll.items, dcfg, ctx, embedder=embedder, store=InMemoryVectorStore())
-
-    scfg = load_scoring_config("config/scoring.yaml")
-    scfg.sources_registry_path = registry_path
-    sres = score(dres.deduped_items, scfg, ctx)
-
-    icfg = load_interpret_config("config/interpret.yaml")
-    if llm is None:
-        llm = _make_llm(icfg)
-    ires = interpret(sres.selected_items, icfg, ctx, llm)
+    coll, dres, sres, ires, _ = _dry_run_prefix(registry_path, ctx, embedder, llm, enrich=True)
 
     rcfg = load_review_config("config/review.yaml")
     decisions = load_review_decisions(decisions_path or rcfg.decisions_path)
@@ -367,35 +319,7 @@ def run_dry_feedback(
     logger = logging.getLogger("ai-newsday")
     ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
 
-    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
-    ecfg = load_enrich_config("config/enrich.yaml")
-
-    async def _collect_then_enrich():
-        c = await collect(coll_cfg, ctx)
-        if ecfg.enabled and c.items:
-            await enrich_with_hn(c.items, HNAlgoliaClient(ecfg.timeout_s), ecfg, ctx)
-        return c
-
-    coll = asyncio.run(_collect_then_enrich())
-
-    dcfg = load_dedup_config("config/dedup.yaml")
-    dcfg.sources_registry_path = registry_path
-    if embedder is None:
-        embedder = ModelScopeEmbedder(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=dcfg.embedding_model,
-            batch_size=dcfg.batch_size,
-        )
-    dres = dedup(coll.items, dcfg, ctx, embedder=embedder, store=InMemoryVectorStore())
-
-    scfg = load_scoring_config("config/scoring.yaml")
-    scfg.sources_registry_path = registry_path
-    sres = score(dres.deduped_items, scfg, ctx)
-
-    icfg = load_interpret_config("config/interpret.yaml")
-    if llm is None:
-        llm = _make_llm(icfg)
-    ires = interpret(sres.selected_items, icfg, ctx, llm)
+    coll, dres, sres, ires, _ = _dry_run_prefix(registry_path, ctx, embedder, llm, enrich=True)
 
     rcfg = load_review_config("config/review.yaml")
     decisions = load_review_decisions(decisions_path or rcfg.decisions_path)
