@@ -132,6 +132,26 @@ def test_silent_input_skips_llm():
     assert res.is_silent and res.checked_count == 0 and llm.calls == []
 
 
+def test_multi_item_order_and_counter_split():
+    # batch: eligible+clean, then non-eligible with malformed tags (format_lock only)
+    items = [_item("https://a/1"), _item("https://a/2", eligible=False, tags=["#a"])]
+    llm = FakeLLMProvider({"https://a/1": CLEAN})
+    res = self_check(_result(items), SelfCheckConfig(), _ctx(), llm)
+    # order preserved, no item dropped
+    assert [i.link for i in res.interpreted_items] == ["https://a/1", "https://a/2"]
+    # critic ran only on the eligible item
+    assert res.checked_count == 1 and len(llm.calls) == 1
+    # the non-eligible item still gets a deterministic format_lock flag...
+    assert any(
+        f.code == "format_lock" and f.field == "tags"
+        for f in res.interpreted_items[1].quality_flags
+    )
+    # ...which counts toward flagged_count / by_code but NOT checked_count
+    assert res.flagged_count == 1
+    assert res.flag_count_by_code.get("format_lock") == 1
+    assert "consistency" not in res.flag_count_by_code
+
+
 def test_determinism():
     items = [_item("https://a/1")]
     llm1 = FakeLLMProvider({"https://a/1": CLEAN})

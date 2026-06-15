@@ -206,7 +206,13 @@ def run_dry_selfcheck(
     ires = interpret(sres.selected_items, icfg, ctx, llm)
 
     sccfg = load_selfcheck_config("config/selfcheck.yaml")
-    sc = self_check(ires, sccfg, ctx, llm)
+    # critic runs on its own (cheaper) model per config; not the interpret LLM
+    critic_llm = OpenAICompatLLM(
+        api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
+        model=sccfg.model,
+        timeout_s=sccfg.timeout_s,
+    )
+    sc = self_check(ires, sccfg, ctx, critic_llm)
     return {
         "run_id": ctx.run_id,
         "now": now.isoformat(),
