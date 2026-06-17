@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import yaml
 
-from src.core.types import RunContext, SourceSpec, SourceType
+from src.core.types import Genre, Publisher, RunContext, SourceSpec
 from src.observability.events import emit
 
 FALLBACK_SOURCES: list[SourceSpec] = [
     SourceSpec(
         name="hf-papers",
         url="https://huggingface.co/api/papers",
-        type=SourceType.PAPER,
+        genre=Genre.paper,
+        publisher=Publisher.company,
         adapter="hf_papers",
         status="working",
         priority=1,
@@ -17,7 +18,8 @@ FALLBACK_SOURCES: list[SourceSpec] = [
     SourceSpec(
         name="openai",
         url="https://openai.com/news/rss.xml",
-        type=SourceType.OFFICIAL,
+        genre=Genre.announcement,
+        publisher=Publisher.lab,
         adapter="rss",
         status="working",
         priority=2,
@@ -25,7 +27,8 @@ FALLBACK_SOURCES: list[SourceSpec] = [
     SourceSpec(
         name="deepmind",
         url="https://deepmind.google/blog/rss.xml",
-        type=SourceType.OFFICIAL,
+        genre=Genre.announcement,
+        publisher=Publisher.lab,
         adapter="rss",
         status="working",
         priority=2,

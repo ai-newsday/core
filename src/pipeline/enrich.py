@@ -1,6 +1,6 @@
 """enrich: 给无 popularity 信号的源(RSS 类)用 HN Algolia by URL 反查补 signals。
 纯流程 + 注入式 HN 客户端 (协议: async def search_url(url) -> list[hit])。
-失败容错: 单条出错不挂整批; 已有 popularity 信号 / skip_source_types 类型 跳过。"""
+失败容错: 单条出错不挂整批; 已有 popularity 信号 / skip_genres 的 genre 跳过。"""
 
 from __future__ import annotations
 
@@ -45,15 +45,13 @@ async def _enrich_one(item: RawItem, client, sem: asyncio.Semaphore, ctx: RunCon
 async def enrich_with_hn(
     items: list[RawItem], client, config: EnrichConfig, ctx: RunContext
 ) -> list[RawItem]:
-    """关 / 空输入 → 直通; 否则按 skip_source_types + 已有 popularity 跳过, 并发查 HN。"""
+    """关 / 空输入 → 直通; 否则按 skip_genres + 已有 popularity 跳过, 并发查 HN。"""
     emit(ctx.logger, "enrich_start", input_count=len(items), enabled=config.enabled)
     if not config.enabled or not items:
         emit(ctx.logger, "enrich_done", enriched=0, skipped=len(items))
         return items
-    skip_types = set(config.skip_source_types or [])
-    to_enrich = [
-        it for it in items if it.source_type.value not in skip_types and not _has_popularity(it)
-    ]
+    skip = set(config.skip_genres or [])
+    to_enrich = [it for it in items if it.genre.value not in skip and not _has_popularity(it)]
     if not to_enrich:
         emit(ctx.logger, "enrich_done", enriched=0, skipped=len(items))
         return items

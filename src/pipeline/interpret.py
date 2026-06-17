@@ -21,7 +21,7 @@ def build_item_prompt(item: ScoredItem, template: str) -> str:
     repl = {
         "{{title_en}}": item.title_en,
         "{{source}}": item.source,
-        "{{source_type}}": item.source_type.value,
+        "{{genre}}": item.genre.value,
         "{{link}}": item.link,
         "{{related_links}}": related,
         "{{raw_summary}}": item.raw_summary or "",

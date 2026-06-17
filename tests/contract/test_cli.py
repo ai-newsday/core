@@ -12,7 +12,7 @@ def test_run_dry_returns_summary_dict(tmp_path):
     reg = tmp_path / "r.yaml"
     reg.write_text(
         '- {name: openai, url: "https://openai.com/news/rss.xml", '
-        "type: official, adapter: rss, status: working, priority: 2}\n"
+        "genre: announcement, publisher: lab, adapter: rss, status: working, priority: 2}\n"
     )
     xml = open("fixtures/sources/rss_sample.xml", "rb").read()
     respx.get("https://openai.com/news/rss.xml").mock(return_value=httpx.Response(200, content=xml))

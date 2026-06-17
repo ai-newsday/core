@@ -18,24 +18,22 @@ def _item_id(item: InterpretedItem) -> str:
     return hashlib.sha256(item.link.encode()).hexdigest()[:16]
 
 
-def _source_type_label(source_type_value: str) -> str:
+def _genre_label(genre_value: str) -> str:
     labels = {
-        "official": "官方",
         "paper": "论文",
         "model": "模型",
-        "tool": "工具",
+        "announcement": "官方",
+        "writeup": "博客 / 工具",
         "news": "新闻",
-        "community": "社区",
-        "blog": "博客",
     }
-    return labels.get(source_type_value, source_type_value)
+    return labels.get(genre_value, genre_value)
 
 
 def _build_card(item: InterpretedItem) -> dict:
     return {
         "title_zh": item.title,
         "title_en": item.title_en,
-        "source_label": _source_type_label(item.source_type.value),
+        "source_label": _genre_label(item.genre.value),
         "source": item.source,
         "link": item.link,
         "score": item.score,

@@ -1,19 +1,22 @@
 # tests/golden/data/registry_min.yaml
 - name: hf-papers
   url: https://huggingface.co/api/papers
-  type: paper
+  genre: paper
+  publisher: company
   adapter: hf_papers
   status: working
   priority: 1
 - name: openai
   url: https://openai.com/news/rss.xml
-  type: official
+  genre: announcement
+  publisher: lab
   adapter: rss
   status: working
   priority: 2
 - name: some-blog
   url: https://example.com/feed.xml
-  type: blog
+  genre: writeup
+  publisher: individual
   adapter: rss
   status: manual
   priority: 3

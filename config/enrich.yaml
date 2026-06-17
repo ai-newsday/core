@@ -1,5 +1,5 @@
 enabled: true
 concurrency: 5
 timeout_s: 8
-# 这些类型源已经带原生 popularity 信号, 不再查 HN
-skip_source_types: [paper, model]
+# 这些 genre 已经带原生 popularity 信号, 不再查 HN
+skip_genres: [paper, model]

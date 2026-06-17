@@ -16,13 +16,13 @@ def test_load_publish_config_overrides_fields(tmp_path):
     assert cfg.must_read_count == 5 and cfg.top_keywords == 2
     assert cfg.pending_watermark == "待审"
     # 未覆盖字段保持默认
-    assert cfg.type_labels["model"] == "模型"
+    assert cfg.genre_labels["model"] == "模型"
 
 
-def test_load_publish_config_overrides_type_labels(tmp_path):
+def test_load_publish_config_overrides_genre_labels(tmp_path):
     p = tmp_path / "publish.yaml"
-    p.write_text('type_labels:\n  model: "大模型"\n  paper: "论文"\n', encoding="utf-8")
+    p.write_text('genre_labels:\n  model: "大模型"\n  paper: "论文"\n', encoding="utf-8")
     cfg = load_publish_config(str(p))
-    assert cfg.type_labels == {"model": "大模型", "paper": "论文"}
+    assert cfg.genre_labels == {"model": "大模型", "paper": "论文"}
     # 未覆盖标量字段保持默认
     assert cfg.must_read_count == 3

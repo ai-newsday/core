@@ -2,9 +2,9 @@ import logging
 from datetime import datetime, timezone
 
 from src.adapters.vectorstore.memory import InMemoryVectorStore
-from src.core.types import DedupConfig, RawItem, RunContext, SourceType
+from src.core.types import DedupConfig, Genre, RawItem, RunContext
 from src.pipeline.dedup import build_embed_text, dedup
-from tests.fakes import FailingEmbeddingProvider, FakeEmbeddingProvider
+from tests.fakes import DEFAULT_PUBLISHER, FailingEmbeddingProvider, FakeEmbeddingProvider
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
@@ -14,7 +14,14 @@ def _ctx():
 
 
 def _item(title, link, source, st):
-    return RawItem(title_en=title, link=link, source=source, source_type=st, published_at=NOW)
+    return RawItem(
+        title_en=title,
+        link=link,
+        source=source,
+        genre=st,
+        publisher=DEFAULT_PUBLISHER[st],
+        published_at=NOW,
+    )
 
 
 def _cfg():
@@ -23,9 +30,9 @@ def _cfg():
 
 def test_golden_cross_source_merge():
     items = [
-        _item("Event X", "https://a/1", "openai", SourceType.OFFICIAL),
-        _item("Event X take", "https://b/2", "some-blog", SourceType.BLOG),
-        _item("Event X recap", "https://c/3", "some-blog", SourceType.BLOG),
+        _item("Event X", "https://a/1", "openai", Genre.announcement),
+        _item("Event X take", "https://b/2", "some-blog", Genre.writeup),
+        _item("Event X recap", "https://c/3", "some-blog", Genre.writeup),
     ]
     vecs = {
         build_embed_text(items[0]): [1.0, 0.0],
@@ -43,9 +50,9 @@ def test_golden_cross_source_merge():
 
 def test_golden_no_duplicates():
     items = [
-        _item("Alpha", "https://a/1", "openai", SourceType.OFFICIAL),
-        _item("Beta", "https://b/2", "openai", SourceType.OFFICIAL),
-        _item("Gamma", "https://c/3", "openai", SourceType.OFFICIAL),
+        _item("Alpha", "https://a/1", "openai", Genre.announcement),
+        _item("Beta", "https://b/2", "openai", Genre.announcement),
+        _item("Gamma", "https://c/3", "openai", Genre.announcement),
     ]
     vecs = {
         build_embed_text(items[0]): [1.0, 0.0, 0.0],
@@ -61,8 +68,8 @@ def test_golden_no_duplicates():
 
 def test_golden_primary_selection_official_over_blog():
     items = [
-        _item("E blog", "https://b/1", "some-blog", SourceType.BLOG),
-        _item("E official", "https://o/2", "openai", SourceType.OFFICIAL),
+        _item("E blog", "https://b/1", "some-blog", Genre.writeup),
+        _item("E official", "https://o/2", "openai", Genre.announcement),
     ]
     vecs = {build_embed_text(items[0]): [1.0, 0.02], build_embed_text(items[1]): [1.0, 0.0]}
     res = dedup(
@@ -75,9 +82,9 @@ def test_golden_primary_selection_official_over_blog():
 
 def test_golden_threshold_boundary():
     items = [
-        _item("P", "https://a/1", "openai", SourceType.OFFICIAL),
-        _item("P near", "https://b/2", "openai", SourceType.OFFICIAL),
-        _item("Q far", "https://c/3", "openai", SourceType.OFFICIAL),
+        _item("P", "https://a/1", "openai", Genre.announcement),
+        _item("P near", "https://b/2", "openai", Genre.announcement),
+        _item("Q far", "https://c/3", "openai", Genre.announcement),
     ]
     vecs = {
         build_embed_text(items[0]): [1.0, 0.0],
@@ -97,9 +104,9 @@ def test_golden_duplicate_link_collapsed_first_wins():
     # embedding_id = sha256(link) collides; without a guard the by_emb vector map
     # collapses to the last item's vector. Keep first, count as one input.
     items = [
-        _item("First", "https://a/1", "openai", SourceType.OFFICIAL),
-        _item("Second dupe link", "https://a/1", "some-blog", SourceType.BLOG),
-        _item("Other", "https://b/2", "openai", SourceType.OFFICIAL),
+        _item("First", "https://a/1", "openai", Genre.announcement),
+        _item("Second dupe link", "https://a/1", "some-blog", Genre.writeup),
+        _item("Other", "https://b/2", "openai", Genre.announcement),
     ]
     vecs = {
         build_embed_text(items[0]): [1.0, 0.0],
@@ -124,8 +131,8 @@ def test_golden_empty_input():
 
 def test_golden_embedding_degraded_all_singletons():
     items = [
-        _item("A", "https://a/1", "openai", SourceType.OFFICIAL),
-        _item("B", "https://b/2", "openai", SourceType.OFFICIAL),
+        _item("A", "https://a/1", "openai", Genre.announcement),
+        _item("B", "https://b/2", "openai", Genre.announcement),
     ]
     res = dedup(
         items, _cfg(), _ctx(), embedder=FailingEmbeddingProvider(), store=InMemoryVectorStore()

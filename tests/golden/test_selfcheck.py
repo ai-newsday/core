@@ -4,11 +4,12 @@ from datetime import datetime, timezone
 
 from src.core.types import (
     Evidence,
+    Genre,
     InterpretedItem,
     InterpretResult,
+    Publisher,
     RunContext,
     SelfCheckConfig,
-    SourceType,
 )
 from src.pipeline.selfcheck import self_check
 from tests.fakes import FailingLLMProvider, FakeLLMProvider
@@ -25,7 +26,8 @@ def _item(link, eligible=True, status="ok", **over):
         title_en="X",
         link=link,
         source="s",
-        source_type=SourceType.MODEL,
+        genre=Genre.model,
+        publisher=Publisher.company,
         published_at=NOW,
         raw_summary="原始摘要",
         cluster_id="c",

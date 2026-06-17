@@ -2,11 +2,12 @@ from datetime import datetime, timezone
 
 from src.core.types import (
     Evidence,
+    Genre,
     InterpretConfig,
     InterpretedItem,
     InterpretResult,
+    Publisher,
     ScoredItem,
-    SourceType,
 )
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
@@ -17,7 +18,8 @@ def _scored(**over):
         title_en="GLM-5 released",
         link="https://hf.co/glm5",
         source="Hugging Face",
-        source_type=SourceType.MODEL,
+        genre=Genre.model,
+        publisher=Publisher.company,
         published_at=NOW,
         raw_summary="MoE open weights model.",
         cluster_id="evt-1",

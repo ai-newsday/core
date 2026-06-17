@@ -64,7 +64,7 @@ class DedupResult:
 
 1. **构造 embed 文本**：`embed_text = title_en + "\n" + (raw_summary or "")`；无 summary 时退化为仅 `title_en`。
 2. **取向量**：经 `embedder` 批量 embedding（`config.batch_size`），为每条赋 `embedding_id`（稳定值，如 `sha256(link)[:16]`）。
-3. **排序**：先按**主条目优先级**升序排列 items —— `source_type_rank` → `source.priority`（小=高）→ `published_at`（早=先报道）。
+3. **排序**：先按**主条目优先级**升序排列 items —— `genre_rank`（按内容体裁权威序）→ `source.priority`（小=高）→ `published_at`（早=先报道）。
 4. **贪心聚类**：按上序遍历；当前条目与各已存在 cluster 的**种子（seed）向量**取 cosine 相似度，若 `max_sim > config.similarity_threshold` 则并入该 cluster，否则新建 cluster 并以自己为种子。
    - 因第 3 步排序，**种子恒为该 cluster 的主条目**（最优先者最先成簇）——天然确定性，无需二次选主。
 5. **产出**：每个 cluster 的 `related_links = 非主成员的 link`；为 primary 构造 `NewsItem`（带 `cluster_id`、`related_links`、`embedding_id`）。`cluster_id = f"evt-{ctx.now:%Y-%m-%d}-{NNN}"`，`NNN` 按成簇顺序三位补零。
@@ -77,7 +77,7 @@ similarity_threshold: 0.83        # cosine 阈值; 调高=更少合并(更保守
 embedding_model: "Qwen/Qwen3-Embedding-8B"
 batch_size: 32
 # 主条目优先级: 越靠前=越一手/权威; dedup 选主与排序据此
-source_type_rank: [official, paper, model, tool, news, community, blog]
+genre_rank: [paper, model, announcement, writeup, news]
 ```
 
 ## 7. 错误与回退（非致命，继承 CLAUDE.md/PRD §3.4）
@@ -93,7 +93,7 @@ source_type_rank: [official, paper, model, tool, news, community, blog]
 
 1. **去重覆盖率 100%**：跨源同一事件被合并到**同一个** cluster；`deduped_items` 中**不存在两条代表同一事件**（PRD #3）。
 2. 每个输入条目恰好属于**一个** cluster：`sum(c.size for c in clusters) == input_count`。
-3. 每个 cluster 的 `primary` 满足主条目优先级（`source_type_rank` → priority → 最早），且 `related_links` 恰为其余成员的 link、不含 primary 自身。
+3. 每个 cluster 的 `primary` 满足主条目优先级（`genre_rank` → priority → 最早），且 `related_links` 恰为其余成员的 link、不含 primary 自身。
 4. `deduped_items` 长度 `== cluster_count`；`duplicate_count == input_count - cluster_count >= 0`。
 5. 每个 `NewsItem` 继承 RawItem 的全部不变量（标题/链接/源/类型/时区非空），并新增非空 `cluster_id`。
 6. embedding 整体失败时：`cluster_count == input_count`（全 singleton），不抛异常。

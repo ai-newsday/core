@@ -5,11 +5,12 @@ from src.core.types import (
     Evidence,
     FeedbackConfig,
     FeedbackEvent,
+    Genre,
     InterpretedItem,
+    Publisher,
     ReviewDecision,
     RunContext,
     SourceFeedbackStats,
-    SourceType,
 )
 from src.pipeline.feedback import (
     aggregate_by_source,
@@ -22,12 +23,13 @@ NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 CFG = FeedbackConfig()
 
 
-def _ii(link="https://a/1", source="src", source_type=SourceType.MODEL):
+def _ii(link="https://a/1", source="src", genre=Genre.model, publisher=Publisher.company):
     return InterpretedItem(
         title_en="X",
         link=link,
         source=source,
-        source_type=source_type,
+        genre=genre,
+        publisher=publisher,
         published_at=NOW,
         raw_summary="A.",
         cluster_id="evt-1",

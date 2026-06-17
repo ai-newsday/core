@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from src.core.types import QuotaLine, ScoredItem, ScoreResult, ScoringConfig, SourceType
+from src.core.types import Genre, Publisher, QuotaLine, ScoredItem, ScoreResult, ScoringConfig
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
@@ -13,7 +13,8 @@ def _scored(**over):
         title_en="T",
         link="https://a/1",
         source="openai",
-        source_type=SourceType.PAPER,
+        genre=Genre.paper,
+        publisher=Publisher.company,
         published_at=NOW,
         cluster_id="evt-2026-05-30-001",
         score=88,
@@ -40,7 +41,7 @@ def test_scored_item_rejects_out_of_range_score():
 
 
 def test_quota_line_and_result_shapes():
-    line = QuotaLine(source_type="paper", available=3, quota=2, selected=2)
+    line = QuotaLine(genre="paper", available=3, quota=2, selected=2)
     res = ScoreResult(
         selected_items=[_scored()],
         all_scored=[_scored()],
@@ -58,6 +59,7 @@ def test_scoring_config_defaults():
     assert c.quota["paper"] == 2
     assert c.total_limit == 8
     assert c.fresh_bonus == 10
-    assert c.dimension_scores["official"]["一手性"] == 20
+    assert c.genre_value["paper"]["一手性"] == 20
+    assert c.publisher_authority["lab"] == 18
     assert c.priority_bonus[1] == 6
     assert c.sources_registry_path == "config/sources.yaml"

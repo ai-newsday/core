@@ -6,7 +6,7 @@ import httpx
 import respx
 
 from src.adapters.sources.hf_papers import HFPapersAdapter
-from src.core.types import RunContext, SourceSpec, SourceType
+from src.core.types import Genre, Publisher, RunContext, SourceSpec
 
 
 def _ctx():
@@ -21,7 +21,8 @@ def _spec():
     return SourceSpec(
         name="hf-papers",
         url="https://huggingface.co/api/papers",
-        type=SourceType.PAPER,
+        genre=Genre.paper,
+        publisher=Publisher.company,
         adapter="hf_papers",
     )
 
@@ -35,7 +36,7 @@ async def test_hf_papers_maps_fields():
     it = items[0]
     assert it.title_en == "Diffusion Editing at Scale"
     assert it.link == "https://huggingface.co/papers/2605.00001"
-    assert it.source_type == SourceType.PAPER
+    assert it.genre == Genre.paper
     # no submittedOnDailyAt in fixture -> falls back to publishedAt
     assert it.published_at == datetime(2026, 5, 30, 8, 0, tzinfo=timezone.utc)
     assert it.raw_summary == "A method for image editing."

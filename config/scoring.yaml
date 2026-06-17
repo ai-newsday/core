@@ -1,13 +1,14 @@
 # 打分排序层配置 (Circle 3). 全部维度分/权重/配额可调, 不写死在代码里.
-# 维度基分: source_type → 各维度贡献 (PRD §5.5 维度键, 0-100 多维).
-dimension_scores:
-  official:  {机构影响力: 18, 一手性: 20, 技术价值: 10, 产业影响: 12, 扩散潜力: 9}
-  paper:     {机构影响力: 14, 一手性: 20, 技术价值: 16, 产业影响: 8,  扩散潜力: 7}
-  model:     {机构影响力: 15, 一手性: 18, 技术价值: 14, 产业影响: 10, 扩散潜力: 9}
-  tool:      {机构影响力: 10, 一手性: 14, 技术价值: 12, 产业影响: 10, 扩散潜力: 10}
-  news:      {机构影响力: 12, 一手性: 8,  技术价值: 6,  产业影响: 12, 扩散潜力: 11}
-  community: {机构影响力: 6,  一手性: 10, 技术价值: 8,  产业影响: 6,  扩散潜力: 12}
-  blog:      {机构影响力: 6,  一手性: 8,  技术价值: 8,  产业影响: 6,  扩散潜力: 8}
+# genre → 4 维内容价值 (一手性/技术价值/产业影响/扩散潜力). 机构影响力由 publisher 提供.
+genre_value:
+  paper:        {一手性: 20, 技术价值: 16, 产业影响: 8,  扩散潜力: 7}
+  model:        {一手性: 18, 技术价值: 14, 产业影响: 10, 扩散潜力: 9}
+  announcement: {一手性: 20, 技术价值: 10, 产业影响: 12, 扩散潜力: 9}
+  writeup:      {一手性: 12, 技术价值: 12, 产业影响: 8,  扩散潜力: 9}
+  news:         {一手性: 8,  技术价值: 6,  产业影响: 12, 扩散潜力: 11}
+
+# publisher → 机构影响力 (单标量, b1). priority_bonus 仍叠加其上.
+publisher_authority: {lab: 18, company: 14, individual: 8, media: 12}
 
 # registry 中 source.priority (1=最高) → 折进"机构影响力"维度
 priority_bonus: {1: 6, 2: 3, 3: 0, 4: -2, 5: -4}
@@ -49,8 +50,8 @@ penalty:
 popularity_weights: {upvotes: 0.6, hn_points: 0.5, likes: 0.3, num_comments: 0.4}
 popularity_cap: 15.0              # 单条最高 +15 分, 防异常超大数值
 
-# 类型配额 (PRD §4.2). 各 quota 之和(=8) <= total_limit.
-quota: {paper: 2, model: 1, tool: 1, official: 1, community: 1, news: 1, blog: 1}
+# genre 配额 (PRD §4.2). 各 quota 之和(=8) <= total_limit.
+quota: {paper: 2, announcement: 2, writeup: 2, model: 1, news: 1}
 total_limit: 8
 
 sources_registry_path: "config/sources.yaml"

@@ -1,11 +1,10 @@
-dimension_scores:
-  official:  {机构影响力: 20, 一手性: 20, 技术价值: 10, 产业影响: 10, 扩散潜力: 10}
-  paper:     {机构影响力: 10, 一手性: 20, 技术价值: 20, 产业影响: 10, 扩散潜力: 10}
-  model:     {机构影响力: 10, 一手性: 10, 技术价值: 10, 产业影响: 10, 扩散潜力: 10}
-  tool:      {机构影响力: 10, 一手性: 10, 技术价值: 10, 产业影响: 10, 扩散潜力: 10}
-  news:      {机构影响力: 10, 一手性: 5,  技术价值: 5,  产业影响: 10, 扩散潜力: 10}
-  community: {机构影响力: 5,  一手性: 5,  技术价值: 5,  产业影响: 5,  扩散潜力: 10}
-  blog:      {机构影响力: 5,  一手性: 5,  技术价值: 5,  产业影响: 5,  扩散潜力: 5}
+genre_value:
+  paper:        {一手性: 20, 技术价值: 20, 产业影响: 10, 扩散潜力: 10}
+  model:        {一手性: 10, 技术价值: 10, 产业影响: 10, 扩散潜力: 10}
+  announcement: {一手性: 20, 技术价值: 10, 产业影响: 10, 扩散潜力: 10}
+  writeup:      {一手性: 10, 技术价值: 10, 产业影响: 10, 扩散潜力: 10}
+  news:         {一手性: 5,  技术价值: 5,  产业影响: 10, 扩散潜力: 10}
+publisher_authority: {lab: 20, company: 10, individual: 5, media: 10}
 priority_bonus: {1: 5, 2: 0, 3: 0}
 priority_bonus_default: 0
 recency:
@@ -17,6 +16,6 @@ recency:
   stale_penalty: -10
 penalty:
   same_source: -5
-quota: {paper: 2, model: 1, tool: 2, official: 1, community: 1, news: 1, blog: 0}
+quota: {paper: 2, model: 1, writeup: 2, announcement: 1, news: 1}
 total_limit: 8
 sources_registry_path: "does/not/exist.yaml"

@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 
-from src.core.types import RawItem, SourceType
+from src.core.types import Genre, Publisher, RawItem
 from src.pipeline.dedup import _cosine, build_embed_text, embedding_id
+from tests.fakes import DEFAULT_PUBLISHER
 
 
 def _raw(title, summary=None, link="https://e.com/a"):
@@ -9,7 +10,8 @@ def _raw(title, summary=None, link="https://e.com/a"):
         title_en=title,
         link=link,
         source="s",
-        source_type=SourceType.OFFICIAL,
+        genre=Genre.announcement,
+        publisher=Publisher.lab,
         published_at=datetime(2026, 5, 30, tzinfo=timezone.utc),
         raw_summary=summary,
     )
@@ -55,15 +57,16 @@ def _item(title, link, source, st, when=None):
         title_en=title,
         link=link,
         source=source,
-        source_type=st,
+        genre=st,
+        publisher=DEFAULT_PUBLISHER[st],
         published_at=when or datetime(2026, 5, 30, 12, tzinfo=timezone.utc),
     )
 
 
 def test_cluster_merges_similar_above_threshold():
     items = [
-        _item("A", "https://e/1", "openai", SourceType.OFFICIAL),
-        _item("B", "https://e/2", "blogx", SourceType.BLOG),
+        _item("A", "https://e/1", "openai", Genre.announcement),
+        _item("B", "https://e/2", "blogx", Genre.writeup),
     ]
     vectors = [[1.0, 0.0], [0.99, 0.14]]
     cfg = DedupConfig()
@@ -78,8 +81,8 @@ def test_cluster_merges_similar_above_threshold():
 
 def test_cluster_keeps_dissimilar_separate():
     items = [
-        _item("A", "https://e/1", "openai", SourceType.OFFICIAL),
-        _item("B", "https://e/2", "openai", SourceType.OFFICIAL),
+        _item("A", "https://e/1", "openai", Genre.announcement),
+        _item("B", "https://e/2", "openai", Genre.announcement),
     ]
     vectors = [[1.0, 0.0], [0.0, 1.0]]
     clusters = cluster(items, vectors, {"openai": 2}, DedupConfig(), _ctx())
@@ -92,9 +95,9 @@ def test_cluster_primary_priority_then_published():
     early = datetime(2026, 5, 30, 8, tzinfo=timezone.utc)
     late = datetime(2026, 5, 30, 20, tzinfo=timezone.utc)
     items = [
-        _item("low-prio", "https://e/1", "src-a", SourceType.PAPER, late),
-        _item("hi-prio", "https://e/2", "src-b", SourceType.PAPER, late),
-        _item("earliest", "https://e/3", "src-b", SourceType.PAPER, early),
+        _item("low-prio", "https://e/1", "src-a", Genre.paper, late),
+        _item("hi-prio", "https://e/2", "src-b", Genre.paper, late),
+        _item("earliest", "https://e/3", "src-b", Genre.paper, early),
     ]
     vectors = [[1.0, 0.0], [1.0, 0.01], [1.0, 0.02]]
     clusters = cluster(items, vectors, {"src-a": 2, "src-b": 1}, DedupConfig(), _ctx())
@@ -104,8 +107,8 @@ def test_cluster_primary_priority_then_published():
 
 def test_cluster_none_vector_is_forced_singleton():
     items = [
-        _item("A", "https://e/1", "openai", SourceType.OFFICIAL),
-        _item("B", "https://e/2", "openai", SourceType.OFFICIAL),
+        _item("A", "https://e/1", "openai", Genre.announcement),
+        _item("B", "https://e/2", "openai", Genre.announcement),
     ]
     vectors = [None, None]
     clusters = cluster(items, vectors, {"openai": 2}, DedupConfig(), _ctx())
@@ -113,6 +116,6 @@ def test_cluster_none_vector_is_forced_singleton():
 
 
 def test_cluster_sets_embedding_id_on_primary():
-    items = [_item("A", "https://e/1", "openai", SourceType.OFFICIAL)]
+    items = [_item("A", "https://e/1", "openai", Genre.announcement)]
     clusters = cluster(items, [[1.0]], {"openai": 2}, DedupConfig(), _ctx())
     assert clusters[0].primary.embedding_id == embedding_id("https://e/1")

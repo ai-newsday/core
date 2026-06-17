@@ -1,6 +1,6 @@
 # tests/golden/data/registry_golden.yaml
-- {name: hf-papers, url: "https://huggingface.co/api/papers", type: paper, adapter: hf_papers, status: working, priority: 1}
-- {name: openai, url: "https://openai.com/news/rss.xml", type: official, adapter: rss, status: working, priority: 2}
-- {name: deepmind, url: "https://deepmind.google/blog/rss.xml", type: official, adapter: rss, status: working, priority: 2}
-- {name: broken, url: "https://broken.example/feed.xml", type: blog, adapter: rss, status: working, priority: 3}
-- {name: disabled, url: "https://x.example/feed.xml", type: blog, adapter: rss, status: manual, priority: 3}
+- {name: hf-papers, url: "https://huggingface.co/api/papers", genre: paper, publisher: company, adapter: hf_papers, status: working, priority: 1}
+- {name: openai, url: "https://openai.com/news/rss.xml", genre: announcement, publisher: lab, adapter: rss, status: working, priority: 2}
+- {name: deepmind, url: "https://deepmind.google/blog/rss.xml", genre: announcement, publisher: lab, adapter: rss, status: working, priority: 2}
+- {name: broken, url: "https://broken.example/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3}
+- {name: disabled, url: "https://x.example/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 3}

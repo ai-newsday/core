@@ -1,5 +1,16 @@
 from __future__ import annotations
 
+from src.core.types import Genre, Publisher
+
+# Default publisher per genre for synthetic test items (any valid combo is fine).
+DEFAULT_PUBLISHER = {
+    Genre.paper: Publisher.company,
+    Genre.model: Publisher.company,
+    Genre.announcement: Publisher.lab,
+    Genre.writeup: Publisher.individual,
+    Genre.news: Publisher.media,
+}
+
 
 class FakeEmbeddingProvider:
     """Returns frozen vectors keyed by exact input text. Missing key -> KeyError.

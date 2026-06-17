@@ -1,160 +1,161 @@
 # config/sources.yaml — single source of truth (SSOT). Edit here only.
 # status: working = run this circle; manual = registered but not run.
 # --- primary APIs ---
-- {name: hf-papers, url: "https://huggingface.co/api/daily_papers", type: paper, adapter: hf_papers, status: working, priority: 1}
-- {name: hf-models, url: "https://huggingface.co/api/models?sort=likes7d&direction=-1&limit=50", type: model, adapter: hf_models, status: working, priority: 1}   # 7天人气榜, 替代 createdAt firehose; 解 NSFW/无名模型上必读问题
+- {name: hf-papers, url: "https://huggingface.co/api/daily_papers", genre: paper, publisher: company, adapter: hf_papers, status: working, priority: 1}
+- {name: hf-models, url: "https://huggingface.co/api/models?sort=likes7d&direction=-1&limit=50", genre: model, publisher: company, adapter: hf_models, status: working, priority: 1}   # 7天人气榜, 替代 createdAt firehose; 解 NSFW/无名模型上必读问题
 # --- official / lab blogs (RSS) ---
-- {name: openai, url: "https://openai.com/news/rss.xml", type: official, adapter: rss, status: working, priority: 2}
-- {name: deepmind, url: "https://deepmind.google/blog/rss.xml", type: official, adapter: rss, status: working, priority: 2}
-- {name: google-research, url: "https://research.google/blog/rss", type: official, adapter: rss, status: working, priority: 2}
-- {name: huggingface-blog, url: "https://huggingface.co/blog/feed.xml", type: official, adapter: rss, status: working, priority: 2}
-- {name: nvidia, url: "https://blogs.nvidia.com/feed", type: official, adapter: rss, status: working, priority: 2}
-- {name: apple-ml, url: "https://machinelearning.apple.com/rss.xml", type: official, adapter: rss, status: working, priority: 2}
-- {name: microsoft-ai, url: "https://news.microsoft.com/source/topics/ai/feed", type: official, adapter: rss, status: manual, priority: 2}  # 403 持续, 站点拒爬
-- {name: aws-ml, url: "https://aws.amazon.com/blogs/machine-learning/feed", type: official, adapter: rss, status: working, priority: 2}
-- {name: meta-ai, url: "https://ai.meta.com/blog/rss/", type: official, adapter: rss, status: manual, priority: 2}  # 404, feed 路径变更, P2 找新端点
+- {name: openai, url: "https://openai.com/news/rss.xml", genre: announcement, publisher: lab, adapter: rss, status: working, priority: 2}
+- {name: deepmind, url: "https://deepmind.google/blog/rss.xml", genre: announcement, publisher: lab, adapter: rss, status: working, priority: 2}
+- {name: google-research, url: "https://research.google/blog/rss", genre: announcement, publisher: lab, adapter: rss, status: working, priority: 2}
+- {name: huggingface-blog, url: "https://huggingface.co/blog/feed.xml", genre: announcement, publisher: company, adapter: rss, status: working, priority: 2}
+- {name: nvidia, url: "https://blogs.nvidia.com/feed", genre: announcement, publisher: company, adapter: rss, status: working, priority: 2}
+- {name: apple-ml, url: "https://machinelearning.apple.com/rss.xml", genre: announcement, publisher: lab, adapter: rss, status: working, priority: 2}
+- {name: microsoft-ai, url: "https://news.microsoft.com/source/topics/ai/feed", genre: announcement, publisher: company, adapter: rss, status: manual, priority: 2}  # 403 持续, 站点拒爬
+- {name: aws-ml, url: "https://aws.amazon.com/blogs/machine-learning/feed", genre: announcement, publisher: company, adapter: rss, status: working, priority: 2}
+- {name: meta-ai, url: "https://ai.meta.com/blog/rss/", genre: announcement, publisher: lab, adapter: rss, status: manual, priority: 2}  # 404, feed 路径变更, P2 找新端点
 # --- tools / infra ---
-- {name: pytorch, url: "https://pytorch.org/blog/feed.xml", type: news, adapter: rss, status: working, priority: 2}
-- {name: comfy, url: "https://blog.comfy.org/feed.xml", type: tool, adapter: rss, status: working, priority: 3}
-- {name: replicate, url: "https://replicate.com/blog/rss", type: tool, adapter: rss, status: working, priority: 3}
-- {name: ollama, url: "https://ollama.com/blog/rss.xml", type: tool, adapter: rss, status: working, priority: 3}
-- {name: roboflow, url: "https://blog.roboflow.com/feed", type: tool, adapter: rss, status: working, priority: 3}
-- {name: civitai-education, url: "https://education.civitai.com/feed", type: tool, adapter: rss, status: working, priority: 3}
+- {name: pytorch, url: "https://pytorch.org/blog/feed.xml", genre: announcement, publisher: company, adapter: rss, status: working, priority: 2}
+- {name: comfy, url: "https://blog.comfy.org/feed.xml", genre: writeup, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: replicate, url: "https://replicate.com/blog/rss", genre: writeup, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: ollama, url: "https://ollama.com/blog/rss.xml", genre: writeup, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: roboflow, url: "https://blog.roboflow.com/feed", genre: writeup, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: civitai-education, url: "https://education.civitai.com/feed", genre: writeup, publisher: company, adapter: rss, status: working, priority: 3}
 # --- academic ---
-- {name: bair, url: "https://bair.berkeley.edu/blog/feed.xml", type: paper, adapter: rss, status: working, priority: 2}
-- {name: stanford-ai, url: "http://ai.stanford.edu/blog/feed.xml", type: paper, adapter: rss, status: working, priority: 3}
-- {name: nature-machine-intelligence, url: "https://www.nature.com/natmachintell.rss", type: paper, adapter: rss, status: working, priority: 2}
+- {name: bair, url: "https://bair.berkeley.edu/blog/feed.xml", genre: writeup, publisher: lab, adapter: rss, status: working, priority: 2}
+- {name: stanford-ai, url: "http://ai.stanford.edu/blog/feed.xml", genre: writeup, publisher: lab, adapter: rss, status: working, priority: 3}
+- {name: nature-machine-intelligence, url: "https://www.nature.com/natmachintell.rss", genre: paper, publisher: lab, adapter: rss, status: working, priority: 2}
 # --- community / newsletters (AI-focused subset of gist) ---
-- {name: latent-space, url: "https://www.latent.space/feed.xml", type: community, adapter: rss, status: working, priority: 2}
-- {name: simonwillison, url: "https://simonwillison.net/atom/everything/", type: blog, adapter: rss, status: working, priority: 2}
-- {name: dwarkesh, url: "https://www.dwarkeshpatel.com/feed", type: community, adapter: rss, status: working, priority: 3}
-- {name: minimaxir, url: "https://minimaxir.com/index.xml", type: blog, adapter: rss, status: working, priority: 3}
-- {name: gwern, url: "https://gwern.substack.com/feed", type: blog, adapter: rss, status: working, priority: 3}
-- {name: garymarcus, url: "https://garymarcus.substack.com/feed", type: blog, adapter: rss, status: working, priority: 3}
-- {name: geohot, url: "https://geohot.github.io/blog/feed.xml", type: blog, adapter: rss, status: working, priority: 3}
-- {name: lcamtuf, url: "https://lcamtuf.substack.com/feed", type: blog, adapter: rss, status: working, priority: 3}
+- {name: latent-space, url: "https://www.latent.space/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 2}
+- {name: simonwillison, url: "https://simonwillison.net/atom/everything/", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 2}
+- {name: dwarkesh, url: "https://www.dwarkeshpatel.com/feed", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3}
+- {name: minimaxir, url: "https://minimaxir.com/index.xml", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3}
+- {name: gwern, url: "https://gwern.substack.com/feed", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3}
+- {name: garymarcus, url: "https://garymarcus.substack.com/feed", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3}
+- {name: geohot, url: "https://geohot.github.io/blog/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3}
+- {name: lcamtuf, url: "https://lcamtuf.substack.com/feed", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3}
 # --- news (AI 媒体, 2026-06 扩源) ---
-- {name: the-decoder, url: "https://the-decoder.com/feed/", type: news, adapter: rss, status: working, priority: 2}
-- {name: venturebeat-ai, url: "https://venturebeat.com/category/ai/feed/", type: news, adapter: rss, status: working, priority: 2}
-- {name: techcrunch-ai, url: "https://techcrunch.com/category/artificial-intelligence/feed/", type: news, adapter: rss, status: working, priority: 2}
-- {name: mit-tech-review-ai, url: "https://www.technologyreview.com/topic/artificial-intelligence/feed/", type: news, adapter: rss, status: working, priority: 2}
-- {name: ars-technica-ai, url: "https://arstechnica.com/ai/feed/", type: news, adapter: rss, status: working, priority: 2}
-- {name: theverge-ai, url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", type: news, adapter: rss, status: working, priority: 3}
-- {name: qbitai, url: "https://www.qbitai.com/feed", type: news, adapter: rss, status: manual, priority: 2}  # 403 反爬, P2 找绕过方式
-- {name: jiqizhixin, url: "https://www.jiqizhixin.com/rss", type: news, adapter: rss, status: manual, priority: 2}  # 返回 HTML 非 RSS, 站无公开 feed
+- {name: the-decoder, url: "https://the-decoder.com/feed/", genre: news, publisher: media, adapter: rss, status: working, priority: 2}
+- {name: venturebeat-ai, url: "https://venturebeat.com/category/ai/feed/", genre: news, publisher: media, adapter: rss, status: working, priority: 2}
+- {name: techcrunch-ai, url: "https://techcrunch.com/category/artificial-intelligence/feed/", genre: news, publisher: media, adapter: rss, status: working, priority: 2}
+- {name: mit-tech-review-ai, url: "https://www.technologyreview.com/topic/artificial-intelligence/feed/", genre: news, publisher: media, adapter: rss, status: working, priority: 2}
+- {name: ars-technica-ai, url: "https://arstechnica.com/ai/feed/", genre: news, publisher: media, adapter: rss, status: working, priority: 2}
+- {name: theverge-ai, url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", genre: news, publisher: media, adapter: rss, status: working, priority: 3}
+- {name: qbitai, url: "https://www.qbitai.com/feed", genre: news, publisher: media, adapter: rss, status: manual, priority: 2}  # 403 反爬, P2 找绕过方式
+- {name: jiqizhixin, url: "https://www.jiqizhixin.com/rss", genre: news, publisher: media, adapter: rss, status: manual, priority: 2}  # 返回 HTML 非 RSS, 站无公开 feed
 # --- paper (arXiv 分类) ---
-# papers.cool: Kimi 出品, 对每篇 arxiv 论文带"一句话评论"; 降为 priority 3, hf-papers 为主
-- {name: papers-cool-ai, url: "https://papers.cool/arxiv/cs.AI/feed", type: paper, adapter: rss, status: working, priority: 3, max_items: 30}
-- {name: papers-cool-cl, url: "https://papers.cool/arxiv/cs.CL/feed", type: paper, adapter: rss, status: working, priority: 3, max_items: 30}
-- {name: papers-cool-lg, url: "https://papers.cool/arxiv/cs.LG/feed", type: paper, adapter: rss, status: working, priority: 3, max_items: 30}
-- {name: papers-cool-cv, url: "https://papers.cool/arxiv/cs.CV/feed", type: paper, adapter: rss, status: working, priority: 3, max_items: 30}
-# arxiv raw firehose 降为备胎: priority 3 + max_items 15, 让 hf-papers / papers.cool 优先
-- {name: arxiv-cs-cl, url: "http://export.arxiv.org/rss/cs.CL", type: paper, adapter: rss, status: working, priority: 3, max_items: 15}
-- {name: arxiv-cs-lg, url: "http://export.arxiv.org/rss/cs.LG", type: paper, adapter: rss, status: working, priority: 3, max_items: 15}
-- {name: arxiv-cs-ai, url: "http://export.arxiv.org/rss/cs.AI", type: paper, adapter: rss, status: working, priority: 3, max_items: 15}
-- {name: arxiv-cs-cv, url: "http://export.arxiv.org/rss/cs.CV", type: paper, adapter: rss, status: working, priority: 3, max_items: 15}
+# papers.cool + arxiv raw 全部下线 (manual): 2026-06-17 真实诊断证实零信号 firehose——
+# 共 180 条 (papers-cool 120 + arxiv 60) signals={}, paper 配额 2 全部被 hf-papers 上榜热门占满,
+# selected=0, 纯去重/带宽成本不进输出。paper 信号来源只认 hf-papers (upvotes)。见 [[paper-source-preference]]。
+- {name: papers-cool-ai, url: "https://papers.cool/arxiv/cs.AI/feed", genre: paper, publisher: company, adapter: rss, status: manual, priority: 3, max_items: 30}
+- {name: papers-cool-cl, url: "https://papers.cool/arxiv/cs.CL/feed", genre: paper, publisher: company, adapter: rss, status: manual, priority: 3, max_items: 30}
+- {name: papers-cool-lg, url: "https://papers.cool/arxiv/cs.LG/feed", genre: paper, publisher: company, adapter: rss, status: manual, priority: 3, max_items: 30}
+- {name: papers-cool-cv, url: "https://papers.cool/arxiv/cs.CV/feed", genre: paper, publisher: company, adapter: rss, status: manual, priority: 3, max_items: 30}
+- {name: arxiv-cs-cl, url: "http://export.arxiv.org/rss/cs.CL", genre: paper, publisher: company, adapter: rss, status: manual, priority: 3, max_items: 15}
+- {name: arxiv-cs-lg, url: "http://export.arxiv.org/rss/cs.LG", genre: paper, publisher: company, adapter: rss, status: manual, priority: 3, max_items: 15}
+- {name: arxiv-cs-ai, url: "http://export.arxiv.org/rss/cs.AI", genre: paper, publisher: company, adapter: rss, status: manual, priority: 3, max_items: 15}
+- {name: arxiv-cs-cv, url: "http://export.arxiv.org/rss/cs.CV", genre: paper, publisher: company, adapter: rss, status: manual, priority: 3, max_items: 15}
 # --- official (额外 lab/厂商官博) ---
 # anthropic / mistral / ai2 现站无公开 RSS 端点(2026-06 探活全 404), 标 manual 待找
-- {name: anthropic, url: "https://www.anthropic.com/news/rss.xml", type: official, adapter: rss, status: manual, priority: 1}
-- {name: mistral, url: "https://mistral.ai/news/rss.xml", type: official, adapter: rss, status: manual, priority: 2}
-- {name: cohere, url: "https://cohere.com/blog/rss.xml", type: official, adapter: rss, status: manual, priority: 2}  # 返回 HTML 非 RSS, 2026-06 探活失败
-- {name: together-ai, url: "https://www.together.ai/blog/rss.xml", type: official, adapter: rss, status: working, priority: 2}
-- {name: ai2, url: "https://allenai.org/news.rss", type: official, adapter: rss, status: manual, priority: 2}
+- {name: anthropic, url: "https://www.anthropic.com/news/rss.xml", genre: announcement, publisher: lab, adapter: rss, status: manual, priority: 1}
+- {name: mistral, url: "https://mistral.ai/news/rss.xml", genre: announcement, publisher: lab, adapter: rss, status: manual, priority: 2}
+- {name: cohere, url: "https://cohere.com/blog/rss.xml", genre: announcement, publisher: lab, adapter: rss, status: manual, priority: 2}  # 返回 HTML 非 RSS, 2026-06 探活失败
+- {name: together-ai, url: "https://www.together.ai/blog/rss.xml", genre: announcement, publisher: company, adapter: rss, status: working, priority: 2}
+- {name: ai2, url: "https://allenai.org/news.rss", genre: announcement, publisher: lab, adapter: rss, status: manual, priority: 2}
 # --- tool (核心生态) ---
-- {name: langchain, url: "https://www.langchain.com/blog/rss.xml", type: tool, adapter: rss, status: working, priority: 2}  # 旧 blog.langchain.dev/rss/ 返回 HTML, 新 URL 有效
-- {name: llamaindex, url: "https://www.llamaindex.ai/blog?format=rss", type: tool, adapter: rss, status: manual, priority: 3}  # 全端点 404, 站无 RSS
-- {name: modal, url: "https://modal.com/blog/feed.xml", type: tool, adapter: rss, status: manual, priority: 3}   # 404, 站无 RSS
+- {name: langchain, url: "https://www.langchain.com/blog/rss.xml", genre: writeup, publisher: company, adapter: rss, status: working, priority: 2}  # 旧 blog.langchain.dev/rss/ 返回 HTML, 新 URL 有效
+- {name: llamaindex, url: "https://www.llamaindex.ai/blog?format=rss", genre: writeup, publisher: company, adapter: rss, status: manual, priority: 3}  # 全端点 404, 站无 RSS
+- {name: modal, url: "https://modal.com/blog/feed.xml", genre: writeup, publisher: company, adapter: rss, status: manual, priority: 3}   # 404, 站无 RSS
 # --- blog (AI 专精个人 / newsletter) ---
-- {name: sebastian-raschka, url: "https://magazine.sebastianraschka.com/feed", type: blog, adapter: rss, status: working, priority: 2}
-- {name: lilian-weng, url: "https://lilianweng.github.io/index.xml", type: blog, adapter: rss, status: working, priority: 2}
-- {name: eugene-yan, url: "https://eugeneyan.com/rss/", type: blog, adapter: rss, status: working, priority: 3}
-- {name: interconnects, url: "https://www.interconnects.ai/feed", type: blog, adapter: rss, status: working, priority: 2}
-- {name: import-ai, url: "https://importai.substack.com/feed", type: blog, adapter: rss, status: working, priority: 2}
+- {name: sebastian-raschka, url: "https://magazine.sebastianraschka.com/feed", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 2}
+- {name: lilian-weng, url: "https://lilianweng.github.io/index.xml", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 2}
+- {name: eugene-yan, url: "https://eugeneyan.com/rss/", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3}
+- {name: interconnects, url: "https://www.interconnects.ai/feed", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 2}
+- {name: import-ai, url: "https://importai.substack.com/feed", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 2}
 # (general HN-popularity blogs appended below as status: manual by scripts/opml_to_sources.py)
 
 # --- HN-popularity general blogs (manual, not run) ---
-- {name: hn-jeffgeerling-com, url: "https://www.jeffgeerling.com/blog.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-seangoedecke-com, url: "https://www.seangoedecke.com/rss.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-krebsonsecurity-com, url: "https://krebsonsecurity.com/feed/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-daringfireball-net, url: "https://daringfireball.net/feeds/main", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-ericmigi-com, url: "https://ericmigi.com/rss.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-antirez-com, url: "http://antirez.com/rss", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-idiallo-com, url: "https://idiallo.com/feed.rss", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-maurycyz-com, url: "https://maurycyz.com/index.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-pluralistic-net, url: "https://pluralistic.net/feed/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-shkspr-mobi, url: "https://shkspr.mobi/blog/feed/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-mitchellh-com, url: "https://mitchellh.com/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-dynomight-net, url: "https://dynomight.net/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-utcc-utoronto-ca-cks, url: "https://utcc.utoronto.ca/~cks/space/blog/?atom", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-xeiaso-net, url: "https://xeiaso.net/blog.rss", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-devblogs-microsoft-com-oldnewthing, url: "https://devblogs.microsoft.com/oldnewthing/feed", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-righto-com, url: "https://www.righto.com/feeds/posts/default", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-lucumr-pocoo-org, url: "https://lucumr.pocoo.org/feed.atom", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-skyfall-dev, url: "https://skyfall.dev/rss.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-rachelbythebay-com, url: "https://rachelbythebay.com/w/atom.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-overreacted-io, url: "https://overreacted.io/rss.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-timsh-org, url: "https://timsh.org/rss/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-johndcook-com, url: "https://www.johndcook.com/blog/feed/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-gilesthomas-com, url: "https://gilesthomas.com/feed/rss.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-matklad-github-io, url: "https://matklad.github.io/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-derekthompson-org, url: "https://www.theatlantic.com/feed/author/derek-thompson/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-evanhahn-com, url: "https://evanhahn.com/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-terriblesoftware-org, url: "https://terriblesoftware.org/feed/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-rakhim-exotext-com, url: "https://rakhim.exotext.com/rss.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-joanwestenberg-com, url: "https://joanwestenberg.com/rss", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-xania-org, url: "https://xania.org/feed", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-micahflee-com, url: "https://micahflee.com/feed/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-nesbitt-io, url: "https://nesbitt.io/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-construction-physics-com, url: "https://www.construction-physics.com/feed", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-tedium-co, url: "https://feed.tedium.co/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-susam-net, url: "https://susam.net/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-entropicthoughts-com, url: "https://entropicthoughts.com/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-buttondown-com-hillelwayne, url: "https://buttondown.com/hillelwayne/rss", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-borretti-me, url: "https://borretti.me/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-wheresyoured-at, url: "https://www.wheresyoured.at/rss/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-jayd-ml, url: "https://jayd.ml/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-paulgraham-com, url: "http://www.aaronsw.com/2002/feeds/pgessays.rss", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-filfre-net, url: "https://www.filfre.net/feed/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-blog-jim-nielsen-com, url: "https://blog.jim-nielsen.com/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-dfarq-homeip-net, url: "https://dfarq.homeip.net/feed/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-jyn-dev, url: "https://jyn.dev/atom.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-geoffreylitt-com, url: "https://www.geoffreylitt.com/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-downtowndougbrown-com, url: "https://www.downtowndougbrown.com/feed/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-brutecat-com, url: "https://brutecat.com/rss.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-eli-thegreenplace-net, url: "https://eli.thegreenplace.net/feeds/all.atom.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-abortretry-fail, url: "https://www.abortretry.fail/feed", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-fabiensanglard-net, url: "https://fabiensanglard.net/rss.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-oldvcr-blogspot-com, url: "https://oldvcr.blogspot.com/feeds/posts/default", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-bogdanthegeek-github-io, url: "https://bogdanthegeek.github.io/blog/index.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-hugotunius-se, url: "https://hugotunius.se/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-berthub-eu, url: "https://berthub.eu/articles/index.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-chadnauseam-com, url: "https://chadnauseam.com/rss.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-simone-org, url: "https://simone.org/feed/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-it-notes-dragas-net, url: "https://it-notes.dragas.net/feed/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-beej-us, url: "https://beej.us/blog/rss.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-hey-paris, url: "https://hey.paris/index.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-danielwirtz-com, url: "https://danielwirtz.com/rss.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-matduggan-com, url: "https://matduggan.com/rss/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-refactoringenglish-com, url: "https://refactoringenglish.com/index.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-worksonmymachine-substack-com, url: "https://worksonmymachine.substack.com/feed", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-philiplaine-com, url: "https://philiplaine.com/index.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-steveblank-com, url: "https://steveblank.com/feed/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-bernsteinbear-com, url: "https://bernsteinbear.com/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-danieldelaney-net, url: "https://danieldelaney.net/feed", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-troyhunt-com, url: "https://www.troyhunt.com/rss/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-herman-bearblog-dev, url: "https://herman.bearblog.dev/feed/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-tomrenner-com, url: "https://tomrenner.com/index.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-blog-pixelmelt-dev, url: "https://blog.pixelmelt.dev/rss/", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-martinalderson-com, url: "https://martinalderson.com/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-danielchasehooper-com, url: "https://danielchasehooper.com/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-chiark-greenend-org-uk-sgtatham, url: "https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-grantslatton-com, url: "https://grantslatton.com/rss.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-experimental-history-com, url: "https://www.experimental-history.com/feed", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-anildash-com, url: "https://anildash.com/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-aresluna-org, url: "https://aresluna.org/main.rss", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-michael-stapelberg-ch, url: "https://michael.stapelberg.ch/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-miguelgrinberg-com, url: "https://blog.miguelgrinberg.com/feed", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-keygen-sh, url: "https://keygen.sh/blog/feed.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-mjg59-dreamwidth-org, url: "https://mjg59.dreamwidth.org/data/rss", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-computer-rip, url: "https://computer.rip/rss.xml", type: blog, adapter: rss, status: manual, priority: 5}
-- {name: hn-tedunangst-com, url: "https://www.tedunangst.com/flak/rss", type: blog, adapter: rss, status: manual, priority: 5}
+- {name: hn-jeffgeerling-com, url: "https://www.jeffgeerling.com/blog.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-seangoedecke-com, url: "https://www.seangoedecke.com/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-krebsonsecurity-com, url: "https://krebsonsecurity.com/feed/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-daringfireball-net, url: "https://daringfireball.net/feeds/main", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-ericmigi-com, url: "https://ericmigi.com/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-antirez-com, url: "http://antirez.com/rss", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-idiallo-com, url: "https://idiallo.com/feed.rss", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-maurycyz-com, url: "https://maurycyz.com/index.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-pluralistic-net, url: "https://pluralistic.net/feed/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-shkspr-mobi, url: "https://shkspr.mobi/blog/feed/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-mitchellh-com, url: "https://mitchellh.com/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-dynomight-net, url: "https://dynomight.net/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-utcc-utoronto-ca-cks, url: "https://utcc.utoronto.ca/~cks/space/blog/?atom", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-xeiaso-net, url: "https://xeiaso.net/blog.rss", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-devblogs-microsoft-com-oldnewthing, url: "https://devblogs.microsoft.com/oldnewthing/feed", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-righto-com, url: "https://www.righto.com/feeds/posts/default", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-lucumr-pocoo-org, url: "https://lucumr.pocoo.org/feed.atom", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-skyfall-dev, url: "https://skyfall.dev/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-rachelbythebay-com, url: "https://rachelbythebay.com/w/atom.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-overreacted-io, url: "https://overreacted.io/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-timsh-org, url: "https://timsh.org/rss/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-johndcook-com, url: "https://www.johndcook.com/blog/feed/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-gilesthomas-com, url: "https://gilesthomas.com/feed/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-matklad-github-io, url: "https://matklad.github.io/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-derekthompson-org, url: "https://www.theatlantic.com/feed/author/derek-thompson/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-evanhahn-com, url: "https://evanhahn.com/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-terriblesoftware-org, url: "https://terriblesoftware.org/feed/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-rakhim-exotext-com, url: "https://rakhim.exotext.com/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-joanwestenberg-com, url: "https://joanwestenberg.com/rss", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-xania-org, url: "https://xania.org/feed", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-micahflee-com, url: "https://micahflee.com/feed/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-nesbitt-io, url: "https://nesbitt.io/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-construction-physics-com, url: "https://www.construction-physics.com/feed", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-tedium-co, url: "https://feed.tedium.co/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-susam-net, url: "https://susam.net/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-entropicthoughts-com, url: "https://entropicthoughts.com/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-buttondown-com-hillelwayne, url: "https://buttondown.com/hillelwayne/rss", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-borretti-me, url: "https://borretti.me/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-wheresyoured-at, url: "https://www.wheresyoured.at/rss/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-jayd-ml, url: "https://jayd.ml/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-paulgraham-com, url: "http://www.aaronsw.com/2002/feeds/pgessays.rss", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-filfre-net, url: "https://www.filfre.net/feed/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-blog-jim-nielsen-com, url: "https://blog.jim-nielsen.com/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-dfarq-homeip-net, url: "https://dfarq.homeip.net/feed/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-jyn-dev, url: "https://jyn.dev/atom.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-geoffreylitt-com, url: "https://www.geoffreylitt.com/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-downtowndougbrown-com, url: "https://www.downtowndougbrown.com/feed/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-brutecat-com, url: "https://brutecat.com/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-eli-thegreenplace-net, url: "https://eli.thegreenplace.net/feeds/all.atom.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-abortretry-fail, url: "https://www.abortretry.fail/feed", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-fabiensanglard-net, url: "https://fabiensanglard.net/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-oldvcr-blogspot-com, url: "https://oldvcr.blogspot.com/feeds/posts/default", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-bogdanthegeek-github-io, url: "https://bogdanthegeek.github.io/blog/index.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-hugotunius-se, url: "https://hugotunius.se/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-berthub-eu, url: "https://berthub.eu/articles/index.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-chadnauseam-com, url: "https://chadnauseam.com/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-simone-org, url: "https://simone.org/feed/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-it-notes-dragas-net, url: "https://it-notes.dragas.net/feed/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-beej-us, url: "https://beej.us/blog/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-hey-paris, url: "https://hey.paris/index.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-danielwirtz-com, url: "https://danielwirtz.com/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-matduggan-com, url: "https://matduggan.com/rss/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-refactoringenglish-com, url: "https://refactoringenglish.com/index.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-worksonmymachine-substack-com, url: "https://worksonmymachine.substack.com/feed", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-philiplaine-com, url: "https://philiplaine.com/index.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-steveblank-com, url: "https://steveblank.com/feed/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-bernsteinbear-com, url: "https://bernsteinbear.com/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-danieldelaney-net, url: "https://danieldelaney.net/feed", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-troyhunt-com, url: "https://www.troyhunt.com/rss/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-herman-bearblog-dev, url: "https://herman.bearblog.dev/feed/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-tomrenner-com, url: "https://tomrenner.com/index.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-blog-pixelmelt-dev, url: "https://blog.pixelmelt.dev/rss/", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-martinalderson-com, url: "https://martinalderson.com/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-danielchasehooper-com, url: "https://danielchasehooper.com/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-chiark-greenend-org-uk-sgtatham, url: "https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-grantslatton-com, url: "https://grantslatton.com/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-experimental-history-com, url: "https://www.experimental-history.com/feed", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-anildash-com, url: "https://anildash.com/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-aresluna-org, url: "https://aresluna.org/main.rss", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-michael-stapelberg-ch, url: "https://michael.stapelberg.ch/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-miguelgrinberg-com, url: "https://blog.miguelgrinberg.com/feed", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-keygen-sh, url: "https://keygen.sh/blog/feed.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-mjg59-dreamwidth-org, url: "https://mjg59.dreamwidth.org/data/rss", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-computer-rip, url: "https://computer.rip/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
+- {name: hn-tedunangst-com, url: "https://www.tedunangst.com/flak/rss", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}

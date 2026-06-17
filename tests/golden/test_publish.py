@@ -4,11 +4,12 @@ from pathlib import Path
 
 from src.core.types import (
     Evidence,
+    Genre,
     PublishConfig,
+    Publisher,
     ReviewedItem,
     ReviewResult,
     RunContext,
-    SourceType,
 )
 from src.pipeline.publish import (
     build_overview,
@@ -27,7 +28,8 @@ CFG = PublishConfig()
 
 def _ri(
     link="https://a/1",
-    source_type=SourceType.MODEL,
+    genre=Genre.model,
+    publisher=Publisher.company,
     score=80,
     title="中文标题",
     summary="中文摘要。",
@@ -44,7 +46,8 @@ def _ri(
         title_en="X released",
         link=link,
         source="src",
-        source_type=source_type,
+        genre=genre,
+        publisher=publisher,
         published_at=NOW,
         raw_summary="A.",
         cluster_id="evt-1",
@@ -87,13 +90,13 @@ def test_select_must_read_fewer_than_n():
 
 def test_group_by_category_order_and_grouping():
     items = [
-        _ri("https://a/1", source_type=SourceType.MODEL),
-        _ri("https://a/2", source_type=SourceType.PAPER),
-        _ri("https://a/3", source_type=SourceType.MODEL),
+        _ri("https://a/1", genre=Genre.model, publisher=Publisher.company),
+        _ri("https://a/2", genre=Genre.paper, publisher=Publisher.company),
+        _ri("https://a/3", genre=Genre.model, publisher=Publisher.company),
     ]
     cats = group_by_category(items, CFG)
     # type_labels 键序: official, paper, model... → paper 组在 model 组前
-    assert [c.source_type for c in cats] == ["paper", "model"]
+    assert [c.genre for c in cats] == ["paper", "model"]
     assert cats[0].label == "论文" and cats[1].label == "模型"
     # 空类目不产 section
     assert all(len(c.items) > 0 for c in cats)
@@ -105,25 +108,25 @@ def test_group_by_category_order_and_grouping():
 
 def test_group_by_category_unknown_type_last():
     items = [
-        _ri("https://a/1", source_type=SourceType.MODEL),
-        _ri("https://a/2", source_type=SourceType.BLOG),
+        _ri("https://a/1", genre=Genre.model, publisher=Publisher.company),
+        _ri("https://a/2", genre=Genre.writeup, publisher=Publisher.individual),
     ]
-    # 构造一个不在表里的类型测兜底
-    cfg = PublishConfig(type_labels={"model": "模型"})
+    # 构造一个不在表里的 genre 测兜底
+    cfg = PublishConfig(genre_labels={"model": "模型"})
     cats = group_by_category(items, cfg)
-    # model 在表里排前, blog 不在表里排末尾且 label 回退英文
-    assert [c.source_type for c in cats] == ["model", "blog"]
-    assert cats[1].label == "blog"
+    # model 在表里排前, writeup 不在表里排末尾且 label 回退英文
+    assert [c.genre for c in cats] == ["model", "writeup"]
+    assert cats[1].label == "writeup"
 
 
 def test_build_overview_distribution_and_keywords():
     items = [
-        _ri("https://a/1", source_type=SourceType.MODEL, tags=["#MoE", "#Agent"]),
-        _ri("https://a/2", source_type=SourceType.MODEL, tags=["#MoE", "#推理"]),
-        _ri("https://a/3", source_type=SourceType.PAPER, tags=["#MoE"]),
+        _ri("https://a/1", genre=Genre.model, publisher=Publisher.company, tags=["#MoE", "#Agent"]),
+        _ri("https://a/2", genre=Genre.model, publisher=Publisher.company, tags=["#MoE", "#推理"]),
+        _ri("https://a/3", genre=Genre.paper, publisher=Publisher.company, tags=["#MoE"]),
     ]
     ov = build_overview(items, CFG)
-    assert ov.type_distribution == {"paper": 1, "model": 2}
+    assert ov.genre_distribution == {"paper": 1, "model": 2}
     # MoE 频次最高在前; 去 # 前缀; 按频次降序、同频按首现序
     assert ov.keywords[0] == "MoE"
     assert set(ov.keywords) == {"MoE", "Agent", "推理"}
@@ -153,17 +156,23 @@ def _rr(items, daily_take="看点。", is_pending=False, is_silent=False):
 
 def test_build_report_assembles_blocks():
     items = [
-        _ri("https://a/1", source_type=SourceType.MODEL, eligible=True),
-        _ri("https://a/2", source_type=SourceType.PAPER, eligible=False, is_explore=True),
+        _ri("https://a/1", genre=Genre.model, publisher=Publisher.company, eligible=True),
+        _ri(
+            "https://a/2",
+            genre=Genre.paper,
+            publisher=Publisher.company,
+            eligible=False,
+            is_explore=True,
+        ),
     ]
     rep = build_report(_rr(items), "2026-05-30（周六）", CFG)
     assert rep.date_label == "2026-05-30（周六）"
     assert rep.item_count == 2 and rep.explore_count == 1
     assert [i.link for i in rep.must_read] == ["https://a/1"]
-    assert [c.source_type for c in rep.categories] == ["paper", "model"]
+    assert [c.genre for c in rep.categories] == ["paper", "model"]
     assert rep.is_pending is False
     # 必读子集: must_read 出现在其类型分组里
-    model_cat = [c for c in rep.categories if c.source_type == "model"][0]
+    model_cat = [c for c in rep.categories if c.genre == "model"][0]
     assert "https://a/1" in [i.link for i in model_cat.items]
     # 全量目录守恒
     assert sum(len(c.items) for c in rep.categories) == rep.item_count
@@ -173,7 +182,8 @@ def test_render_markdown_full():
     items = [
         _ri(
             "https://a/1",
-            source_type=SourceType.MODEL,
+            genre=Genre.model,
+            publisher=Publisher.company,
             title="GLM-5 发布",
             summary="开源 MoE。",
             tags=["#MoE"],
@@ -243,8 +253,8 @@ def test_publish_pending_propagates():
 
 def test_publish_deterministic():
     items = [
-        _ri("https://a/1", source_type=SourceType.MODEL),
-        _ri("https://a/2", source_type=SourceType.PAPER),
+        _ri("https://a/1", genre=Genre.model, publisher=Publisher.company),
+        _ri("https://a/2", genre=Genre.paper, publisher=Publisher.company),
     ]
     r1 = publish(_rr(items), "2026-05-30", CFG, _ctx())
     r2 = publish(_rr(items), "2026-05-30", CFG, _ctx())
@@ -259,7 +269,8 @@ def _snapshot_items():
     return [
         _ri(
             "https://a/1",
-            source_type=SourceType.MODEL,
+            genre=Genre.model,
+            publisher=Publisher.company,
             title="GLM-5 发布",
             summary="开源 MoE 旗舰。",
             takeaway="可自建推理。",
@@ -270,7 +281,8 @@ def _snapshot_items():
         ),
         _ri(
             "https://a/2",
-            source_type=SourceType.PAPER,
+            genre=Genre.paper,
+            publisher=Publisher.company,
             title="新论文",
             summary="一句话摘要。",
             score=82,
@@ -279,7 +291,8 @@ def _snapshot_items():
         ),
         _ri(
             "https://a/3",
-            source_type=SourceType.COMMUNITY,
+            genre=Genre.writeup,
+            publisher=Publisher.individual,
             title="社区热帖",
             summary="探索选题。",
             score=71,
@@ -306,8 +319,8 @@ def test_publish_markdown_snapshot():
 
 def test_front_matter_draft_true():
     items = [
-        _ri("https://a/1", source_type=SourceType.MODEL),
-        _ri("https://a/2", source_type=SourceType.PAPER),
+        _ri("https://a/1", genre=Genre.model, publisher=Publisher.company),
+        _ri("https://a/2", genre=Genre.paper, publisher=Publisher.company),
     ]
     rep = build_report(_rr(items, daily_take="今天有两条。"), "2026-05-30（周六）", CFG)
     fm = render_front_matter(rep, CFG, draft=True)
@@ -387,7 +400,8 @@ def test_categories_render_takeaway_when_present():
     items = [
         _ri(
             "https://a/1",
-            source_type=SourceType.MODEL,
+            genre=Genre.model,
+            publisher=Publisher.company,
             title="T",
             summary="S。",
             takeaway="可本地部署。",
@@ -403,7 +417,8 @@ def test_categories_skip_empty_takeaway():
     items = [
         _ri(
             "https://a/1",
-            source_type=SourceType.MODEL,
+            genre=Genre.model,
+            publisher=Publisher.company,
             title="T",
             summary="S。",
             takeaway="",

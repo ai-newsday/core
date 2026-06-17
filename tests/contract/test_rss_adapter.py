@@ -6,7 +6,7 @@ import pytest
 import respx
 
 from src.adapters.sources.rss import RSSAdapter
-from src.core.types import RawItem, RunContext, SourceSpec, SourceType
+from src.core.types import Genre, Publisher, RawItem, RunContext, SourceSpec
 
 
 def _ctx():
@@ -21,7 +21,8 @@ def _spec():
     return SourceSpec(
         name="openai",
         url="https://openai.com/news/rss.xml",
-        type=SourceType.OFFICIAL,
+        genre=Genre.announcement,
+        publisher=Publisher.lab,
         adapter="rss",
     )
 
@@ -36,7 +37,7 @@ async def test_rss_parses_and_drops_undated():
     assert isinstance(it, RawItem)
     assert it.title_en == "Introducing GPT-X"
     assert it.source == "openai"
-    assert it.source_type == SourceType.OFFICIAL
+    assert it.genre == Genre.announcement
     assert it.published_at.tzinfo is not None  # tz-aware (UTC)
     assert it.fetched_via == "native"
 

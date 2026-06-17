@@ -73,7 +73,7 @@ class InterpretResult:
 
 对每个 `ScoredItem`：
 
-1. `build_item_prompt(item, config)` —— 用 `src/prompts/interpret_item.md` 模板 + 注入 `title_en` / `raw_summary` / `source` / `source_type` / `link` / `related_links`。提示词要求 LLM **先抽取事实、再成文**（PRD §4.4 生成纪律），输出固定结构 JSON：`{title, summary, takeaway, hot_take, tags: [..], evidence: [{claim, anchor}, ..]}`。
+1. `build_item_prompt(item, config)` —— 用 `src/prompts/interpret_item.md` 模板 + 注入 `title_en` / `raw_summary` / `source` / `genre` / `link` / `related_links`。提示词要求 LLM **先抽取事实、再成文**（PRD §4.4 生成纪律），输出固定结构 JSON：`{title, summary, takeaway, hot_take, tags: [..], evidence: [{claim, anchor}, ..]}`。
 2. `raw = llm.complete_json(prompt, ...)` —— 唯一外部调用。
 3. `parse_and_validate(raw, config)` —— JSON 解析 + pydantic 校验字段类型/必填。
 4. `enforce_constraints(parsed, item, config)`（纯函数）：

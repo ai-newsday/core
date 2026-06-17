@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from src.core.types import InterpretConfig, RunContext, ScoredItem, SourceType
+from src.core.types import Genre, InterpretConfig, Publisher, RunContext, ScoredItem
 from src.pipeline.interpret import interpret
 from tests.fakes import FailingLLMProvider, FakeLLMProvider
 
@@ -18,7 +18,8 @@ def _scored(link, title_en="X released", score=80, related=None, raw="A summary.
         title_en=title_en,
         link=link,
         source="src",
-        source_type=SourceType.MODEL,
+        genre=Genre.model,
+        publisher=Publisher.company,
         published_at=NOW,
         raw_summary=raw,
         cluster_id="evt-1",

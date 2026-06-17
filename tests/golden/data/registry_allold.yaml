@@ -1,2 +1,2 @@
 # tests/golden/data/registry_allold.yaml
-- {name: openai, url: "https://openai.com/news/rss.xml", type: official, adapter: rss, status: working, priority: 2}
+- {name: openai, url: "https://openai.com/news/rss.xml", genre: announcement, publisher: lab, adapter: rss, status: working, priority: 2}

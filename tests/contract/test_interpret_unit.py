@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.core.types import InterpretConfig, ScoredItem, SourceType
+from src.core.types import Genre, InterpretConfig, Publisher, ScoredItem
 from src.pipeline.interpret import (
     build_item_prompt,
     build_ok_item,
@@ -19,7 +19,8 @@ def _scored(**over):
         title_en="GLM-5 released",
         link="https://hf.co/glm5",
         source="Hugging Face",
-        source_type=SourceType.MODEL,
+        genre=Genre.model,
+        publisher=Publisher.company,
         published_at=NOW,
         raw_summary="MoE open weights model.",
         cluster_id="evt-1",
@@ -33,7 +34,7 @@ def _scored(**over):
 
 
 def test_build_item_prompt_substitutes_double_brace_placeholders():
-    tpl = "T={{title_en}} L={{link}} R={{related_links}} S={{raw_summary}} ST={{source_type}}"
+    tpl = "T={{title_en}} L={{link}} R={{related_links}} S={{raw_summary}} ST={{genre}}"
     out = build_item_prompt(_scored(), tpl)
     assert "T=GLM-5 released" in out
     assert "L=https://hf.co/glm5" in out

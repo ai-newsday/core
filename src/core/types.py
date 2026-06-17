@@ -9,21 +9,27 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 
-class SourceType(str, Enum):
-    PAPER = "paper"
-    MODEL = "model"
-    TOOL = "tool"
-    COMMUNITY = "community"
-    OFFICIAL = "official"
-    NEWS = "news"
-    BLOG = "blog"
+class Genre(str, Enum):
+    paper = "paper"
+    model = "model"
+    announcement = "announcement"
+    writeup = "writeup"
+    news = "news"
+
+
+class Publisher(str, Enum):
+    lab = "lab"
+    company = "company"
+    individual = "individual"
+    media = "media"
 
 
 class RawItem(BaseModel):
     title_en: str = Field(min_length=1)
     link: str = Field(min_length=1)
     source: str = Field(min_length=1)
-    source_type: SourceType
+    genre: Genre
+    publisher: Publisher
     published_at: datetime  # MUST be tz-aware
     raw_summary: str | None = None
     image_url: str | None = None
@@ -51,7 +57,8 @@ class SourceReport(BaseModel):
 class SourceSpec(BaseModel):
     name: str
     url: str
-    type: SourceType
+    genre: Genre
+    publisher: Publisher
     adapter: Literal["rss", "hf_papers", "hf_models"]
     status: Literal["working", "manual", "failed"] = "working"
     priority: int = 3
@@ -95,8 +102,8 @@ class DedupConfig:
     similarity_threshold: float = 0.83
     embedding_model: str = "Qwen/Qwen3-Embedding-8B"
     batch_size: int = 32
-    source_type_rank: list[str] = field(
-        default_factory=lambda: ["official", "paper", "model", "tool", "news", "community", "blog"]
+    genre_rank: list[str] = field(
+        default_factory=lambda: ["paper", "model", "announcement", "writeup", "news"]
     )
     sources_registry_path: str = "config/sources.yaml"
 
@@ -128,40 +135,17 @@ class ScoredItem(NewsItem):
 
 @dataclass
 class ScoringConfig:
-    dimension_scores: dict[str, dict[str, float]] = field(
+    genre_value: dict[str, dict[str, float]] = field(
         default_factory=lambda: {
-            "official": {
-                "机构影响力": 18,
-                "一手性": 20,
-                "技术价值": 10,
-                "产业影响": 12,
-                "扩散潜力": 9,
-            },
-            "paper": {"机构影响力": 14, "一手性": 20, "技术价值": 16, "产业影响": 8, "扩散潜力": 7},
-            "model": {
-                "机构影响力": 15,
-                "一手性": 18,
-                "技术价值": 14,
-                "产业影响": 10,
-                "扩散潜力": 9,
-            },
-            "tool": {
-                "机构影响力": 10,
-                "一手性": 14,
-                "技术价值": 12,
-                "产业影响": 10,
-                "扩散潜力": 10,
-            },
-            "news": {"机构影响力": 12, "一手性": 8, "技术价值": 6, "产业影响": 12, "扩散潜力": 11},
-            "community": {
-                "机构影响力": 6,
-                "一手性": 10,
-                "技术价值": 8,
-                "产业影响": 6,
-                "扩散潜力": 12,
-            },
-            "blog": {"机构影响力": 6, "一手性": 8, "技术价值": 8, "产业影响": 6, "扩散潜力": 8},
+            "paper": {"一手性": 20, "技术价值": 16, "产业影响": 8, "扩散潜力": 7},
+            "model": {"一手性": 18, "技术价值": 14, "产业影响": 10, "扩散潜力": 9},
+            "announcement": {"一手性": 20, "技术价值": 10, "产业影响": 12, "扩散潜力": 9},
+            "writeup": {"一手性": 12, "技术价值": 12, "产业影响": 8, "扩散潜力": 9},
+            "news": {"一手性": 8, "技术价值": 6, "产业影响": 12, "扩散潜力": 11},
         }
+    )
+    publisher_authority: dict[str, float] = field(
+        default_factory=lambda: {"lab": 18, "company": 14, "individual": 8, "media": 12}
     )
     priority_bonus: dict[int, int] = field(default_factory=lambda: {1: 6, 2: 3, 3: 0, 4: -2, 5: -4})
     priority_bonus_default: int = 0
@@ -179,12 +163,10 @@ class ScoringConfig:
     quota: dict[str, int] = field(
         default_factory=lambda: {
             "paper": 2,
+            "announcement": 2,
+            "writeup": 2,
             "model": 1,
-            "tool": 2,
-            "official": 1,
-            "community": 1,
             "news": 1,
-            "blog": 0,
         }
     )
     total_limit: int = 8
@@ -195,7 +177,7 @@ class ScoringConfig:
 
 @dataclass
 class QuotaLine:
-    source_type: str
+    genre: str
     available: int
     quota: int
     selected: int
@@ -326,12 +308,12 @@ class ReviewResult:
 
 # --- publish layer (Circle 6) ---
 class Overview(BaseModel):
-    type_distribution: dict[str, int] = Field(default_factory=dict)
+    genre_distribution: dict[str, int] = Field(default_factory=dict)
     keywords: list[str] = Field(default_factory=list)
 
 
 class CategorySection(BaseModel):
-    source_type: str
+    genre: str
     label: str
     items: list[ReviewedItem] = Field(default_factory=list)
 
@@ -352,15 +334,13 @@ class PublishConfig:
     must_read_count: int = 3
     top_keywords: int = 4
     pending_watermark: str = "⚠ 未审草稿（待人工定稿，勿直接发布）"
-    type_labels: dict[str, str] = field(
+    genre_labels: dict[str, str] = field(
         default_factory=lambda: {
-            "official": "官方",
             "paper": "论文",
             "model": "模型",
-            "tool": "工具 / 开源",
+            "announcement": "官方",
+            "writeup": "博客 / 工具",
             "news": "新闻",
-            "community": "社区",
-            "blog": "博客",
         }
     )
 
@@ -397,8 +377,8 @@ class EnrichConfig:
     enabled: bool = True
     concurrency: int = 5
     timeout_s: int = 8
-    # 已经带原生 popularity 信号的源类型不查 HN (省请求, 不覆盖)
-    skip_source_types: list[str] = field(default_factory=lambda: ["paper", "model"])
+    # 已经带原生 popularity 信号的 genre 不查 HN (省请求, 不覆盖)
+    skip_genres: list[str] = field(default_factory=lambda: ["paper", "model"])
 
 
 @dataclass

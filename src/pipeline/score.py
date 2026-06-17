@@ -114,7 +114,8 @@ def compute_scores(
     penalty_of = _same_source_penalty(items, config)
     scored: list[ScoredItem] = []
     for it in items:
-        dims = config.dimension_scores.get(it.source_type.value, {})
+        gdims = config.genre_value.get(it.genre.value, {})
+        authority = config.publisher_authority.get(it.publisher.value, 0.0)
         prio = priority_of.get(it.source)
         prio_bonus = (
             config.priority_bonus.get(prio, config.priority_bonus_default)
@@ -123,14 +124,14 @@ def compute_scores(
         )
         qw = (quality_of or {}).get(it.source, 1.0)
         breakdown = {
-            "机构影响力": round((float(dims.get("机构影响力", 0)) + float(prio_bonus)) * qw, 4),
+            "机构影响力": round((float(authority) + float(prio_bonus)) * qw, 4),
             "可见指标": round(_visibility(it, config), 4),
             "时效": recency_band(it.published_at, ctx.now, config),
             "惩罚": penalty_of[it.link],
             "读者相关度": _topic_relevance(it, config),
         }
         for k in _MATRIX_DIMS:
-            breakdown[k] = float(dims.get(k, 0))
+            breakdown[k] = float(gdims.get(k, 0))
         # normalize key order to the fixed PRD set
         breakdown = {k: breakdown[k] for k in DIMENSION_KEYS}
         raw = round(sum(breakdown.values()))
@@ -147,20 +148,18 @@ def apply_quota(
 ) -> tuple[list[ScoredItem], dict[str, QuotaLine]]:
     """Strict per-type quota selection (spec §5.4). No cross-type fill.
     `scored` is assumed sorted (compute_scores output) but we re-sort defensively."""
-    by_type: dict[str, list[ScoredItem]] = defaultdict(list)
+    by_genre: dict[str, list[ScoredItem]] = defaultdict(list)
     for s in scored:
-        by_type[s.source_type.value].append(s)
+        by_genre[s.genre.value].append(s)
 
     selected: list[ScoredItem] = []
     report: dict[str, QuotaLine] = {}
-    for stype, group in by_type.items():
+    for g, group in by_genre.items():
         group_sorted = sorted(group, key=lambda s: (-s.score, s.published_at, s.link))
-        q = config.quota.get(stype, 0)
+        q = config.quota.get(g, 0)
         take = group_sorted[:q]
         selected.extend(take)
-        report[stype] = QuotaLine(
-            source_type=stype, available=len(group), quota=q, selected=len(take)
-        )
+        report[g] = QuotaLine(genre=g, available=len(group), quota=q, selected=len(take))
 
     selected.sort(key=lambda s: (-s.score, s.published_at, s.link))
     if len(selected) > config.total_limit:
@@ -191,22 +190,20 @@ def score(
     priority_of = load_source_priorities(config.sources_registry_path)
     scored = compute_scores(items, priority_of, config, ctx, quality_of=quality_of)
     for s in scored:
-        emit(ctx.logger, "item_scored", link=s.link, source_type=s.source_type.value, score=s.score)
+        emit(ctx.logger, "item_scored", link=s.link, genre=s.genre.value, score=s.score)
 
     selected, report = apply_quota(scored, config)
-    for stype, line in report.items():
+    for g, line in report.items():
         emit(
             ctx.logger,
             "quota_applied",
-            source_type=stype,
+            genre=g,
             available=line.available,
             quota=line.quota,
             selected=line.selected,
         )
     for s in selected:
-        emit(
-            ctx.logger, "item_selected", link=s.link, source_type=s.source_type.value, score=s.score
-        )
+        emit(ctx.logger, "item_selected", link=s.link, genre=s.genre.value, score=s.score)
 
     result = ScoreResult(
         selected_items=selected,
