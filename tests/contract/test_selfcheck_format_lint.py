@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from src.core.types import Evidence, InterpretedItem, SelfCheckConfig, SourceType
+from src.core.types import Evidence, Genre, InterpretedItem, Publisher, SelfCheckConfig
 from src.pipeline.selfcheck import format_lint
 
 NOW = datetime(2026, 6, 16, tzinfo=timezone.utc)
@@ -11,7 +11,8 @@ def _item(**over):
         title_en="X",
         link="https://a/1",
         source="s",
-        source_type=SourceType.MODEL,
+        genre=Genre.model,
+        publisher=Publisher.company,
         published_at=NOW,
         raw_summary="r",
         cluster_id="c",

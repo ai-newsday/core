@@ -67,7 +67,7 @@ def test_enrich_no_match_no_signals():
     assert out[0].signals == {}  # 没匹配, 不注入 hn_* (不污染)
 
 
-def test_enrich_skips_by_source_type():
+def test_enrich_skips_by_genre():
     items = [
         _item("https://p/1", genre=Genre.paper, publisher=Publisher.company),
         _item("https://m/1", genre=Genre.model, publisher=Publisher.company),
