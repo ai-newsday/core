@@ -4,18 +4,19 @@
 import logging
 from datetime import datetime, timezone
 
-from src.core.types import NewsItem, RunContext, ScoringConfig, SourceType
+from src.core.types import NewsItem, RunContext, ScoringConfig, Genre, Publisher
+from tests.fakes import DEFAULT_PUBLISHER
 from src.pipeline.score import compute_scores
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
 
-def _it(link, source="src", st=SourceType.PAPER, signals=None):
+def _it(link, source="src", st=Genre.paper, signals=None):
     return NewsItem(
         title_en="X",
         link=link,
         source=source,
-        source_type=st,
+        genre=st, publisher=DEFAULT_PUBLISHER[st],
         published_at=NOW,
         cluster_id="c1",
         related_links=[],

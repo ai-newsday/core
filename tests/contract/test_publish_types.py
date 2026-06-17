@@ -6,22 +6,22 @@ from src.core.types import (
     Evidence,
     Overview,
     PublishConfig,
+    Genre,
+    Publisher,
     PublishResult,
     ReviewedItem,
-    SourceType,
 )
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
 
-def _ri(
-    link="https://a/1", source_type=SourceType.MODEL, score=80, eligible=True, is_explore=False
-):
+def _ri(link="https://a/1", genre=Genre.model, score=80, eligible=True, is_explore=False):
     return ReviewedItem(
         title_en="X released",
         link=link,
         source="src",
-        source_type=source_type,
+        genre=genre,
+        publisher=Publisher.company,
         published_at=NOW,
         raw_summary="A.",
         cluster_id="evt-1",
@@ -44,14 +44,14 @@ def _ri(
 
 
 def test_overview_shape():
-    o = Overview(type_distribution={"model": 2}, keywords=["MoE", "Agent"])
-    assert o.type_distribution == {"model": 2}
+    o = Overview(genre_distribution={"model": 2}, keywords=["MoE", "Agent"])
+    assert o.genre_distribution == {"model": 2}
     assert o.keywords == ["MoE", "Agent"]
 
 
 def test_category_section_shape():
-    c = CategorySection(source_type="model", label="模型", items=[_ri()])
-    assert c.source_type == "model" and c.label == "模型"
+    c = CategorySection(genre="model", label="模型", items=[_ri()])
+    assert c.genre == "model" and c.label == "模型"
     assert len(c.items) == 1 and c.items[0].score == 80
 
 
@@ -60,8 +60,8 @@ def test_daily_report_shape():
         date_label="2026-05-30（周六）",
         daily_take="看点。",
         must_read=[_ri()],
-        categories=[CategorySection(source_type="model", label="模型", items=[_ri()])],
-        overview=Overview(type_distribution={"model": 1}, keywords=["a"]),
+        categories=[CategorySection(genre="model", label="模型", items=[_ri()])],
+        overview=Overview(genre_distribution={"model": 1}, keywords=["a"]),
         is_pending=False,
         item_count=1,
         explore_count=0,
@@ -78,7 +78,7 @@ def test_daily_report_daily_take_optional():
         daily_take=None,
         must_read=[],
         categories=[],
-        overview=Overview(type_distribution={}, keywords=[]),
+        overview=Overview(genre_distribution={}, keywords=[]),
         is_pending=True,
         item_count=0,
         explore_count=0,
@@ -90,9 +90,9 @@ def test_publish_config_defaults():
     c = PublishConfig()
     assert c.must_read_count == 3 and c.top_keywords == 4
     assert "未审" in c.pending_watermark
-    assert c.type_labels["model"] == "模型"
-    # type_labels 键顺序即组间顺序
-    assert list(c.type_labels)[0] == "official"
+    assert c.genre_labels["model"] == "模型"
+    # genre_labels 键顺序即组间顺序
+    assert list(c.genre_labels)[0] == "paper"
 
 
 def test_publish_result_shape():
@@ -102,7 +102,7 @@ def test_publish_result_shape():
             daily_take=None,
             must_read=[],
             categories=[],
-            overview=Overview(type_distribution={}, keywords=[]),
+            overview=Overview(genre_distribution={}, keywords=[]),
             is_pending=True,
             item_count=0,
             explore_count=0,

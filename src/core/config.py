@@ -30,7 +30,7 @@ def load_dedup_config(path: str) -> DedupConfig:
         similarity_threshold=data.get("similarity_threshold", defaults.similarity_threshold),
         embedding_model=data.get("embedding_model", defaults.embedding_model),
         batch_size=data.get("batch_size", defaults.batch_size),
-        source_type_rank=data.get("source_type_rank", defaults.source_type_rank),
+        genre_rank=data.get("genre_rank", defaults.genre_rank),
         sources_registry_path=data.get("sources_registry_path", defaults.sources_registry_path),
     )
 
@@ -47,7 +47,8 @@ def load_scoring_config(path: str) -> ScoringConfig:
     recency = data.get("recency", {})
     penalty = data.get("penalty", {})
     return ScoringConfig(
-        dimension_scores=data.get("dimension_scores", d.dimension_scores),
+        genre_value=data.get("genre_value", d.genre_value),
+        publisher_authority=data.get("publisher_authority", d.publisher_authority),
         priority_bonus=data.get("priority_bonus", d.priority_bonus),
         priority_bonus_default=data.get("priority_bonus_default", d.priority_bonus_default),
         fresh_hours=recency.get("fresh_hours", d.fresh_hours),
@@ -133,7 +134,7 @@ def load_publish_config(path: str) -> PublishConfig:
         must_read_count=data.get("must_read_count", d.must_read_count),
         top_keywords=data.get("top_keywords", d.top_keywords),
         pending_watermark=data.get("pending_watermark", d.pending_watermark),
-        type_labels=data.get("type_labels", d.type_labels),
+        genre_labels=data.get("genre_labels", d.genre_labels),
     )
 
 
@@ -149,7 +150,7 @@ def load_enrich_config(path: str) -> EnrichConfig:
         enabled=data.get("enabled", d.enabled),
         concurrency=data.get("concurrency", d.concurrency),
         timeout_s=data.get("timeout_s", d.timeout_s),
-        skip_source_types=data.get("skip_source_types", d.skip_source_types),
+        skip_genres=data.get("skip_genres", d.skip_genres),
     )
 
 

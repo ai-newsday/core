@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import pytest
 
 from src.adapters.vectorstore.memory import InMemoryVectorStore
-from src.core.types import DedupConfig, RawItem, RunContext, SourceType
+from src.core.types import DedupConfig, RawItem, RunContext, Genre, Publisher
 from src.pipeline.dedup import build_embed_text, dedup
 from tests.fakes import FakeEmbeddingProvider, MisalignedEmbeddingProvider
 
@@ -21,7 +21,7 @@ def _item(title, link):
         title_en=title,
         link=link,
         source="openai",
-        source_type=SourceType.OFFICIAL,
+        genre=Genre.announcement, publisher=Publisher.lab,
         published_at=NOW,
     )
 

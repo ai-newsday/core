@@ -9,10 +9,10 @@ from src.core.types import (
     Cluster,
     DedupConfig,
     DedupResult,
+    Genre,
     NewsItem,
     RawItem,
     RunContext,
-    SourceType,
 )
 from src.observability.events import emit
 
@@ -37,11 +37,11 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return float(np.dot(va, vb) / (na * nb))
 
 
-def _rank_index(source_type: SourceType, order: list[str]) -> int:
+def _rank_index(genre: Genre, order: list[str]) -> int:
     try:
-        return order.index(source_type.value)
+        return order.index(genre.value)
     except ValueError:
-        return len(order)  # unknown types sort last
+        return len(order)  # unknown genres sort last
 
 
 def cluster(
@@ -57,7 +57,7 @@ def cluster(
     indexed = [(it, vectors[i], embedding_id(it.link)) for i, it in enumerate(items)]
     indexed.sort(
         key=lambda t: (
-            _rank_index(t[0].source_type, config.source_type_rank),
+            _rank_index(t[0].genre, config.genre_rank),
             priority_of.get(t[0].source, 3),
             t[0].published_at,
         )

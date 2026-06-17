@@ -33,7 +33,20 @@ def test_loads_and_flattens_nested_recency_and_penalty(tmp_path):
     assert c.quota == {"paper": 1, "model": 1}
     assert c.total_limit == 5
     # untouched keys keep defaults
-    assert c.dimension_scores["official"]["一手性"] == 20
+    assert c.genre_value["paper"]["一手性"] == 20
+    assert c.publisher_authority["lab"] == 18
+
+
+def test_load_scoring_config_reads_genre_and_publisher(tmp_path):
+    p = tmp_path / "scoring.yaml"
+    p.write_text(
+        "genre_value: {paper: {一手性: 20}}\npublisher_authority: {lab: 18}\nquota: {paper: 2}\n",
+        encoding="utf-8",
+    )
+    c = load_scoring_config(str(p))
+    assert c.genre_value["paper"]["一手性"] == 20
+    assert c.publisher_authority["lab"] == 18
+    assert c.quota == {"paper": 2}
 
 
 def test_repo_default_config_is_consistent():

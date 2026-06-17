@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from src.core.types import EnrichConfig, RawItem, RunContext, SourceType
+from src.core.types import EnrichConfig, RawItem, RunContext, Genre, Publisher
 from src.pipeline.enrich import enrich_with_hn
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
@@ -22,12 +22,12 @@ class FakeHNClient:
         return self._map.get(url, [])
 
 
-def _item(link, source="src", source_type=SourceType.BLOG, signals=None):
+def _item(link, source="src", genre=Genre.writeup, publisher=Publisher.individual, signals=None):
     return RawItem(
         title_en="X",
         link=link,
         source=source,
-        source_type=source_type,
+        genre=genre, publisher=publisher,
         published_at=NOW,
         signals=signals or {},
     )
@@ -68,9 +68,9 @@ def test_enrich_no_match_no_signals():
 
 def test_enrich_skips_by_source_type():
     items = [
-        _item("https://p/1", source_type=SourceType.PAPER),
-        _item("https://m/1", source_type=SourceType.MODEL),
-        _item("https://b/1", source_type=SourceType.BLOG),
+        _item("https://p/1", genre=Genre.paper, publisher=Publisher.company),
+        _item("https://m/1", genre=Genre.model, publisher=Publisher.company),
+        _item("https://b/1", genre=Genre.writeup, publisher=Publisher.individual),
     ]
     client = FakeHNClient(
         {
@@ -79,7 +79,7 @@ def test_enrich_skips_by_source_type():
             "https://b/1": [{"points": 99, "num_comments": 1, "objectID": "3"}],
         }
     )
-    cfg = EnrichConfig(skip_source_types=["paper", "model"])
+    cfg = EnrichConfig(skip_genres=["paper", "model"])
     out = asyncio.run(enrich_with_hn(items, client, cfg, _ctx()))
     by_link = {i.link: i for i in out}
     # 跳过 paper/model: 不调 HN, 不注入
@@ -96,12 +96,12 @@ def test_enrich_skips_items_already_having_popularity():
         _item(
             "https://hf/p/1",
             source="hf-papers",
-            source_type=SourceType.PAPER,
+            genre=Genre.paper, publisher=Publisher.company,
             signals={"upvotes": 88},
         )
     ]
     client = FakeHNClient({"https://hf/p/1": [{"points": 99, "num_comments": 1, "objectID": "1"}]})
-    cfg = EnrichConfig(skip_source_types=[])  # 不靠类型跳, 靠已有信号跳
+    cfg = EnrichConfig(skip_genres=[])  # 不靠类型跳, 靠已有信号跳
     out = asyncio.run(enrich_with_hn(items, client, cfg, _ctx()))
     # 不覆盖 upvotes, 也不重复查
     assert out[0].signals["upvotes"] == 88

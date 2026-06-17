@@ -23,13 +23,13 @@ def select_must_read(items: list[ReviewedItem], config: PublishConfig) -> list[R
 
 
 def group_by_category(items: list[ReviewedItem], config: PublishConfig) -> list[CategorySection]:
-    """按 source_type 分组; 组间按 type_labels 键序(不在表里的排末尾);
+    """按 genre 分组; 组间按 genre_labels 键序(不在表里的排末尾);
     组内保上游序; 空类目不产 section。"""
-    order = list(config.type_labels)
+    order = list(config.genre_labels)
     seen: list[str] = []
     buckets: dict[str, list[ReviewedItem]] = {}
     for it in items:
-        st = it.source_type.value
+        st = it.genre.value
         if st not in buckets:
             buckets[st] = []
             seen.append(st)
@@ -41,15 +41,15 @@ def group_by_category(items: list[ReviewedItem], config: PublishConfig) -> list[
     out: list[CategorySection] = []
     for st in sorted(seen, key=rank):
         out.append(
-            CategorySection(source_type=st, label=config.type_labels.get(st, st), items=buckets[st])
+            CategorySection(genre=st, label=config.genre_labels.get(st, st), items=buckets[st])
         )
     return out
 
 
 def build_overview(items: list[ReviewedItem], config: PublishConfig) -> Overview:
-    """类型分布计数(按 type_labels 键序) + 高频关键词(聚合 tags 去 # 取 Top N)。"""
-    order = list(config.type_labels)
-    counts = Counter(it.source_type.value for it in items)
+    """genre 分布计数(按 genre_labels 键序) + 高频关键词(聚合 tags 去 # 取 Top N)。"""
+    order = list(config.genre_labels)
+    counts = Counter(it.genre.value for it in items)
     dist = {st: counts[st] for st in order if counts.get(st)}
     for st in counts:  # 不在表里的类型补在后面
         if st not in dist:
@@ -68,7 +68,7 @@ def build_overview(items: list[ReviewedItem], config: PublishConfig) -> Overview
                 seq += 1
             freq[kw] += 1
     ranked = sorted(freq, key=lambda k: (-freq[k], first_seen[k]))
-    return Overview(type_distribution=dist, keywords=ranked[: config.top_keywords])
+    return Overview(genre_distribution=dist, keywords=ranked[: config.top_keywords])
 
 
 def build_report(
@@ -91,7 +91,7 @@ def build_report(
 def _render_must_read(report: DailyReport, label_of: dict[str, str]) -> list[str]:
     lines = ["## 🏆 今日必读", ""]
     for i, it in enumerate(report.must_read, 1):
-        label = label_of.get(it.source_type.value, it.source_type.value)
+        label = label_of.get(it.genre.value, it.genre.value)
         lines.append(f"### {i}. [{label}] {it.title}（{it.title_en}）")
         lines.append(f"- **一句话**：{it.summary}")
         lines.append(f"- **对你**：{it.takeaway}")
@@ -122,7 +122,7 @@ def _render_categories(report: DailyReport) -> list[str]:
 def _render_overview(report: DailyReport, label_of: dict[str, str]) -> list[str]:
     lines = ["## 📊 数据概览"]
     dist = "｜".join(
-        f"{label_of.get(st, st)} {n}" for st, n in report.overview.type_distribution.items()
+        f"{label_of.get(st, st)} {n}" for st, n in report.overview.genre_distribution.items()
     )
     lines.append(f"- 分类分布：{dist}")
     if report.overview.keywords:
@@ -143,7 +143,7 @@ def _yaml_quote(s: str) -> str:
 
 def render_front_matter(report: DailyReport, config: PublishConfig, draft: bool) -> str:
     """Hugo front matter(确定性, 无 now)。date 取 date_label 的 YYYY-MM-DD 前缀,
-    固定东八区 08:00。tags = categories 的 label(已去重 + type_labels 序)。"""
+    固定东八区 08:00。tags = categories 的 label(已去重 + genre_labels 序)。"""
     m = re.match(r"\d{4}-\d{2}-\d{2}", report.date_label)
     iso_date = m.group(0) if m else report.date_label
     tags = ", ".join(_yaml_quote(c.label) for c in report.categories)
@@ -169,7 +169,7 @@ def flip_draft(text: str) -> str:
 
 def render_markdown(report: DailyReport, config: PublishConfig) -> str:
     """把 DailyReport 渲染成 Markdown(确定性, 无 now)。"""
-    label_of = config.type_labels
+    label_of = config.genre_labels
     lines: list[str] = [f"# AI Daily · {report.date_label}", ""]
     if report.is_pending:
         lines.append(f"> {config.pending_watermark}")

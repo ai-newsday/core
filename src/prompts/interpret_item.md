@@ -14,7 +14,7 @@
 
 条目信息：
 - 英文标题: {{title_en}}
-- 来源: {{source}}（类型 {{source_type}}）
+- 来源: {{source}}（类型 {{genre}}）
 - 主链接: {{link}}
 - 相关链接:
 {{related_links}}

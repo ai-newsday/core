@@ -10,12 +10,12 @@ def test_load_enrich_config_missing_returns_defaults(tmp_path):
 def test_load_enrich_config_overrides(tmp_path):
     p = tmp_path / "enrich.yaml"
     p.write_text(
-        "enabled: false\nconcurrency: 3\ntimeout_s: 5\nskip_source_types: [paper, model]\n",
+        "enabled: false\nconcurrency: 3\ntimeout_s: 5\nskip_genres: [paper, model]\n",
         encoding="utf-8",
     )
     cfg = load_enrich_config(str(p))
     assert cfg.enabled is False and cfg.concurrency == 3 and cfg.timeout_s == 5
-    assert cfg.skip_source_types == ["paper", "model"]
+    assert cfg.skip_genres == ["paper", "model"]
 
 
 def test_enrich_config_defaults_shape():
@@ -23,4 +23,4 @@ def test_enrich_config_defaults_shape():
     assert c.enabled is True
     assert c.concurrency >= 1
     assert c.timeout_s > 0
-    assert "paper" in c.skip_source_types or "model" in c.skip_source_types
+    assert "paper" in c.skip_genres or "model" in c.skip_genres

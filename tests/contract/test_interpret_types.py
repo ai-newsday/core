@@ -6,7 +6,7 @@ from src.core.types import (
     InterpretedItem,
     InterpretResult,
     ScoredItem,
-    SourceType,
+    Genre, Publisher,
 )
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
@@ -17,7 +17,7 @@ def _scored(**over):
         title_en="GLM-5 released",
         link="https://hf.co/glm5",
         source="Hugging Face",
-        source_type=SourceType.MODEL,
+        genre=Genre.model, publisher=Publisher.company,
         published_at=NOW,
         raw_summary="MoE open weights model.",
         cluster_id="evt-1",

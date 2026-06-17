@@ -1,7 +1,8 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from src.core.types import NewsItem, RunContext, ScoringConfig, SourceType
+from src.core.types import NewsItem, RunContext, ScoringConfig, Genre, Publisher
+from tests.fakes import DEFAULT_PUBLISHER
 from src.pipeline.score import _topic_relevance, apply_quota, compute_scores, recency_band
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
@@ -16,7 +17,7 @@ def _ni(title, link, source, st, published=NOW):
         title_en=title,
         link=link,
         source=source,
-        source_type=st,
+        genre=st, publisher=DEFAULT_PUBLISHER[st],
         published_at=published,
         cluster_id="evt-x",
     )
@@ -31,7 +32,7 @@ def test_recency_band_four_zones():
 
 
 def test_compute_scores_breakdown_has_nine_keys_and_sums_to_score():
-    items = [_ni("A", "https://a/1", "openai", SourceType.OFFICIAL)]
+    items = [_ni("A", "https://a/1", "openai", Genre.announcement)]
     scored = compute_scores(items, {"openai": 1}, ScoringConfig(), _ctx())
     bd = scored[0].score_breakdown
     assert set(bd) == {
@@ -53,7 +54,7 @@ def test_compute_scores_breakdown_has_nine_keys_and_sums_to_score():
 
 
 def test_compute_scores_missing_priority_uses_default():
-    items = [_ni("A", "https://a/1", "unknown-src", SourceType.PAPER)]
+    items = [_ni("A", "https://a/1", "unknown-src", Genre.paper)]
     scored = compute_scores(items, {}, ScoringConfig(), _ctx())  # source not in map
     # priority_bonus_default == 0 -> 机构影响力 == paper base 14 + 0
     assert scored[0].score_breakdown["机构影响力"] == 14
@@ -64,9 +65,9 @@ def test_same_source_penalty_tiebreak_prefers_more_popular():
     to the most-upvoted/popular item, not the lexically-smallest link."""
     cfg = ScoringConfig(popularity_weights={"upvotes": 0.6})
     items = [
-        _ni("low-up", "https://hf/a", "hf-papers", SourceType.PAPER),
-        _ni("high-up", "https://hf/b", "hf-papers", SourceType.PAPER),
-        _ni("mid-up", "https://hf/c", "hf-papers", SourceType.PAPER),
+        _ni("low-up", "https://hf/a", "hf-papers", Genre.paper),
+        _ni("high-up", "https://hf/b", "hf-papers", Genre.paper),
+        _ni("mid-up", "https://hf/c", "hf-papers", Genre.paper),
     ]
     items[0].signals = {"upvotes": 5}
     items[1].signals = {"upvotes": 99}
@@ -81,9 +82,9 @@ def test_same_source_penalty_tiebreak_prefers_more_popular():
 def test_same_source_penalty_tiebreak_falls_back_to_link_when_no_signals():
     """No popularity signals on any item -> tie-break still deterministic by link."""
     items = [
-        _ni("c", "https://b/3", "blog-x", SourceType.BLOG),
-        _ni("a", "https://b/1", "blog-x", SourceType.BLOG),
-        _ni("b", "https://b/2", "blog-x", SourceType.BLOG),
+        _ni("c", "https://b/3", "blog-x", Genre.writeup),
+        _ni("a", "https://b/1", "blog-x", Genre.writeup),
+        _ni("b", "https://b/2", "blog-x", Genre.writeup),
     ]
     scored = compute_scores(items, {}, ScoringConfig(), _ctx())
     pen = {s.link: s.score_breakdown["惩罚"] for s in scored}
@@ -97,9 +98,9 @@ def test_compute_scores_same_source_penalty_by_published_order():
     t2 = NOW - timedelta(hours=2)
     t3 = NOW - timedelta(hours=1)
     items = [
-        _ni("late", "https://s/3", "blog-x", SourceType.BLOG, t3),
-        _ni("early", "https://s/1", "blog-x", SourceType.BLOG, t1),
-        _ni("mid", "https://s/2", "blog-x", SourceType.BLOG, t2),
+        _ni("late", "https://s/3", "blog-x", Genre.writeup, t3),
+        _ni("early", "https://s/1", "blog-x", Genre.writeup, t1),
+        _ni("mid", "https://s/2", "blog-x", Genre.writeup, t2),
     ]
     scored = compute_scores(items, {}, ScoringConfig(), _ctx())
     pen = {s.link: s.score_breakdown["惩罚"] for s in scored}
@@ -110,16 +111,16 @@ def test_compute_scores_same_source_penalty_by_published_order():
 
 def test_compute_scores_sorted_desc_by_score():
     items = [
-        _ni("blog", "https://b/1", "b", SourceType.BLOG),  # low base
-        _ni("official", "https://o/2", "o", SourceType.OFFICIAL),  # high base
+        _ni("blog", "https://b/1", "b", Genre.writeup),  # low base
+        _ni("official", "https://o/2", "o", Genre.announcement),  # high base
     ]
     scored = compute_scores(items, {}, ScoringConfig(), _ctx())
-    assert [s.source_type for s in scored][0] == SourceType.OFFICIAL
+    assert [s.genre for s in scored][0] == Genre.announcement
     assert scored[0].score >= scored[1].score
 
 
 def _scored_list(ctx, *specs):
-    # specs: (title, link, source, source_type, published)
+    # specs: (title, link, source, genre, published)
     items = [_ni(*s) for s in specs]
     return compute_scores(items, {}, ScoringConfig(), ctx)
 
@@ -132,9 +133,9 @@ def test_apply_quota_trims_to_quota_keeping_top_scored():
     stale = NOW - timedelta(hours=100)
     scored = _scored_list(
         ctx,
-        ("p-fresh", "https://p/1", "p1", SourceType.PAPER, fresh),
-        ("p-mid", "https://p/2", "p2", SourceType.PAPER, mid),
-        ("p-stale", "https://p/3", "p3", SourceType.PAPER, stale),
+        ("p-fresh", "https://p/1", "p1", Genre.paper, fresh),
+        ("p-mid", "https://p/2", "p2", Genre.paper, mid),
+        ("p-stale", "https://p/3", "p3", Genre.paper, stale),
     )
     cfg = ScoringConfig()
     cfg.quota = {"paper": 2}
@@ -148,18 +149,18 @@ def test_apply_quota_trims_to_quota_keeping_top_scored():
 
 def test_apply_quota_keeps_all_when_under_quota():
     ctx = _ctx()
-    scored = _scored_list(ctx, ("t", "https://t/1", "t1", SourceType.TOOL, NOW))
+    scored = _scored_list(ctx, ("t", "https://t/1", "t1", Genre.writeup, NOW))
     cfg = ScoringConfig()
-    cfg.quota = {"tool": 2}
+    cfg.quota = {"writeup": 2}
     selected, report = apply_quota(scored, cfg)
-    assert report["tool"].available == 1
-    assert report["tool"].selected == 1  # min(quota, available)
+    assert report["writeup"].available == 1
+    assert report["writeup"].selected == 1  # min(quota, available)
     assert len(selected) == 1
 
 
 def test_apply_quota_zero_for_unlisted_type():
     ctx = _ctx()
-    scored = _scored_list(ctx, ("n", "https://n/1", "n1", SourceType.NEWS, NOW))
+    scored = _scored_list(ctx, ("n", "https://n/1", "n1", Genre.news, NOW))
     cfg = ScoringConfig()
     cfg.quota = {"paper": 2}  # news not listed
     selected, report = apply_quota(scored, cfg)
@@ -171,12 +172,12 @@ def test_apply_quota_respects_total_limit():
     ctx = _ctx()
     scored = _scored_list(
         ctx,
-        ("a", "https://a/1", "s1", SourceType.PAPER, NOW),
-        ("b", "https://b/2", "s2", SourceType.MODEL, NOW),
-        ("c", "https://c/3", "s3", SourceType.TOOL, NOW),
+        ("a", "https://a/1", "s1", Genre.paper, NOW),
+        ("b", "https://b/2", "s2", Genre.model, NOW),
+        ("c", "https://c/3", "s3", Genre.writeup, NOW),
     )
     cfg = ScoringConfig()
-    cfg.quota = {"paper": 1, "model": 1, "tool": 1}
+    cfg.quota = {"paper": 1, "model": 1, "writeup": 1}
     cfg.total_limit = 2
     selected, _ = apply_quota(scored, cfg)
     assert len(selected) == 2  # trimmed to total_limit
@@ -188,25 +189,25 @@ def test_apply_quota_respects_total_limit():
 
 
 def test_topic_relevance_returns_zero_when_no_keywords():
-    item = _ni("Unified Image Generation Model", "https://a/1", "hf", SourceType.PAPER)
+    item = _ni("Unified Image Generation Model", "https://a/1", "hf", Genre.paper)
     cfg = ScoringConfig()  # topic_keywords defaults to []
     assert _topic_relevance(item, cfg) == 0.0
 
 
 def test_topic_relevance_matches_keyword_in_title():
-    item = _ni("A New Unified Generation Framework", "https://a/1", "hf", SourceType.PAPER)
+    item = _ni("A New Unified Generation Framework", "https://a/1", "hf", Genre.paper)
     cfg = ScoringConfig(topic_keywords=["unified generation", "multimodal"], topic_bonus=5.0)
     assert _topic_relevance(item, cfg) == 5.0
 
 
 def test_topic_relevance_case_insensitive():
-    item = _ni("MULTIMODAL Learning at Scale", "https://a/1", "hf", SourceType.PAPER)
+    item = _ni("MULTIMODAL Learning at Scale", "https://a/1", "hf", Genre.paper)
     cfg = ScoringConfig(topic_keywords=["multimodal"], topic_bonus=7.0)
     assert _topic_relevance(item, cfg) == 7.0
 
 
 def test_topic_relevance_no_match_returns_zero():
-    item = _ni("Optimizing SQL Queries", "https://a/1", "hf", SourceType.PAPER)
+    item = _ni("Optimizing SQL Queries", "https://a/1", "hf", Genre.paper)
     cfg = ScoringConfig(
         topic_keywords=["unified generation", "multimodal", "agent"], topic_bonus=5.0
     )
@@ -216,8 +217,8 @@ def test_topic_relevance_no_match_returns_zero():
 def test_topic_relevance_integrated_in_scoring():
     """读者相关度 dimension reflects topic_bonus when keyword matches."""
     items = [
-        _ni("Agent Framework for Automation", "https://a/1", "s1", SourceType.PAPER),
-        _ni("Database Internals", "https://b/2", "s2", SourceType.PAPER),
+        _ni("Agent Framework for Automation", "https://a/1", "s1", Genre.paper),
+        _ni("Database Internals", "https://b/2", "s2", Genre.paper),
     ]
     cfg = ScoringConfig(topic_keywords=["agent"], topic_bonus=5.0)
     scored = compute_scores(items, {}, cfg, _ctx())
@@ -228,7 +229,7 @@ def test_topic_relevance_integrated_in_scoring():
 
 
 def test_quality_weight_multiplies_institution_dimension():
-    items = [_ni("A", "https://a/1", "openai", SourceType.OFFICIAL)]
+    items = [_ni("A", "https://a/1", "openai", Genre.announcement)]
     base = compute_scores(items, {"openai": 1}, ScoringConfig(), _ctx())[0]
     boosted = compute_scores(
         items, {"openai": 1}, ScoringConfig(), _ctx(), quality_of={"openai": 1.5}
@@ -238,7 +239,7 @@ def test_quality_weight_multiplies_institution_dimension():
 
 
 def test_quality_weight_defaults_to_one_when_source_missing():
-    items = [_ni("A", "https://a/1", "openai", SourceType.OFFICIAL)]
+    items = [_ni("A", "https://a/1", "openai", Genre.announcement)]
     default = compute_scores(items, {"openai": 1}, ScoringConfig(), _ctx())[0]
     other = compute_scores(
         items, {"openai": 1}, ScoringConfig(), _ctx(), quality_of={"someone-else": 0.5}

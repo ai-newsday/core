@@ -3,15 +3,16 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from src.core.types import Cluster, DedupConfig, DedupResult, NewsItem, RawItem, SourceType
+from src.core.types import Cluster, DedupConfig, DedupResult, NewsItem, RawItem, Genre, Publisher
+from tests.fakes import DEFAULT_PUBLISHER
 
 
-def _raw(title="GPT-X released", link="https://e.com/a", src="openai", st=SourceType.OFFICIAL):
+def _raw(title="GPT-X released", link="https://e.com/a", src="openai", st=Genre.announcement):
     return RawItem(
         title_en=title,
         link=link,
         source=src,
-        source_type=st,
+        genre=st, publisher=DEFAULT_PUBLISHER[st],
         published_at=datetime(2026, 5, 30, 12, tzinfo=timezone.utc),
     )
 
@@ -47,7 +48,7 @@ def test_dedupconfig_defaults():
     assert c.similarity_threshold == 0.83
     assert c.embedding_model == "Qwen/Qwen3-Embedding-8B"
     assert c.batch_size == 32
-    assert c.source_type_rank[0] == "official"
+    assert c.genre_rank[0] == "paper"
     assert c.sources_registry_path == "config/sources.yaml"
 
 

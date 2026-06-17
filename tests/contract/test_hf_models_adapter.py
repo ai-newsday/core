@@ -6,7 +6,7 @@ import httpx
 import respx
 
 from src.adapters.sources.hf_models import HFModelsAdapter
-from src.core.types import RunContext, SourceSpec, SourceType
+from src.core.types import RunContext, SourceSpec, Genre, Publisher
 
 
 def _ctx():
@@ -21,7 +21,7 @@ def _spec():
     return SourceSpec(
         name="hf-models",
         url="https://huggingface.co/api/models?sort=createdAt&direction=-1&limit=50",
-        type=SourceType.MODEL,
+        genre=Genre.model, publisher=Publisher.company,
         adapter="hf_models",
     )
 
@@ -40,6 +40,6 @@ async def test_hf_models_uses_created_at_for_published_at():
     it = items[0]
     assert it.title_en == "acme/diffusion-xl"
     assert it.link == "https://huggingface.co/acme/diffusion-xl"
-    assert it.source_type == SourceType.MODEL
+    assert it.genre == Genre.model
     assert it.published_at == datetime(2026, 5, 30, 9, 30, tzinfo=timezone.utc)
     assert it.signals.get("created_at") == "2026-05-30T09:30:00+00:00"  # 原信息保留
