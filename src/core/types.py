@@ -199,6 +199,13 @@ class Evidence(BaseModel):
     anchor: str = Field(min_length=1)  # must be ∈ item.link ∪ related_links
 
 
+class QualityFlag(BaseModel):
+    code: str  # "consistency" | "ai_slop" | "format_lock"
+    severity: str  # "warn" | "info"  (advisor 版无 "block")
+    field: str  # 命中字段: takeaway|summary|hot_take|tags|evidence|*
+    message: str = Field(min_length=1)  # 给人看的一句话(中文)
+
+
 class InterpretedItem(ScoredItem):  # ScoredItem 的下游演进; 本圈加解读字段
     title: str  # 中文标题, ≤ title_max_chars
     summary: str  # 中文摘要, ≤ summary_max_chars
@@ -208,6 +215,7 @@ class InterpretedItem(ScoredItem):  # ScoredItem 的下游演进; 本圈加解�
     evidence: list[Evidence] = Field(default_factory=list)
     interpretation_status: str  # "ok" | "extractive_fallback"
     eligible_for_must_read: bool
+    quality_flags: list[QualityFlag] = Field(default_factory=list)  # advisor 标注; 默认空
 
 
 @dataclass
@@ -233,6 +241,33 @@ class InterpretResult:
     input_count: int
     interpreted_count: int
     fallback_count: int
+    is_silent: bool
+
+
+@dataclass
+class SelfCheckConfig:
+    model: str = "deepseek-ai/DeepSeek-V4-Flash"
+    fallback_models: list[str] = field(default_factory=list)
+    temperature: float = 0.0
+    max_tokens: int = 600
+    timeout_s: int = 60
+    title_max_chars: int = 64
+    summary_max_chars: int = 120
+    tags_count: int = 3
+    min_evidence: int = 1
+    message_max_chars: int = 120
+    max_flags_per_item: int = 3
+    prompt_path: str = "src/prompts/selfcheck.md"
+
+
+@dataclass
+class SelfCheckResult:
+    interpreted_items: list[InterpretedItem]
+    daily_take: str | None
+    checked_count: int
+    flagged_count: int
+    flag_count_by_code: dict[str, int]
+    llm_error_count: int
     is_silent: bool
 
 

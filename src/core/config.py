@@ -13,6 +13,7 @@ from src.core.types import (
     ReviewConfig,
     ReviewDecision,
     ScoringConfig,
+    SelfCheckConfig,
     TelegramConfig,
     WebsiteConfig,
 )
@@ -89,6 +90,30 @@ def load_interpret_config(path: str) -> InterpretConfig:
         min_evidence=data.get("min_evidence", d.min_evidence),
         item_prompt_path=data.get("item_prompt_path", d.item_prompt_path),
         daily_prompt_path=data.get("daily_prompt_path", d.daily_prompt_path),
+    )
+
+
+def load_selfcheck_config(path: str) -> SelfCheckConfig:
+    """Load self-check critic params/field limits from YAML; missing file -> defaults."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return SelfCheckConfig()
+    d = SelfCheckConfig()
+    return SelfCheckConfig(
+        model=data.get("model", d.model),
+        fallback_models=data.get("fallback_models", d.fallback_models),
+        temperature=data.get("temperature", d.temperature),
+        max_tokens=data.get("max_tokens", d.max_tokens),
+        timeout_s=data.get("timeout_s", d.timeout_s),
+        title_max_chars=data.get("title_max_chars", d.title_max_chars),
+        summary_max_chars=data.get("summary_max_chars", d.summary_max_chars),
+        tags_count=data.get("tags_count", d.tags_count),
+        min_evidence=data.get("min_evidence", d.min_evidence),
+        message_max_chars=data.get("message_max_chars", d.message_max_chars),
+        max_flags_per_item=data.get("max_flags_per_item", d.max_flags_per_item),
+        prompt_path=data.get("prompt_path", d.prompt_path),
     )
 
 
