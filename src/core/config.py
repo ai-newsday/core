@@ -19,13 +19,18 @@ from src.core.types import (
 )
 
 
-def load_dedup_config(path: str) -> DedupConfig:
-    """Load dedup thresholds from YAML; missing/empty file -> dataclass defaults."""
+def _read_yaml(path: str) -> dict:
+    """Read a YAML mapping; missing file -> {} (loaders then fall back to dataclass defaults)."""
     try:
         with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
+            return yaml.safe_load(f) or {}
     except FileNotFoundError:
-        return DedupConfig()
+        return {}
+
+
+def load_dedup_config(path: str) -> DedupConfig:
+    """Load dedup thresholds from YAML; missing/empty file -> dataclass defaults."""
+    data = _read_yaml(path)
     defaults = DedupConfig()
     return DedupConfig(
         similarity_threshold=data.get("similarity_threshold", defaults.similarity_threshold),
@@ -39,11 +44,7 @@ def load_dedup_config(path: str) -> DedupConfig:
 def load_scoring_config(path: str) -> ScoringConfig:
     """Load scoring weights/quota from YAML; missing file -> dataclass defaults.
     Flattens nested `recency`/`penalty` blocks into flat dataclass fields."""
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-    except FileNotFoundError:
-        return ScoringConfig()
+    data = _read_yaml(path)
     d = ScoringConfig()
     recency = data.get("recency", {})
     penalty = data.get("penalty", {})
@@ -71,11 +72,7 @@ def load_scoring_config(path: str) -> ScoringConfig:
 
 def load_interpret_config(path: str) -> InterpretConfig:
     """Load interpret model params/field limits from YAML; missing file -> defaults."""
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-    except FileNotFoundError:
-        return InterpretConfig()
+    data = _read_yaml(path)
     d = InterpretConfig()
     return InterpretConfig(
         model=data.get("model", d.model),
@@ -95,11 +92,7 @@ def load_interpret_config(path: str) -> InterpretConfig:
 
 def load_selfcheck_config(path: str) -> SelfCheckConfig:
     """Load self-check critic params/field limits from YAML; missing file -> defaults."""
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-    except FileNotFoundError:
-        return SelfCheckConfig()
+    data = _read_yaml(path)
     d = SelfCheckConfig()
     return SelfCheckConfig(
         model=data.get("model", d.model),
@@ -119,11 +112,7 @@ def load_selfcheck_config(path: str) -> SelfCheckConfig:
 
 def load_review_config(path: str) -> ReviewConfig:
     """Load review field limits / decisions path from YAML; missing -> defaults."""
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-    except FileNotFoundError:
-        return ReviewConfig()
+    data = _read_yaml(path)
     d = ReviewConfig()
     return ReviewConfig(
         decisions_path=data.get("decisions_path", d.decisions_path),
@@ -149,11 +138,7 @@ def load_review_decisions(path: str) -> dict[str, ReviewDecision]:
 
 def load_publish_config(path: str) -> PublishConfig:
     """Load publish display constants from YAML; missing/empty file -> defaults."""
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-    except FileNotFoundError:
-        return PublishConfig()
+    data = _read_yaml(path)
     d = PublishConfig()
     return PublishConfig(
         must_read_count=data.get("must_read_count", d.must_read_count),
@@ -165,11 +150,7 @@ def load_publish_config(path: str) -> PublishConfig:
 
 def load_enrich_config(path: str) -> EnrichConfig:
     """HN URL 反查 popularity 的开关 + 配额; 缺文件 -> 默认。"""
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-    except FileNotFoundError:
-        return EnrichConfig()
+    data = _read_yaml(path)
     d = EnrichConfig()
     return EnrichConfig(
         enabled=data.get("enabled", d.enabled),
@@ -182,11 +163,7 @@ def load_enrich_config(path: str) -> EnrichConfig:
 def load_feedback_config(path: str) -> FeedbackConfig:
     """Load feedback formula coefficients / ledger paths from YAML;
     missing/empty file -> dataclass defaults."""
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-    except FileNotFoundError:
-        return FeedbackConfig()
+    data = _read_yaml(path)
     d = FeedbackConfig()
     return FeedbackConfig(
         events_path=data.get("events_path", d.events_path),
@@ -228,11 +205,7 @@ def load_delivery_config(path: str) -> DeliveryConfig:
     """通道配置; 缺文件 -> 默认。bot_token / chat_id 优先读环境变量。"""
     import os
 
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-    except FileNotFoundError:
-        data = {}
+    data = _read_yaml(path)
     tg_data = data.get("telegram", {})
     web_data = data.get("website", {})
     tg = TelegramConfig(

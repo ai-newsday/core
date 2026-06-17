@@ -61,11 +61,54 @@ def _make_llm(icfg: InterpretConfig) -> OpenAICompatLLM:
     )
 
 
+def _new_ctx(now: datetime | None = None) -> tuple[RunContext, datetime]:
+    """Fresh RunContext + resolved `now` for a dry-run invocation."""
+    now = now or datetime.now(timezone.utc)
+    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logging.getLogger("ai-newsday"))
+    return ctx, now
+
+
+def _make_embedder(dcfg, embedder=None):
+    """Injected embedder passes through; otherwise build the ModelScope one from dedup config."""
+    if embedder is not None:
+        return embedder
+    return ModelScopeEmbedder(
+        api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
+        model=dcfg.embedding_model,
+        batch_size=dcfg.batch_size,
+    )
+
+
+def _envelope(ctx: RunContext, now: datetime, **fields) -> dict:
+    """Common dry-run response header (run_id + now) merged with layer-specific fields."""
+    return {"run_id": ctx.run_id, "now": now.isoformat(), **fields}
+
+
+def _dump_pipeline_artifacts(rd, coll, dres, sres, ires) -> None:
+    """Persist the shared collect→interpret artifacts (01-04) into the run dir."""
+    dump_jsonl(coll.items, rd / "01_collected.jsonl")
+    dump_jsonl(coll.source_reports, rd / "01_source_reports.jsonl")
+    dump_jsonl(dres.deduped_items, rd / "02_deduped.jsonl")
+    dump_jsonl(sres.selected_items, rd / "03_scored.jsonl")
+    dump_jsonl(ires.interpreted_items, rd / "04_interpreted.jsonl")
+
+
+_STAGES = ["collect", "dedup", "score", "interpret"]
+
+
 def _dry_run_prefix(
-    registry_path: str, ctx: RunContext, embedder=None, llm=None, *, enrich: bool = False
+    registry_path: str,
+    ctx: RunContext,
+    embedder=None,
+    llm=None,
+    *,
+    enrich: bool = False,
+    stop_at: str = "interpret",
 ):
     """Shared dry-run pipeline prefix: collect -> [enrich] -> dedup -> score -> interpret.
-    Returns (coll, dres, sres, ires, llm) for the calling layer to consume."""
+    Runs only up to `stop_at` (so early layers don't pay for dedup embeddings / interpret LLM).
+    Returns (coll, dres, sres, ires, llm); stages past `stop_at` are None."""
+    want = _STAGES.index(stop_at)
     coll_cfg = CollectionConfig(sources_registry_path=registry_path)
     if enrich:
         ecfg = load_enrich_config("config/enrich.yaml")
@@ -80,129 +123,88 @@ def _dry_run_prefix(
     else:
         coll = asyncio.run(collect(coll_cfg, ctx))
 
-    dcfg = load_dedup_config("config/dedup.yaml")
-    dcfg.sources_registry_path = registry_path
-    if embedder is None:
-        embedder = ModelScopeEmbedder(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=dcfg.embedding_model,
-            batch_size=dcfg.batch_size,
-        )
-    dres = dedup(coll.items, dcfg, ctx, embedder=embedder, store=InMemoryVectorStore())
+    dres = sres = ires = None
+    if want >= _STAGES.index("dedup"):
+        dcfg = load_dedup_config("config/dedup.yaml")
+        dcfg.sources_registry_path = registry_path
+        embedder = _make_embedder(dcfg, embedder)
+        dres = dedup(coll.items, dcfg, ctx, embedder=embedder, store=InMemoryVectorStore())
 
-    scfg = load_scoring_config("config/scoring.yaml")
-    scfg.sources_registry_path = registry_path
-    sres = score(dres.deduped_items, scfg, ctx)
+    if want >= _STAGES.index("score"):
+        scfg = load_scoring_config("config/scoring.yaml")
+        scfg.sources_registry_path = registry_path
+        sres = score(dres.deduped_items, scfg, ctx)
 
-    icfg = load_interpret_config("config/interpret.yaml")
-    if llm is None:
-        llm = _make_llm(icfg)
-    ires = interpret(sres.selected_items, icfg, ctx, llm)
+    if want >= _STAGES.index("interpret"):
+        icfg = load_interpret_config("config/interpret.yaml")
+        if llm is None:
+            llm = _make_llm(icfg)
+        ires = interpret(sres.selected_items, icfg, ctx, llm)
+
     return coll, dres, sres, ires, llm
 
 
 def run_dry(registry_path: str, now: datetime | None = None) -> dict:
-    now = now or datetime.now(timezone.utc)
-    logger = logging.getLogger("ai-newsday")
-    cfg = CollectionConfig(sources_registry_path=registry_path)
-    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
-    res = asyncio.run(collect(cfg, ctx))
-    return {
-        "run_id": ctx.run_id,
-        "now": now.isoformat(),
-        "is_silent": res.is_silent,
-        "total_items": len(res.items),
-        "items": [it.model_dump(mode="json") for it in res.items],
-        "source_reports": [r.model_dump() for r in res.source_reports],
-    }
+    ctx, now = _new_ctx(now)
+    coll, _, _, _, _ = _dry_run_prefix(registry_path, ctx, stop_at="collect")
+    return _envelope(
+        ctx,
+        now,
+        is_silent=coll.is_silent,
+        total_items=len(coll.items),
+        items=[it.model_dump(mode="json") for it in coll.items],
+        source_reports=[r.model_dump() for r in coll.source_reports],
+    )
 
 
 def run_dry_dedup(registry_path: str, now: datetime | None = None, embedder=None) -> dict:
-    now = now or datetime.now(timezone.utc)
-    logger = logging.getLogger("ai-newsday")
-    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
-
-    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
-    coll = asyncio.run(collect(coll_cfg, ctx))
-
-    dcfg = load_dedup_config("config/dedup.yaml")
-    dcfg.sources_registry_path = registry_path
-    if embedder is None:
-        embedder = ModelScopeEmbedder(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=dcfg.embedding_model,
-            batch_size=dcfg.batch_size,
-        )
-    res = dedup(coll.items, dcfg, ctx, embedder=embedder, store=InMemoryVectorStore())
-    return {
-        "run_id": ctx.run_id,
-        "now": now.isoformat(),
-        "input_count": res.input_count,
-        "cluster_count": res.cluster_count,
-        "duplicate_count": res.duplicate_count,
-        "deduped_items": [ni.model_dump(mode="json") for ni in res.deduped_items],
-    }
+    ctx, now = _new_ctx(now)
+    _, res, _, _, _ = _dry_run_prefix(registry_path, ctx, embedder, stop_at="dedup")
+    return _envelope(
+        ctx,
+        now,
+        input_count=res.input_count,
+        cluster_count=res.cluster_count,
+        duplicate_count=res.duplicate_count,
+        deduped_items=[ni.model_dump(mode="json") for ni in res.deduped_items],
+    )
 
 
 def run_dry_score(registry_path: str, now: datetime | None = None, embedder=None) -> dict:
-    now = now or datetime.now(timezone.utc)
-    logger = logging.getLogger("ai-newsday")
-    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
-
-    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
-    coll = asyncio.run(collect(coll_cfg, ctx))
-
-    dcfg = load_dedup_config("config/dedup.yaml")
-    dcfg.sources_registry_path = registry_path
-    if embedder is None:
-        embedder = ModelScopeEmbedder(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=dcfg.embedding_model,
-            batch_size=dcfg.batch_size,
-        )
-    dres = dedup(coll.items, dcfg, ctx, embedder=embedder, store=InMemoryVectorStore())
-
-    scfg = load_scoring_config("config/scoring.yaml")
-    scfg.sources_registry_path = registry_path
-    sres = score(dres.deduped_items, scfg, ctx)
-    return {
-        "run_id": ctx.run_id,
-        "now": now.isoformat(),
-        "input_count": sres.input_count,
-        "selected_count": sres.selected_count,
-        "is_silent": sres.is_silent,
-        "quota_report": {k: asdict(v) for k, v in sres.quota_report.items()},
-        "selected_items": [si.model_dump(mode="json") for si in sres.selected_items],
-    }
+    ctx, now = _new_ctx(now)
+    _, _, sres, _, _ = _dry_run_prefix(registry_path, ctx, embedder, stop_at="score")
+    return _envelope(
+        ctx,
+        now,
+        input_count=sres.input_count,
+        selected_count=sres.selected_count,
+        is_silent=sres.is_silent,
+        quota_report={k: asdict(v) for k, v in sres.quota_report.items()},
+        selected_items=[si.model_dump(mode="json") for si in sres.selected_items],
+    )
 
 
 def run_dry_interpret(
     registry_path: str, now: datetime | None = None, embedder=None, llm=None
 ) -> dict:
-    now = now or datetime.now(timezone.utc)
-    logger = logging.getLogger("ai-newsday")
-    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
-
+    ctx, now = _new_ctx(now)
     _, _, _, ires, _ = _dry_run_prefix(registry_path, ctx, embedder, llm)
-    return {
-        "run_id": ctx.run_id,
-        "now": now.isoformat(),
-        "input_count": ires.input_count,
-        "interpreted_count": ires.interpreted_count,
-        "fallback_count": ires.fallback_count,
-        "is_silent": ires.is_silent,
-        "daily_take": ires.daily_take,
-        "interpreted_items": [it.model_dump(mode="json") for it in ires.interpreted_items],
-    }
+    return _envelope(
+        ctx,
+        now,
+        input_count=ires.input_count,
+        interpreted_count=ires.interpreted_count,
+        fallback_count=ires.fallback_count,
+        is_silent=ires.is_silent,
+        daily_take=ires.daily_take,
+        interpreted_items=[it.model_dump(mode="json") for it in ires.interpreted_items],
+    )
 
 
 def run_dry_selfcheck(
     registry_path: str, now: datetime | None = None, embedder=None, llm=None
 ) -> dict:
-    now = now or datetime.now(timezone.utc)
-    logger = logging.getLogger("ai-newsday")
-    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
-
+    ctx, now = _new_ctx(now)
     _, _, _, ires, _ = _dry_run_prefix(registry_path, ctx, embedder, llm)
 
     sccfg = load_selfcheck_config("config/selfcheck.yaml")
@@ -214,53 +216,47 @@ def run_dry_selfcheck(
         fallback_models=sccfg.fallback_models,
     )
     sc = self_check(ires, sccfg, ctx, critic_llm)
-    return {
-        "run_id": ctx.run_id,
-        "now": now.isoformat(),
-        "checked_count": sc.checked_count,
-        "flagged_count": sc.flagged_count,
-        "flag_count_by_code": sc.flag_count_by_code,
-        "llm_error_count": sc.llm_error_count,
-        "is_silent": sc.is_silent,
-        "daily_take": sc.daily_take,
-        "interpreted_items": [it.model_dump(mode="json") for it in sc.interpreted_items],
-    }
+    return _envelope(
+        ctx,
+        now,
+        checked_count=sc.checked_count,
+        flagged_count=sc.flagged_count,
+        flag_count_by_code=sc.flag_count_by_code,
+        llm_error_count=sc.llm_error_count,
+        is_silent=sc.is_silent,
+        daily_take=sc.daily_take,
+        interpreted_items=[it.model_dump(mode="json") for it in sc.interpreted_items],
+    )
 
 
 def run_dry_review(
     registry_path: str, now: datetime | None = None, embedder=None, llm=None, decisions_path=None
 ) -> dict:
-    now = now or datetime.now(timezone.utc)
-    logger = logging.getLogger("ai-newsday")
-    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
-
+    ctx, now = _new_ctx(now)
     _, _, _, ires, _ = _dry_run_prefix(registry_path, ctx, embedder, llm)
 
     rcfg = load_review_config("config/review.yaml")
     decisions = load_review_decisions(decisions_path or rcfg.decisions_path)
     rres = review(ires.interpreted_items, ires.daily_take, decisions, rcfg, ctx)
-    return {
-        "run_id": ctx.run_id,
-        "now": now.isoformat(),
-        "input_count": rres.input_count,
-        "kept_count": rres.kept_count,
-        "dropped_count": rres.dropped_count,
-        "edited_count": rres.edited_count,
-        "is_reviewed": rres.is_reviewed,
-        "is_pending": rres.is_pending,
-        "is_silent": rres.is_silent,
-        "daily_take": rres.daily_take,
-        "reviewed_items": [it.model_dump(mode="json") for it in rres.reviewed_items],
-    }
+    return _envelope(
+        ctx,
+        now,
+        input_count=rres.input_count,
+        kept_count=rres.kept_count,
+        dropped_count=rres.dropped_count,
+        edited_count=rres.edited_count,
+        is_reviewed=rres.is_reviewed,
+        is_pending=rres.is_pending,
+        is_silent=rres.is_silent,
+        daily_take=rres.daily_take,
+        reviewed_items=[it.model_dump(mode="json") for it in rres.reviewed_items],
+    )
 
 
 def run_dry_publish(
     registry_path: str, now: datetime | None = None, embedder=None, llm=None, decisions_path=None
 ) -> dict:
-    now = now or datetime.now(timezone.utc)
-    logger = logging.getLogger("ai-newsday")
-    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
-
+    ctx, now = _new_ctx(now)
     coll, dres, sres, ires, _ = _dry_run_prefix(registry_path, ctx, embedder, llm, enrich=True)
 
     rcfg = load_review_config("config/review.yaml")
@@ -273,11 +269,7 @@ def run_dry_publish(
 
     # 落盘各层产物 (signals 都在 RawItem.signals 中带着, 跨层透传)
     rd = run_dir(ctx.run_id)
-    dump_jsonl(coll.items, rd / "01_collected.jsonl")
-    dump_jsonl(coll.source_reports, rd / "01_source_reports.jsonl")
-    dump_jsonl(dres.deduped_items, rd / "02_deduped.jsonl")
-    dump_jsonl(sres.selected_items, rd / "03_scored.jsonl")
-    dump_jsonl(ires.interpreted_items, rd / "04_interpreted.jsonl")
+    _dump_pipeline_artifacts(rd, coll, dres, sres, ires)
     dump_jsonl(rres.reviewed_items, rd / "05_reviewed.jsonl")
     dump_json(pres.report, rd / "06_report.json")
     (rd / "06_report.md").write_text(pres.markdown, encoding="utf-8")
@@ -298,28 +290,25 @@ def run_dry_publish(
         },
         rd / "run.json",
     )
-    logger.info('{"event": "run_persisted", "dir": "%s"}', str(rd))
+    ctx.logger.info('{"event": "run_persisted", "dir": "%s"}', str(rd))
 
-    return {
-        "run_id": ctx.run_id,
-        "now": now.isoformat(),
-        "input_count": pres.report.item_count,
-        "item_count": pres.report.item_count,
-        "must_read_count": len(pres.report.must_read),
-        "is_pending": pres.is_pending,
-        "is_silent": pres.is_silent,
-        "markdown": pres.markdown,
-        "run_dir": str(rd),
-    }
+    return _envelope(
+        ctx,
+        now,
+        input_count=pres.report.item_count,
+        item_count=pres.report.item_count,
+        must_read_count=len(pres.report.must_read),
+        is_pending=pres.is_pending,
+        is_silent=pres.is_silent,
+        markdown=pres.markdown,
+        run_dir=str(rd),
+    )
 
 
 def run_dry_feedback(
     registry_path: str, now: datetime | None = None, embedder=None, llm=None, decisions_path=None
 ) -> dict:
-    now = now or datetime.now(timezone.utc)
-    logger = logging.getLogger("ai-newsday")
-    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
-
+    ctx, now = _new_ctx(now)
     coll, dres, sres, ires, _ = _dry_run_prefix(registry_path, ctx, embedder, llm, enrich=True)
 
     rcfg = load_review_config("config/review.yaml")
@@ -334,11 +323,7 @@ def run_dry_feedback(
 
     # 全链产物落盘 (P1 接 SQLite 前的最简方案)
     rd = run_dir(ctx.run_id)
-    dump_jsonl(coll.items, rd / "01_collected.jsonl")
-    dump_jsonl(coll.source_reports, rd / "01_source_reports.jsonl")
-    dump_jsonl(dres.deduped_items, rd / "02_deduped.jsonl")
-    dump_jsonl(sres.selected_items, rd / "03_scored.jsonl")
-    dump_jsonl(ires.interpreted_items, rd / "04_interpreted.jsonl")
+    _dump_pipeline_artifacts(rd, coll, dres, sres, ires)
     dump_jsonl(run_events, rd / "07_feedback_events.jsonl")
     dump_json(
         {
@@ -358,18 +343,18 @@ def run_dry_feedback(
         },
         rd / "run.json",
     )
-    logger.info('{"event": "run_persisted", "dir": "%s"}', str(rd))
+    ctx.logger.info('{"event": "run_persisted", "dir": "%s"}', str(rd))
 
-    return {
-        "run_id": ctx.run_id,
-        "now": now.isoformat(),
-        "event_count": fres.event_count,
-        "source_count": fres.source_count,
-        "is_silent": fres.is_silent,
-        "quality_weights": fres.quality_weights,
-        "weight_diff": {k: list(v) for k, v in fres.weight_diff.items()},
-        "run_dir": str(rd),
-    }
+    return _envelope(
+        ctx,
+        now,
+        event_count=fres.event_count,
+        source_count=fres.source_count,
+        is_silent=fres.is_silent,
+        quality_weights=fres.quality_weights,
+        weight_diff={k: list(v) for k, v in fres.weight_diff.items()},
+        run_dir=str(rd),
+    )
 
 
 def run_tick(
@@ -382,9 +367,7 @@ def run_tick(
 ) -> dict:
     """统一 tick 入口: collect 或 finalize。
     Notifier 根据 TELEGRAM_BOT_TOKEN 环境变量决定用真 bot 还是 FakeNotifier。"""
-    now = now or datetime.now(timezone.utc)
-    logger = logging.getLogger("ai-newsday")
-    ctx = RunContext(run_id=str(uuid.uuid4()), now=now, logger=logger)
+    ctx, now = _new_ctx(now)
 
     # 初始化 DB
     db = Database(db_path)
@@ -411,11 +394,7 @@ def run_tick(
             await enrich_with_hn(c.items, HNAlgoliaClient(ecfg.timeout_s), ecfg, ctx)
         dcfg2 = load_dedup_config("config/dedup.yaml")
         dcfg2.sources_registry_path = registry_path
-        _embedder = embedder or ModelScopeEmbedder(
-            api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
-            model=dcfg2.embedding_model,
-            batch_size=dcfg2.batch_size,
-        )
+        _embedder = _make_embedder(dcfg2, embedder)
         dres = dedup(c.items, dcfg2, ctx, embedder=_embedder, store=InMemoryVectorStore())
         scfg = load_scoring_config("config/scoring.yaml")
         scfg.sources_registry_path = registry_path
