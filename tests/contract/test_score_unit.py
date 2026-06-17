@@ -186,6 +186,25 @@ def test_apply_quota_respects_total_limit():
     assert selected[0].score >= selected[1].score
 
 
+def test_apply_quota_does_not_dedupe_same_source_within_genre():
+    """Known limitation (deferred to signal layer #3): quota fills a genre slot
+    purely by score, so one source can occupy BOTH slots of a genre. The
+    same_source_penalty only nudges the 2nd item's score down; it does not
+    diversify by source. Documents the langchain×2-in-writeup behavior seen in
+    the 2026-06-17 real run."""
+    ctx = _ctx()
+    scored = _scored_list(
+        ctx,
+        ("post-a", "https://langchain.com/a", "langchain", Genre.writeup, NOW),
+        ("post-b", "https://langchain.com/b", "langchain", Genre.writeup, NOW),
+    )
+    cfg = ScoringConfig()
+    cfg.quota = {"writeup": 2}
+    selected, report = apply_quota(scored, cfg)
+    assert report["writeup"].selected == 2
+    assert {s.source for s in selected} == {"langchain"}  # both slots, same source
+
+
 # --- topic relevance tests ---
 
 
