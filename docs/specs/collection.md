@@ -40,7 +40,8 @@ class RawItem:           # 本层产物(NewsItem 的前身, 不含 score/summary
     title_en: str        # 必填(原始标题; 中文源则同填 title_en 占位)
     link: str            # 必填, 唯一性后续去重用
     source: str          # 必填, 源标识
-    source_type: str     # paper|model|tool|community|official|news|blog
+    genre: str        # paper|model|announcement|writeup|news
+    publisher: str    # lab|company|individual|media
     published_at: datetime  # 必填, 带时区
     raw_summary: str | None # 源自带摘要(若有), 不强制
     image_url: str | None
@@ -83,7 +84,7 @@ class SourceReport:
 ## 7. 不变量（golden 测试必须断言）
 
 1. 输出中**没有任何** `published_at` 早于 `now - max_window_hours` 的条目。
-2. 每个 `RawItem` 的 `title_en / link / source / source_type / published_at` 均非空。
+2. 每个 `RawItem` 的 `title_en / link / source / genre / publisher / published_at` 均非空。
 3. 任一源抛错**不会**使 `collect()` 抛异常（失败被收进 `source_reports`）。
 4. `source_reports` 覆盖注册表里**每一个**启用源（成功/失败/空都要有记录）。
 5. 所有源失败/空 ⇒ `is_silent=True` 且 `items==[]`。

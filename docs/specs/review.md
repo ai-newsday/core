@@ -132,7 +132,7 @@ class ReviewResult:
 | 类别 | 字段 | 能改？ |
 |---|---|---|
 | 内容（可改） | `title` `summary` `takeaway` `hot_take` `tags` `evidence` | ✅ `edits` 里给了就覆盖 |
-| 出处（只读） | `score` `score_breakdown` `source` `source_type` `link` `published_at` `cluster_id` `related_links` `title_en` `raw_summary` `is_explore` | ❌ `edits` 里给了也忽略 |
+| 出处（只读） | `score` `score_breakdown` `source` `genre` `publisher` `link` `published_at` `cluster_id` `related_links` `title_en` `raw_summary` `is_explore` | ❌ `edits` 里给了也忽略 |
 
 **改完要重新校验：**
 
