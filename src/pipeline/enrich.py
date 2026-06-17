@@ -51,9 +51,7 @@ async def enrich_with_hn(
         emit(ctx.logger, "enrich_done", enriched=0, skipped=len(items))
         return items
     skip = set(config.skip_genres or [])
-    to_enrich = [
-        it for it in items if it.genre.value not in skip and not _has_popularity(it)
-    ]
+    to_enrich = [it for it in items if it.genre.value not in skip and not _has_popularity(it)]
     if not to_enrich:
         emit(ctx.logger, "enrich_done", enriched=0, skipped=len(items))
         return items

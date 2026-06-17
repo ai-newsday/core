@@ -2,10 +2,9 @@ import logging
 from datetime import datetime, timezone
 
 from src.adapters.vectorstore.memory import InMemoryVectorStore
-from src.core.types import DedupConfig, RawItem, RunContext, Genre, Publisher
-from tests.fakes import DEFAULT_PUBLISHER
+from src.core.types import DedupConfig, Genre, RawItem, RunContext
 from src.pipeline.dedup import build_embed_text, dedup
-from tests.fakes import FailingEmbeddingProvider, FakeEmbeddingProvider
+from tests.fakes import DEFAULT_PUBLISHER, FailingEmbeddingProvider, FakeEmbeddingProvider
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
@@ -15,7 +14,14 @@ def _ctx():
 
 
 def _item(title, link, source, st):
-    return RawItem(title_en=title, link=link, source=source, genre=st, publisher=DEFAULT_PUBLISHER[st], published_at=NOW)
+    return RawItem(
+        title_en=title,
+        link=link,
+        source=source,
+        genre=st,
+        publisher=DEFAULT_PUBLISHER[st],
+        published_at=NOW,
+    )
 
 
 def _cfg():

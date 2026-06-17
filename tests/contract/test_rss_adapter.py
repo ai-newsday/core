@@ -6,7 +6,7 @@ import pytest
 import respx
 
 from src.adapters.sources.rss import RSSAdapter
-from src.core.types import RawItem, RunContext, SourceSpec, Genre, Publisher
+from src.core.types import Genre, Publisher, RawItem, RunContext, SourceSpec
 
 
 def _ctx():
@@ -21,7 +21,8 @@ def _spec():
     return SourceSpec(
         name="openai",
         url="https://openai.com/news/rss.xml",
-        genre=Genre.announcement, publisher=Publisher.lab,
+        genre=Genre.announcement,
+        publisher=Publisher.lab,
         adapter="rss",
     )
 

@@ -4,11 +4,12 @@ from pathlib import Path
 
 from src.core.types import (
     Evidence,
+    Genre,
     PublishConfig,
+    Publisher,
     ReviewedItem,
     ReviewResult,
     RunContext,
-    Genre, Publisher,
 )
 from src.pipeline.publish import (
     build_overview,
@@ -27,7 +28,8 @@ CFG = PublishConfig()
 
 def _ri(
     link="https://a/1",
-    genre=Genre.model, publisher=Publisher.company,
+    genre=Genre.model,
+    publisher=Publisher.company,
     score=80,
     title="中文标题",
     summary="中文摘要。",
@@ -44,7 +46,8 @@ def _ri(
         title_en="X released",
         link=link,
         source="src",
-        genre=genre, publisher=publisher,
+        genre=genre,
+        publisher=publisher,
         published_at=NOW,
         raw_summary="A.",
         cluster_id="evt-1",
@@ -154,7 +157,13 @@ def _rr(items, daily_take="看点。", is_pending=False, is_silent=False):
 def test_build_report_assembles_blocks():
     items = [
         _ri("https://a/1", genre=Genre.model, publisher=Publisher.company, eligible=True),
-        _ri("https://a/2", genre=Genre.paper, publisher=Publisher.company, eligible=False, is_explore=True),
+        _ri(
+            "https://a/2",
+            genre=Genre.paper,
+            publisher=Publisher.company,
+            eligible=False,
+            is_explore=True,
+        ),
     ]
     rep = build_report(_rr(items), "2026-05-30（周六）", CFG)
     assert rep.date_label == "2026-05-30（周六）"
@@ -173,7 +182,8 @@ def test_render_markdown_full():
     items = [
         _ri(
             "https://a/1",
-            genre=Genre.model, publisher=Publisher.company,
+            genre=Genre.model,
+            publisher=Publisher.company,
             title="GLM-5 发布",
             summary="开源 MoE。",
             tags=["#MoE"],
@@ -259,7 +269,8 @@ def _snapshot_items():
     return [
         _ri(
             "https://a/1",
-            genre=Genre.model, publisher=Publisher.company,
+            genre=Genre.model,
+            publisher=Publisher.company,
             title="GLM-5 发布",
             summary="开源 MoE 旗舰。",
             takeaway="可自建推理。",
@@ -270,7 +281,8 @@ def _snapshot_items():
         ),
         _ri(
             "https://a/2",
-            genre=Genre.paper, publisher=Publisher.company,
+            genre=Genre.paper,
+            publisher=Publisher.company,
             title="新论文",
             summary="一句话摘要。",
             score=82,
@@ -279,7 +291,8 @@ def _snapshot_items():
         ),
         _ri(
             "https://a/3",
-            genre=Genre.writeup, publisher=Publisher.individual,
+            genre=Genre.writeup,
+            publisher=Publisher.individual,
             title="社区热帖",
             summary="探索选题。",
             score=71,
@@ -387,7 +400,8 @@ def test_categories_render_takeaway_when_present():
     items = [
         _ri(
             "https://a/1",
-            genre=Genre.model, publisher=Publisher.company,
+            genre=Genre.model,
+            publisher=Publisher.company,
             title="T",
             summary="S。",
             takeaway="可本地部署。",
@@ -403,7 +417,8 @@ def test_categories_skip_empty_takeaway():
     items = [
         _ri(
             "https://a/1",
-            genre=Genre.model, publisher=Publisher.company,
+            genre=Genre.model,
+            publisher=Publisher.company,
             title="T",
             summary="S。",
             takeaway="",

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from src.core.types import Evidence, InterpretedItem, ReviewConfig, ReviewDecision, Genre, Publisher
+from src.core.types import Evidence, Genre, InterpretedItem, Publisher, ReviewConfig, ReviewDecision
 from src.pipeline.review import apply_decision, order_reviewed
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
@@ -22,7 +22,8 @@ def _interp(
         title_en="X released",
         link=link,
         source="src",
-        genre=Genre.model, publisher=Publisher.company,
+        genre=Genre.model,
+        publisher=Publisher.company,
         published_at=NOW,
         raw_summary="A summary.",
         cluster_id="evt-1",

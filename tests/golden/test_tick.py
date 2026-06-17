@@ -5,12 +5,11 @@ from src.core.types import (
     Evidence,
     Genre,
     InterpretedItem,
-    Publisher,
 )
-from tests.fakes import DEFAULT_PUBLISHER
 from src.notifiers import FakeNotifier
 from src.pipeline.tick import run_collect_tick, run_finalize_tick
 from src.state.db import Database
+from tests.fakes import DEFAULT_PUBLISHER
 
 NOW = datetime(2026, 6, 5, 12, 0, tzinfo=timezone.utc)
 TODAY = "2026-06-05"
@@ -21,7 +20,8 @@ def _make_item(link, source="hf-models", st=Genre.model, cluster_id=None, signal
         title_en="DeepSeek V4 released",
         link=link,
         source=source,
-        genre=st, publisher=DEFAULT_PUBLISHER[st],
+        genre=st,
+        publisher=DEFAULT_PUBLISHER[st],
         published_at=NOW,
         raw_summary="A.",
         cluster_id=cluster_id or link,

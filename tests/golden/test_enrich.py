@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from src.core.types import EnrichConfig, RawItem, RunContext, Genre, Publisher
+from src.core.types import EnrichConfig, Genre, Publisher, RawItem, RunContext
 from src.pipeline.enrich import enrich_with_hn
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
@@ -27,7 +27,8 @@ def _item(link, source="src", genre=Genre.writeup, publisher=Publisher.individua
         title_en="X",
         link=link,
         source=source,
-        genre=genre, publisher=publisher,
+        genre=genre,
+        publisher=publisher,
         published_at=NOW,
         signals=signals or {},
     )
@@ -96,7 +97,8 @@ def test_enrich_skips_items_already_having_popularity():
         _item(
             "https://hf/p/1",
             source="hf-papers",
-            genre=Genre.paper, publisher=Publisher.company,
+            genre=Genre.paper,
+            publisher=Publisher.company,
             signals={"upvotes": 88},
         )
     ]

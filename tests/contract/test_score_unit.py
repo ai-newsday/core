@@ -1,9 +1,9 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from src.core.types import NewsItem, RunContext, ScoringConfig, Genre, Publisher
-from tests.fakes import DEFAULT_PUBLISHER
+from src.core.types import Genre, NewsItem, RunContext, ScoringConfig
 from src.pipeline.score import _topic_relevance, apply_quota, compute_scores, recency_band
+from tests.fakes import DEFAULT_PUBLISHER
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
 
@@ -17,7 +17,8 @@ def _ni(title, link, source, st, published=NOW):
         title_en=title,
         link=link,
         source=source,
-        genre=st, publisher=DEFAULT_PUBLISHER[st],
+        genre=st,
+        publisher=DEFAULT_PUBLISHER[st],
         published_at=published,
         cluster_id="evt-x",
     )

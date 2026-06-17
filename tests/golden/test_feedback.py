@@ -5,11 +5,12 @@ from src.core.types import (
     Evidence,
     FeedbackConfig,
     FeedbackEvent,
+    Genre,
     InterpretedItem,
+    Publisher,
     ReviewDecision,
     RunContext,
     SourceFeedbackStats,
-    Genre, Publisher,
 )
 from src.pipeline.feedback import (
     aggregate_by_source,
@@ -27,7 +28,8 @@ def _ii(link="https://a/1", source="src", genre=Genre.model, publisher=Publisher
         title_en="X",
         link=link,
         source=source,
-        genre=genre, publisher=publisher,
+        genre=genre,
+        publisher=publisher,
         published_at=NOW,
         raw_summary="A.",
         cluster_id="evt-1",

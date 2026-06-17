@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 
-from src.core.types import RawItem, Genre, Publisher
-from tests.fakes import DEFAULT_PUBLISHER
+from src.core.types import Genre, Publisher, RawItem
 from src.pipeline.dedup import _cosine, build_embed_text, embedding_id
+from tests.fakes import DEFAULT_PUBLISHER
 
 
 def _raw(title, summary=None, link="https://e.com/a"):
@@ -10,7 +10,8 @@ def _raw(title, summary=None, link="https://e.com/a"):
         title_en=title,
         link=link,
         source="s",
-        genre=Genre.announcement, publisher=Publisher.lab,
+        genre=Genre.announcement,
+        publisher=Publisher.lab,
         published_at=datetime(2026, 5, 30, tzinfo=timezone.utc),
         raw_summary=summary,
     )
@@ -56,7 +57,8 @@ def _item(title, link, source, st, when=None):
         title_en=title,
         link=link,
         source=source,
-        genre=st, publisher=DEFAULT_PUBLISHER[st],
+        genre=st,
+        publisher=DEFAULT_PUBLISHER[st],
         published_at=when or datetime(2026, 5, 30, 12, tzinfo=timezone.utc),
     )
 

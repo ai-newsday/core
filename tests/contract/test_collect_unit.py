@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from src.core.types import CollectionConfig, RawItem, RunContext, SourceSpec, Genre, Publisher
+from src.core.types import CollectionConfig, Genre, Publisher, RawItem, RunContext, SourceSpec
 from src.pipeline import collect as collect_mod
 
 NOW = datetime(2026, 5, 30, 12, 0, tzinfo=timezone.utc)
@@ -18,7 +18,8 @@ def _item(name, hours_ago):
         title_en=f"t-{name}",
         link=f"https://e.com/{name}-{hours_ago}",
         source=name,
-        genre=Genre.announcement, publisher=Publisher.lab,
+        genre=Genre.announcement,
+        publisher=Publisher.lab,
         published_at=NOW - timedelta(hours=hours_ago),
     )
 
@@ -42,7 +43,11 @@ def cfg(tmp_path):
 
 
 async def test_window_filter_drops_old_items(monkeypatch, cfg):
-    specs = [SourceSpec(name="a", url="u", genre=Genre.announcement, publisher=Publisher.lab, adapter="rss")]
+    specs = [
+        SourceSpec(
+            name="a", url="u", genre=Genre.announcement, publisher=Publisher.lab, adapter="rss"
+        )
+    ]
     monkeypatch.setattr(collect_mod, "load_registry", lambda p, c: specs)
     monkeypatch.setattr(collect_mod, "ADAPTERS", {"rss": FakeOK([_item("a", 2), _item("a", 100)])})
     res = await collect_mod.collect(cfg, _ctx())
@@ -54,8 +59,16 @@ async def test_window_filter_drops_old_items(monkeypatch, cfg):
 
 async def test_one_source_failure_does_not_break_chain(monkeypatch, cfg):
     specs = [
-        SourceSpec(name="a", url="u", genre=Genre.announcement, publisher=Publisher.lab, adapter="rss"),
-        SourceSpec(name="b", url="u", genre=Genre.announcement, publisher=Publisher.lab, adapter="hf_papers"),
+        SourceSpec(
+            name="a", url="u", genre=Genre.announcement, publisher=Publisher.lab, adapter="rss"
+        ),
+        SourceSpec(
+            name="b",
+            url="u",
+            genre=Genre.announcement,
+            publisher=Publisher.lab,
+            adapter="hf_papers",
+        ),
     ]
     monkeypatch.setattr(collect_mod, "load_registry", lambda p, c: specs)
     monkeypatch.setattr(
@@ -70,7 +83,11 @@ async def test_one_source_failure_does_not_break_chain(monkeypatch, cfg):
 
 
 async def test_empty_source_marked_empty_not_failed(monkeypatch, cfg):
-    specs = [SourceSpec(name="a", url="u", genre=Genre.announcement, publisher=Publisher.lab, adapter="rss")]
+    specs = [
+        SourceSpec(
+            name="a", url="u", genre=Genre.announcement, publisher=Publisher.lab, adapter="rss"
+        )
+    ]
     monkeypatch.setattr(collect_mod, "load_registry", lambda p, c: specs)
     monkeypatch.setattr(collect_mod, "ADAPTERS", {"rss": FakeOK([])})
     res = await collect_mod.collect(cfg, _ctx())
@@ -80,7 +97,14 @@ async def test_empty_source_marked_empty_not_failed(monkeypatch, cfg):
 
 async def test_needs_firecrawl_skipped_when_disabled(monkeypatch, cfg):
     specs = [
-        SourceSpec(name="hard", url="u", genre=Genre.writeup, publisher=Publisher.individual, adapter="rss", needs_firecrawl=True)
+        SourceSpec(
+            name="hard",
+            url="u",
+            genre=Genre.writeup,
+            publisher=Publisher.individual,
+            adapter="rss",
+            needs_firecrawl=True,
+        )
     ]
     monkeypatch.setattr(collect_mod, "load_registry", lambda p, c: specs)
     monkeypatch.setattr(collect_mod, "ADAPTERS", {"rss": FakeOK([_item("hard", 1)])})

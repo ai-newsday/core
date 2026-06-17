@@ -6,7 +6,7 @@ import httpx
 import respx
 
 from src.adapters.sources.hf_papers import HFPapersAdapter
-from src.core.types import RunContext, SourceSpec, Genre, Publisher
+from src.core.types import Genre, Publisher, RunContext, SourceSpec
 
 
 def _ctx():
@@ -21,7 +21,8 @@ def _spec():
     return SourceSpec(
         name="hf-papers",
         url="https://huggingface.co/api/papers",
-        genre=Genre.paper, publisher=Publisher.company,
+        genre=Genre.paper,
+        publisher=Publisher.company,
         adapter="hf_papers",
     )
 

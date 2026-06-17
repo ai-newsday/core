@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from src.core.types import Cluster, DedupConfig, DedupResult, NewsItem, RawItem, Genre, Publisher
+from src.core.types import Cluster, DedupConfig, DedupResult, Genre, NewsItem, RawItem
 from tests.fakes import DEFAULT_PUBLISHER
 
 
@@ -12,7 +12,8 @@ def _raw(title="GPT-X released", link="https://e.com/a", src="openai", st=Genre.
         title_en=title,
         link=link,
         source=src,
-        genre=st, publisher=DEFAULT_PUBLISHER[st],
+        genre=st,
+        publisher=DEFAULT_PUBLISHER[st],
         published_at=datetime(2026, 5, 30, 12, tzinfo=timezone.utc),
     )
 

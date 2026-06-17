@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.core.types import InterpretConfig, ScoredItem, Genre, Publisher
+from src.core.types import Genre, InterpretConfig, Publisher, ScoredItem
 from src.pipeline.interpret import (
     build_item_prompt,
     build_ok_item,
@@ -19,7 +19,8 @@ def _scored(**over):
         title_en="GLM-5 released",
         link="https://hf.co/glm5",
         source="Hugging Face",
-        genre=Genre.model, publisher=Publisher.company,
+        genre=Genre.model,
+        publisher=Publisher.company,
         published_at=NOW,
         raw_summary="MoE open weights model.",
         cluster_id="evt-1",

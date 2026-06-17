@@ -6,7 +6,7 @@ import httpx
 import respx
 
 from src.adapters.sources.hf_models import HFModelsAdapter
-from src.core.types import RunContext, SourceSpec, Genre, Publisher
+from src.core.types import Genre, Publisher, RunContext, SourceSpec
 
 
 def _ctx():
@@ -21,7 +21,8 @@ def _spec():
     return SourceSpec(
         name="hf-models",
         url="https://huggingface.co/api/models?sort=createdAt&direction=-1&limit=50",
-        genre=Genre.model, publisher=Publisher.company,
+        genre=Genre.model,
+        publisher=Publisher.company,
         adapter="hf_models",
     )
 
