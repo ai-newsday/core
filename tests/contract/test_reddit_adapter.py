@@ -8,9 +8,7 @@ import respx
 from src.adapters.sources.reddit import RedditAdapter
 from src.core.types import Genre, Publisher, RawItem, RunContext, SourceSpec
 
-_URL = "https://www.reddit.com/r/LocalLLaMA/top.json?t=day&limit=25"
-_OAUTH_URL = "https://oauth.reddit.com/r/LocalLLaMA/top.json?t=day&limit=25"
-_TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
+_URL = "https://old.reddit.com/r/LocalLLaMA/top/?t=day&limit=25"
 
 
 def _ctx():
@@ -32,50 +30,33 @@ def _spec(min_score=50):
     )
 
 
-def _creds(monkeypatch):
-    monkeypatch.setenv("REDDIT_CLIENT_ID", "cid")
-    monkeypatch.setenv("REDDIT_CLIENT_SECRET", "csecret")
-
-
-def _token_route():
-    return respx.post(_TOKEN_URL).mock(
-        return_value=httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
+def _thing(
+    fullname, score, title, url, permalink, comments=12, ts=1_750_000_000_000, promoted="false"
+):
+    return (
+        f'<div class="thing id-{fullname} link" data-fullname="{fullname}" '
+        f'data-score="{score}" data-comments-count="{comments}" data-timestamp="{ts}" '
+        f'data-promoted="{promoted}" data-url="{url}" data-permalink="{permalink}">'
+        f'<p class="title"><a class="title may-blank" href="{url}">{title}</a></p></div>'
     )
 
 
-def _listing(*posts):
-    return {"data": {"children": [{"kind": "t3", "data": p} for p in posts]}}
-
-
-def _post(
-    title,
-    ups,
-    url="https://ex.com/a",
-    is_self=False,
-    permalink="/r/x/comments/1/p/",
-    selftext="",
-    comments=3,
-    created=1_750_000_000.0,
-):
-    return {
-        "title": title,
-        "url": url,
-        "ups": ups,
-        "is_self": is_self,
-        "permalink": permalink,
-        "selftext": selftext,
-        "num_comments": comments,
-        "created_utc": created,
-    }
+def _page(*things):
+    return "<html><body>" + "".join(things) + "</body></html>"
 
 
 @respx.mock
-async def test_reddit_maps_fields_and_signals(monkeypatch):
-    _creds(monkeypatch)
-    _token_route()
-    respx.get(_OAUTH_URL).mock(
-        return_value=httpx.Response(200, json=_listing(_post("New 70B model dropped", 420)))
+async def test_reddit_maps_fields_and_signals():
+    html = _page(
+        _thing(
+            "t3_aaa",
+            420,
+            "New 70B model dropped",
+            "https://ex.com/a",
+            "/r/LocalLLaMA/comments/aaa/x/",
+        )
     )
+    respx.get(_URL).mock(return_value=httpx.Response(200, text=html))
     items = await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15)
     assert len(items) == 1
     it = items[0]
@@ -83,68 +64,52 @@ async def test_reddit_maps_fields_and_signals(monkeypatch):
     assert it.title_en == "New 70B model dropped"
     assert it.link == "https://ex.com/a"
     assert it.genre == Genre.writeup and it.publisher == Publisher.individual
-    assert it.signals == {"upvotes": 420, "num_comments": 3}
+    assert it.signals == {"upvotes": 420, "num_comments": 12}
     assert it.published_at.tzinfo is not None
 
 
 @respx.mock
-async def test_reddit_filters_by_upvotes_threshold(monkeypatch):
-    _creds(monkeypatch)
-    _token_route()
-    respx.get(_OAUTH_URL).mock(
-        return_value=httpx.Response(200, json=_listing(_post("minor question", 10)))
-    )
+async def test_reddit_filters_by_upvotes_threshold():
+    html = _page(_thing("t3_low", 10, "minor question", "https://ex.com/b", "/r/x/comments/low/"))
+    respx.get(_URL).mock(return_value=httpx.Response(200, text=html))
     items = await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15)
     assert items == []
 
 
 @respx.mock
-async def test_reddit_self_post_uses_permalink_and_selftext(monkeypatch):
-    _creds(monkeypatch)
-    _token_route()
-    respx.get(_OAUTH_URL).mock(
-        return_value=httpx.Response(
-            200,
-            json=_listing(
-                _post(
-                    "Guide: running LLMs locally",
-                    300,
-                    is_self=True,
-                    permalink="/r/LocalLLaMA/comments/abc/guide/",
-                    selftext="Step 1 ...",
-                )
-            ),
+async def test_reddit_skips_promoted_ads():
+    html = _page(
+        _thing("t3_ad", 999, "Buy now", "https://ad.com", "/r/x/comments/ad/", promoted="true")
+    )
+    respx.get(_URL).mock(return_value=httpx.Response(200, text=html))
+    items = await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15)
+    assert items == []
+
+
+@respx.mock
+async def test_reddit_self_or_reddit_hosted_uses_permalink():
+    # data-url is a reddit-hosted media / relative permalink -> link should be the permalink
+    perma = "/r/LocalLLaMA/comments/ddd/guide/"
+    html = _page(
+        _thing(
+            "t3_ddd", 300, "Guide: running LLMs locally", f"https://www.reddit.com{perma}", perma
         )
     )
+    respx.get(_URL).mock(return_value=httpx.Response(200, text=html))
     it = (await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15))[0]
-    assert it.link == "https://www.reddit.com/r/LocalLLaMA/comments/abc/guide/"
-    assert it.raw_summary == "Step 1 ..."
+    assert it.link == "https://www.reddit.com/r/LocalLLaMA/comments/ddd/guide/"
 
 
 @respx.mock
-async def test_reddit_sends_bearer_token_and_ua(monkeypatch):
-    _creds(monkeypatch)
-    _token_route()
-    route = respx.get(_OAUTH_URL).mock(return_value=httpx.Response(200, json=_listing()))
+async def test_reddit_sends_user_agent():
+    route = respx.get(_URL).mock(return_value=httpx.Response(200, text=_page()))
     await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15)
     assert route.called
-    req = route.calls.last.request
-    assert req.headers.get("authorization") == "bearer tok"
-    assert "ai-newsday" in req.headers.get("user-agent", "")
+    assert "ai-newsday" in route.calls.last.request.headers.get("user-agent", "")
 
 
 @respx.mock
-async def test_reddit_missing_credentials_raises(monkeypatch):
-    monkeypatch.delenv("REDDIT_CLIENT_ID", raising=False)
-    monkeypatch.delenv("REDDIT_CLIENT_SECRET", raising=False)
-    with pytest.raises(RuntimeError):
-        await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15)
-
-
-@respx.mock
-async def test_reddit_http_error_raises(monkeypatch):
-    _creds(monkeypatch)
-    _token_route()
-    respx.get(_OAUTH_URL).mock(return_value=httpx.Response(429))
+async def test_reddit_http_error_raises():
+    respx.get(_URL).mock(return_value=httpx.Response(429))
     with pytest.raises(httpx.HTTPStatusError):
         await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15)
