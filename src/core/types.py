@@ -59,11 +59,13 @@ class SourceSpec(BaseModel):
     url: str
     genre: Genre
     publisher: Publisher
-    adapter: Literal["rss", "hf_papers", "hf_models"]
+    adapter: Literal["rss", "hf_papers", "hf_models", "hn", "reddit"]
     status: Literal["working", "manual", "failed"] = "working"
     priority: int = 3
     needs_firecrawl: bool = False
     max_items: int | None = None  # truncate fetched items to this cap (e.g. arXiv firehose)
+    min_score: int | None = None  # HN points / Reddit ups 下限; None = 不过滤
+    keywords: list[str] | None = None  # HN AI 关键词(标题/URL 命中); Reddit 不填
 
 
 @dataclass
