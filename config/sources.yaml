@@ -160,12 +160,14 @@
 - {name: hn-computer-rip, url: "https://computer.rip/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
 - {name: hn-tedunangst-com, url: "https://www.tedunangst.com/flak/rss", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
 # --- aggregators (人群信号源: HN points / Reddit upvotes) ---
+# Reddit 全部 manual: 公开 .json 从本环境返回 403 Blocked(UA 不够), 需 OAuth 或换接入再启用;
+# adapter 已实现并测试通过, 改 status: working 即可启用。HN 走 Algolia 正常 working。
 - {name: hackernews, url: "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=50", genre: writeup, publisher: individual, adapter: hn, status: working, priority: 2, min_score: 100, max_items: 15, keywords: [AI, LLM, GPT, model, agent, diffusion, neural, transformer, "machine learning", inference, RAG, multimodal, "open source", openai, anthropic, gemini, llama]}
-- {name: reddit-localllama, url: "https://www.reddit.com/r/LocalLLaMA/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-machinelearning, url: "https://www.reddit.com/r/MachineLearning/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-openai, url: "https://www.reddit.com/r/OpenAI/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-claudeai, url: "https://www.reddit.com/r/ClaudeAI/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-stablediffusion, url: "https://www.reddit.com/r/StableDiffusion/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-geminiai, url: "https://www.reddit.com/r/GeminiAI/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-midjourney, url: "https://www.reddit.com/r/midjourney/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-comfyui, url: "https://www.reddit.com/r/comfyui/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 30, max_items: 10}
+- {name: reddit-localllama, url: "https://www.reddit.com/r/LocalLLaMA/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: manual, priority: 3, min_score: 50, max_items: 10}
+- {name: reddit-machinelearning, url: "https://www.reddit.com/r/MachineLearning/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: manual, priority: 3, min_score: 50, max_items: 10}
+- {name: reddit-openai, url: "https://www.reddit.com/r/OpenAI/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: manual, priority: 3, min_score: 50, max_items: 10}
+- {name: reddit-claudeai, url: "https://www.reddit.com/r/ClaudeAI/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: manual, priority: 3, min_score: 50, max_items: 10}
+- {name: reddit-stablediffusion, url: "https://www.reddit.com/r/StableDiffusion/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: manual, priority: 3, min_score: 50, max_items: 10}
+- {name: reddit-geminiai, url: "https://www.reddit.com/r/GeminiAI/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: manual, priority: 3, min_score: 50, max_items: 10}
+- {name: reddit-midjourney, url: "https://www.reddit.com/r/midjourney/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: manual, priority: 3, min_score: 50, max_items: 10}
+- {name: reddit-comfyui, url: "https://www.reddit.com/r/comfyui/top.json?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: manual, priority: 3, min_score: 30, max_items: 10}
