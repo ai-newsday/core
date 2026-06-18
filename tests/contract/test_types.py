@@ -80,3 +80,26 @@ def test_sourcespec_defaults():
     )
     assert s.status == "working" and s.priority == 3 and s.needs_firecrawl is False
     assert s.genre is Genre.paper and s.publisher is Publisher.company
+
+
+def test_sourcespec_accepts_hn_reddit_and_filter_fields():
+    s = SourceSpec(
+        name="hackernews",
+        url="https://hn.algolia.com/api/v1/search?tags=front_page",
+        genre="writeup",
+        publisher="individual",
+        adapter="hn",
+        min_score=100,
+        keywords=["AI", "LLM"],
+    )
+    assert s.adapter == "hn"
+    assert s.min_score == 100 and s.keywords == ["AI", "LLM"]
+    r = SourceSpec(
+        name="reddit-localllama",
+        url="https://www.reddit.com/r/LocalLLaMA/top.json?t=day&limit=25",
+        genre="writeup",
+        publisher="individual",
+        adapter="reddit",
+    )
+    assert r.adapter == "reddit"
+    assert r.min_score is None and r.keywords is None
