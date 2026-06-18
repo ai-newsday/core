@@ -58,7 +58,7 @@ async def test_hn_maps_fields_and_signals():
     assert it.title_en == "New LLM model breaks records"
     assert it.link == "https://ex.com/a"
     assert it.genre == Genre.writeup and it.publisher == Publisher.individual
-    assert it.signals == {"points": 250, "num_comments": 5}
+    assert it.signals == {"hn_points": 250, "num_comments": 5}
     assert it.published_at.tzinfo is not None
 
 

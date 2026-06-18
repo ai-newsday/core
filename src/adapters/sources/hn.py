@@ -32,7 +32,8 @@ class HNAdapter:
             if kws and not any(k in haystack for k in kws):
                 continue
             link = url or f"https://news.ycombinator.com/item?id={h.get('objectID')}"
-            signals = {"points": points, "num_comments": h.get("num_comments")}
+            # key MUST be `hn_points` — that's what scoring popularity_weights + enrich read
+            signals = {"hn_points": points, "num_comments": h.get("num_comments")}
             signals = {k: v for k, v in signals.items() if v not in (None, "")}
             items.append(
                 RawItem(
