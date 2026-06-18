@@ -9,6 +9,8 @@ from src.adapters.sources.reddit import RedditAdapter
 from src.core.types import Genre, Publisher, RawItem, RunContext, SourceSpec
 
 _URL = "https://www.reddit.com/r/LocalLLaMA/top.json?t=day&limit=25"
+_OAUTH_URL = "https://oauth.reddit.com/r/LocalLLaMA/top.json?t=day&limit=25"
+_TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
 
 
 def _ctx():
@@ -27,6 +29,17 @@ def _spec(min_score=50):
         publisher=Publisher.individual,
         adapter="reddit",
         min_score=min_score,
+    )
+
+
+def _creds(monkeypatch):
+    monkeypatch.setenv("REDDIT_CLIENT_ID", "cid")
+    monkeypatch.setenv("REDDIT_CLIENT_SECRET", "csecret")
+
+
+def _token_route():
+    return respx.post(_TOKEN_URL).mock(
+        return_value=httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
     )
 
 
@@ -57,8 +70,10 @@ def _post(
 
 
 @respx.mock
-async def test_reddit_maps_fields_and_signals():
-    respx.get(_URL).mock(
+async def test_reddit_maps_fields_and_signals(monkeypatch):
+    _creds(monkeypatch)
+    _token_route()
+    respx.get(_OAUTH_URL).mock(
         return_value=httpx.Response(200, json=_listing(_post("New 70B model dropped", 420)))
     )
     items = await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15)
@@ -73,8 +88,10 @@ async def test_reddit_maps_fields_and_signals():
 
 
 @respx.mock
-async def test_reddit_filters_by_upvotes_threshold():
-    respx.get(_URL).mock(
+async def test_reddit_filters_by_upvotes_threshold(monkeypatch):
+    _creds(monkeypatch)
+    _token_route()
+    respx.get(_OAUTH_URL).mock(
         return_value=httpx.Response(200, json=_listing(_post("minor question", 10)))
     )
     items = await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15)
@@ -82,8 +99,10 @@ async def test_reddit_filters_by_upvotes_threshold():
 
 
 @respx.mock
-async def test_reddit_self_post_uses_permalink_and_selftext():
-    respx.get(_URL).mock(
+async def test_reddit_self_post_uses_permalink_and_selftext(monkeypatch):
+    _creds(monkeypatch)
+    _token_route()
+    respx.get(_OAUTH_URL).mock(
         return_value=httpx.Response(
             200,
             json=_listing(
@@ -103,16 +122,29 @@ async def test_reddit_self_post_uses_permalink_and_selftext():
 
 
 @respx.mock
-async def test_reddit_sends_user_agent():
-    route = respx.get(_URL).mock(return_value=httpx.Response(200, json=_listing()))
+async def test_reddit_sends_bearer_token_and_ua(monkeypatch):
+    _creds(monkeypatch)
+    _token_route()
+    route = respx.get(_OAUTH_URL).mock(return_value=httpx.Response(200, json=_listing()))
     await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15)
     assert route.called
-    ua = route.calls.last.request.headers.get("user-agent", "")
-    assert "ai-newsday" in ua
+    req = route.calls.last.request
+    assert req.headers.get("authorization") == "bearer tok"
+    assert "ai-newsday" in req.headers.get("user-agent", "")
 
 
 @respx.mock
-async def test_reddit_http_error_raises():
-    respx.get(_URL).mock(return_value=httpx.Response(429))
+async def test_reddit_missing_credentials_raises(monkeypatch):
+    monkeypatch.delenv("REDDIT_CLIENT_ID", raising=False)
+    monkeypatch.delenv("REDDIT_CLIENT_SECRET", raising=False)
+    with pytest.raises(RuntimeError):
+        await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15)
+
+
+@respx.mock
+async def test_reddit_http_error_raises(monkeypatch):
+    _creds(monkeypatch)
+    _token_route()
+    respx.get(_OAUTH_URL).mock(return_value=httpx.Response(429))
     with pytest.raises(httpx.HTTPStatusError):
         await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15)

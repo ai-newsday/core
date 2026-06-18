@@ -50,14 +50,17 @@
 
 ## Reddit adapter(`src/adapters/sources/reddit.py`)
 
-- 数据源:`https://www.reddit.com/r/<sub>/top.json?t=day&limit=N`(`url` 字段直接填该端点;`<sub>` 隐含在 url 里)。
-- 请求头:描述性 `User-Agent`(如 `"ai-newsday/1.0 (by /u/...)"`;Reddit 对通用 UA 直接 429)。
+- **OAuth 必需**(2026-06-18 实测:公开 `.json` 从数据中心/CI IP 一律 **403 Blocked**,换浏览器 UA 无效;`.rss` 能通但不带 upvotes)。流程:
+  - 用 `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET`(env,Reddit script app)取 app-only token:`POST https://www.reddit.com/api/v1/access_token`,HTTP Basic=(id,secret),body `grant_type=client_credentials`。
+  - 把 `source.url` 的 `https://www.reddit.com` 改写成 `https://oauth.reddit.com`,带 `Authorization: bearer <token>` + 描述性 UA GET。
+  - 缺 env 凭证 → 抛 `RuntimeError`(该源 `failed`,单源隔离)。
+- `url` 字段仍填公开 `https://www.reddit.com/r/<sub>/top.json?t=day&limit=N`(adapter 内改写 host)。
 - 解析 `data.children[].data`:`title`、`url`(外链)、`permalink`、`is_self`、`ups`、`num_comments`、`created_utc`、`selftext`。
 - **过滤**:`ups >= source.min_score`(无关键词闸)。
 - `link`:`is_self`(自帖)→ `https://www.reddit.com<permalink>`;否则 → `url`(外链)。
 - `raw_summary`:自帖取 `selftext`(截断),外链留空。
 - 产 `RawItem(… genre=writeup, publisher=individual, published_at=<created_utc→tz-aware UTC>, signals={"upvotes": ups, "num_comments":…})`。
-- 容错:429/HTTP/JSON 错误 → 抛 → collect 记 `failed`(单源隔离)。OAuth 留作后续回退。
+- 容错:token/HTTP/JSON 错误 → 抛 → collect 记 `failed`(单源隔离)。
 
 ## 注册(`src/adapters/sources/__init__.py`)
 
