@@ -34,20 +34,33 @@ def _listing(*posts):
     return {"data": {"children": [{"kind": "t3", "data": p} for p in posts]}}
 
 
-def _post(title, ups, url="https://ex.com/a", is_self=False, permalink="/r/x/comments/1/p/",
-          selftext="", comments=3, created=1_750_000_000.0):
+def _post(
+    title,
+    ups,
+    url="https://ex.com/a",
+    is_self=False,
+    permalink="/r/x/comments/1/p/",
+    selftext="",
+    comments=3,
+    created=1_750_000_000.0,
+):
     return {
-        "title": title, "url": url, "ups": ups, "is_self": is_self,
-        "permalink": permalink, "selftext": selftext, "num_comments": comments,
+        "title": title,
+        "url": url,
+        "ups": ups,
+        "is_self": is_self,
+        "permalink": permalink,
+        "selftext": selftext,
+        "num_comments": comments,
         "created_utc": created,
     }
 
 
 @respx.mock
 async def test_reddit_maps_fields_and_signals():
-    respx.get(_URL).mock(return_value=httpx.Response(200, json=_listing(
-        _post("New 70B model dropped", 420)
-    )))
+    respx.get(_URL).mock(
+        return_value=httpx.Response(200, json=_listing(_post("New 70B model dropped", 420)))
+    )
     items = await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15)
     assert len(items) == 1
     it = items[0]
@@ -61,19 +74,29 @@ async def test_reddit_maps_fields_and_signals():
 
 @respx.mock
 async def test_reddit_filters_by_upvotes_threshold():
-    respx.get(_URL).mock(return_value=httpx.Response(200, json=_listing(
-        _post("minor question", 10)
-    )))
+    respx.get(_URL).mock(
+        return_value=httpx.Response(200, json=_listing(_post("minor question", 10)))
+    )
     items = await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15)
     assert items == []
 
 
 @respx.mock
 async def test_reddit_self_post_uses_permalink_and_selftext():
-    respx.get(_URL).mock(return_value=httpx.Response(200, json=_listing(
-        _post("Guide: running LLMs locally", 300, is_self=True,
-              permalink="/r/LocalLLaMA/comments/abc/guide/", selftext="Step 1 ...")
-    )))
+    respx.get(_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json=_listing(
+                _post(
+                    "Guide: running LLMs locally",
+                    300,
+                    is_self=True,
+                    permalink="/r/LocalLLaMA/comments/abc/guide/",
+                    selftext="Step 1 ...",
+                )
+            ),
+        )
+    )
     it = (await RedditAdapter().fetch(_spec(), _ctx(), timeout_s=15))[0]
     assert it.link == "https://www.reddit.com/r/LocalLLaMA/comments/abc/guide/"
     assert it.raw_summary == "Step 1 ..."

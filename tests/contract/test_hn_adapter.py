@@ -48,9 +48,9 @@ def _hit(title, points, url="https://ex.com/a", oid="111", comments=5, created=1
 
 @respx.mock
 async def test_hn_maps_fields_and_signals():
-    respx.get(_URL).mock(return_value=httpx.Response(200, json=_hits(
-        _hit("New LLM model breaks records", 250)
-    )))
+    respx.get(_URL).mock(
+        return_value=httpx.Response(200, json=_hits(_hit("New LLM model breaks records", 250)))
+    )
     items = await HNAdapter().fetch(_spec(), _ctx(), timeout_s=15)
     assert len(items) == 1
     it = items[0]
@@ -64,28 +64,37 @@ async def test_hn_maps_fields_and_signals():
 
 @respx.mock
 async def test_hn_filters_by_points_threshold():
-    respx.get(_URL).mock(return_value=httpx.Response(200, json=_hits(
-        _hit("AI breakthrough", 50)
-    )))
+    respx.get(_URL).mock(return_value=httpx.Response(200, json=_hits(_hit("AI breakthrough", 50))))
     items = await HNAdapter().fetch(_spec(), _ctx(), timeout_s=15)
     assert items == []
 
 
 @respx.mock
 async def test_hn_filters_by_keyword():
-    respx.get(_URL).mock(return_value=httpx.Response(200, json=_hits(
-        _hit("New Rust web framework released", 300)
-    )))
+    respx.get(_URL).mock(
+        return_value=httpx.Response(200, json=_hits(_hit("New Rust web framework released", 300)))
+    )
     items = await HNAdapter().fetch(_spec(), _ctx(), timeout_s=15)
     assert items == []
 
 
 @respx.mock
 async def test_hn_self_post_falls_back_to_discussion_link():
-    respx.get(_URL).mock(return_value=httpx.Response(200, json=_hits(
-        {"title": "Ask HN: best LLM tooling?", "url": None, "points": 200,
-         "num_comments": 9, "objectID": "999", "created_at_i": 1_750_000_000}
-    )))
+    respx.get(_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json=_hits(
+                {
+                    "title": "Ask HN: best LLM tooling?",
+                    "url": None,
+                    "points": 200,
+                    "num_comments": 9,
+                    "objectID": "999",
+                    "created_at_i": 1_750_000_000,
+                }
+            ),
+        )
+    )
     items = await HNAdapter().fetch(_spec(), _ctx(), timeout_s=15)
     assert items[0].link == "https://news.ycombinator.com/item?id=999"
 
