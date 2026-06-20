@@ -95,3 +95,17 @@ def test_make_final_message_is_summary_with_link():
     assert "https://ai-newsday.github.io/core/posts/2026-06-19/" in msg
     assert "<pre>" not in msg
     assert len(msg) < 4096
+
+
+def test_card_body_bounded_under_telegram_limit():
+    from src.notifiers.telegram_polling import _make_card_messages
+
+    big = "字" * 5000
+    card = {
+        "title_zh": "T", "title_en": "T", "source_label": "论文", "source": "s",
+        "link": "https://x/1", "score": 88, "signals": {},
+        "summary_zh": big, "takeaway": big, "hot_take": big,
+    }
+    cover, body = _make_card_messages("id1", card)
+    assert len(cover) < 4096
+    assert len(body) < 4096

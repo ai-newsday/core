@@ -23,6 +23,10 @@ def _fmt_signals(signals: dict) -> str:
 def _make_card_messages(item_id: str, card: dict) -> tuple[str, str]:
     """返回 (封面文字, 内容文字)，均为 HTML 格式。"""
     esc = html_lib.escape
+
+    def _clip(s: str, n: int = 1000) -> str:
+        return s if len(s) <= n else s[: n - 1] + "…"
+
     source_label = esc(card.get("source_label", ""))
     title_zh = esc(card.get("title_zh", ""))
     title_en = esc(card.get("title_en", ""))
@@ -30,9 +34,9 @@ def _make_card_messages(item_id: str, card: dict) -> tuple[str, str]:
     source = esc(card.get("source", ""))
     link = card.get("link", "")
     sig_line = _fmt_signals(card.get("signals", {}))
-    summary_zh = esc(card.get("summary_zh", ""))
-    takeaway = esc(card.get("takeaway", ""))
-    hot_take = esc(card.get("hot_take", ""))
+    summary_zh = esc(_clip(card.get("summary_zh", "")))
+    takeaway = esc(_clip(card.get("takeaway", "")))
+    hot_take = esc(_clip(card.get("hot_take", "")))
 
     cover = (
         f"<b>[{source_label}]</b>  {title_zh}\n"
