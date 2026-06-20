@@ -10,6 +10,7 @@ import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
 
+from src.adapters.decisions.worker import WorkerDecisionStore
 from src.adapters.embedding.modelscope import ModelScopeEmbedder
 from src.adapters.enrich.hn_algolia import HNAlgoliaClient
 from src.adapters.llm.openai_compat import OpenAICompatLLM
@@ -375,6 +376,9 @@ def run_tick(
 
     # 初始化 Notifier
     dcfg = load_delivery_config("config/delivery.yaml")
+    decision_store = None
+    if dcfg.decisions_api.url and dcfg.decisions_api.secret:
+        decision_store = WorkerDecisionStore(dcfg.decisions_api.url, dcfg.decisions_api.secret)
     notifiers = []
     if dcfg.telegram.bot_token:
         tg = TelegramPollingNotifier(dcfg.telegram, db=db)
@@ -436,6 +440,8 @@ def run_tick(
                 daily_take=ires.daily_take,
                 db=db,
                 notifiers=notifiers,
+                decision_store=decision_store,
+                site_base_url=dcfg.website.site_base_url,
             )
         )
         result["tick"] = "finalize"
