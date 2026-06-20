@@ -46,3 +46,20 @@ def test_telegram_config_reads_env(monkeypatch):
     cfg = load_delivery_config("nonexistent.yaml")
     assert cfg.telegram.bot_token == "tok123"
     assert cfg.telegram.chat_id == "99"
+
+
+def test_decisions_api_and_site_base_url(tmp_path, monkeypatch):
+    from src.core.config import load_delivery_config
+
+    p = tmp_path / "delivery.yaml"
+    p.write_text(
+        "telegram:\n  mode: webhook\n"
+        "website:\n  site_base_url: https://example.com/site/\n"
+        "decisions_api:\n  url: https://w.example.com\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DECISIONS_API_SECRET", "sek")
+    cfg = load_delivery_config(str(p))
+    assert cfg.decisions_api.url == "https://w.example.com"
+    assert cfg.decisions_api.secret == "sek"
+    assert cfg.website.site_base_url == "https://example.com/site/"

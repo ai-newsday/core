@@ -419,9 +419,17 @@ class WebsiteConfig:
     enabled: bool = True
     output_dir: str = "content/posts"
     git_push: bool = False  # True = finalize 后自动 git add + commit
+    site_base_url: str = "https://ai-newsday.github.io/core/"
+
+
+@dataclass
+class DecisionsApiConfig:
+    url: str = ""
+    secret: str = ""  # 优先从 DECISIONS_API_SECRET 环境变量读
 
 
 @dataclass
 class DeliveryConfig:
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
     website: WebsiteConfig = field(default_factory=WebsiteConfig)
+    decisions_api: DecisionsApiConfig = field(default_factory=DecisionsApiConfig)
