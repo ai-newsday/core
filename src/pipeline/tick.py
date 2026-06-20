@@ -87,17 +87,6 @@ async def run_collect_tick(
                 except Exception as e:  # noqa: BLE001 - notifier failure is non-fatal
                     emit(logger, "notifier_send_error", item_id=item_id, error=str(e))
             pushed += 1
-    # 收决策 — 支持循环轮询的 notifier 等待用户操作
-    for notifier in notifiers:
-        try:
-            if pushed > 0 and hasattr(notifier, "poll_decisions_loop"):
-                decisions = await notifier.poll_decisions_loop(expected=pushed, timeout_secs=120)
-            else:
-                decisions = await notifier.poll_decisions()
-            for decision_item_id, action in decisions:
-                await db.update_decision(decision_item_id, action)
-        except Exception as e:  # noqa: BLE001 - notifier poll failure is non-fatal
-            emit(logger, "notifier_poll_error", error=str(e))
     emit(logger, "tick_collect_done", run_id=run_id, pushed=pushed)
 
 
