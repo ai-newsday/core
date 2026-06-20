@@ -4,6 +4,7 @@ import hashlib
 import logging
 from datetime import datetime
 
+from src.adapters.decisions.worker import DecisionStore
 from src.core.config import load_publish_config, load_review_config
 from src.core.types import InterpretedItem, ReviewDecision
 from src.notifiers import Notifier
@@ -52,7 +53,7 @@ async def run_collect_tick(
     db: Database,
     notifiers: list[Notifier],
 ) -> None:
-    """采集 tick: 把新候选写 DB + 推 Telegram 卡片，再 poll 决策写回 DB。"""
+    """采集 tick: 把新候选写 DB + 推 Telegram 卡片。决策由 webhook 异步收集, finalize 时拉取。"""
     logger = logging.getLogger("ai-newsday")
     date = now.date().isoformat()
     await db.insert_run(run_id, "collect")
@@ -98,7 +99,7 @@ async def run_finalize_tick(
     daily_take: str | None,
     db: Database,
     notifiers: list[Notifier],
-    decision_store=None,
+    decision_store: DecisionStore | None = None,
     site_base_url: str = "",
 ) -> dict:
     """定稿 tick: 读决策 → review → publish → send_final_report。"""

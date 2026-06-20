@@ -43,7 +43,7 @@ def _make_card_messages(item_id: str, card: dict) -> tuple[str, str]:
         f"<i>{title_en}</i>\n\n"
         f"📊 <b>{score}</b> 分"
         + (f"  ｜  {sig_line}" if sig_line else "")
-        + f'\n🔗 <a href="{link}">{source}</a>'
+        + f'\n🔗 <a href="{esc(link)}">{source}</a>'
     )
     body = (
         f"💬 <b>一句话</b>\n{summary_zh}\n\n🛠 <b>对你</b>\n{takeaway}\n\n⚡️ <b>锐评</b>\n{hot_take}"

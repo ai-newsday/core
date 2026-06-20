@@ -83,13 +83,15 @@ def test_send_final_report_sends_message():
 def test_make_final_message_is_summary_with_link():
     from src.notifiers.telegram_polling import _make_final_message
 
-    msg = _make_final_message({
-        "date_label": "2026-06-19",
-        "item_count": 7,
-        "must_read_count": 2,
-        "must_read_titles": ["Moebius 反超 FLUX", "RATs 玩出技能"],
-        "url": "https://ai-newsday.github.io/core/posts/2026-06-19/",
-    })
+    msg = _make_final_message(
+        {
+            "date_label": "2026-06-19",
+            "item_count": 7,
+            "must_read_count": 2,
+            "must_read_titles": ["Moebius 反超 FLUX", "RATs 玩出技能"],
+            "url": "https://ai-newsday.github.io/core/posts/2026-06-19/",
+        }
+    )
     assert "2026-06-19" in msg
     assert "Moebius 反超 FLUX" in msg
     assert "https://ai-newsday.github.io/core/posts/2026-06-19/" in msg
@@ -97,14 +99,35 @@ def test_make_final_message_is_summary_with_link():
     assert len(msg) < 4096
 
 
+def test_card_cover_escapes_link_url():
+    from src.notifiers.telegram_polling import _make_card_messages
+
+    card = {
+        "title_zh": "T", "title_en": "T", "source_label": "论文", "source": "s",
+        "link": "https://x/search?a=1&b=2<script>", "score": 88, "signals": {},
+        "summary_zh": "x", "takeaway": "y", "hot_take": "z",
+    }
+    cover, _ = _make_card_messages("id1", card)
+    assert "&amp;" in cover          # & escaped
+    assert "<script>" not in cover   # raw < not present
+    assert 'href="https://x/search?a=1&b=2<script>"' not in cover  # raw URL not present
+
+
 def test_card_body_bounded_under_telegram_limit():
     from src.notifiers.telegram_polling import _make_card_messages
 
     big = "字" * 5000
     card = {
-        "title_zh": "T", "title_en": "T", "source_label": "论文", "source": "s",
-        "link": "https://x/1", "score": 88, "signals": {},
-        "summary_zh": big, "takeaway": big, "hot_take": big,
+        "title_zh": "T",
+        "title_en": "T",
+        "source_label": "论文",
+        "source": "s",
+        "link": "https://x/1",
+        "score": 88,
+        "signals": {},
+        "summary_zh": big,
+        "takeaway": big,
+        "hot_take": big,
     }
     cover, body = _make_card_messages("id1", card)
     assert len(cover) < 4096
