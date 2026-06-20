@@ -45,7 +45,7 @@
 | ✓ | plan | 任务 | 状态 |
 |---|---|---|---|
 | ☑ | **P1** | **Python 流水线**:决策适配器 + finalize 拉取并入(非致命) + collect 去轮询 + 终稿改简报+链接 + 卡片 4096 限长 + cli 接线 | ✅ 完成(commits `3145013`..`648d308`,全量 336 绿,双审+终审通过) |
-| ◑ | **P2** | **CF Worker + KV**:webhook 端点(校验 secret → `answerCallbackQuery`+`editMessageText` → 写 KV → `GET /decisions`)+ register 脚本。`workers/telegram-webhook/` | **代码完成**(commits `950e511`..`824570a`,vitest 5/5 绿)。**剩 Task 5 部署**(需 Cloudflare 账号:kv create→回填 wrangler.toml id→3 secrets→deploy→register→冒烟) |
+| ☑ | **P2** | **CF Worker + KV**:webhook 端点(校验 secret → `answerCallbackQuery`+`editMessageText` → 写 KV → `GET /decisions`)+ register 脚本。`workers/telegram-webhook/` | ✅ **完成 + 实测通过**(2026-06-21)。已部署 `https://ai-newsday-telegram-webhook.ai-newwsday.workers.dev`;KV id `8e0df2cd19a04831b6f671ab378e03a6`。冒烟:点按钮秒回(toast+编辑消息)、`/decisions` 读出决策。⚠️ secrets(WEBHOOK_SECRET/DECISIONS_API_SECRET/bot token)已配在 Worker;**DECISIONS_API_SECRET 同值要在 Plan 3 配进 GitHub Actions**。 |
 | ☐ | **P3** | **可见链 + 激活**:finalize.yml 换 PAT push 触发 `pages.yml`;`delivery.yaml` 切 `mode: webhook` + Worker URL;**删 dead `poll_decisions`/协议方法**(终审 Important #2);**端到端实测** | 待写 plan |
 
 **M2 — 日报文风/版式/内容质量（后做,依据 SOP）**
