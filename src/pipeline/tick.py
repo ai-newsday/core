@@ -109,12 +109,25 @@ async def run_finalize_tick(
     daily_take: str | None,
     db: Database,
     notifiers: list[Notifier],
+    decision_store=None,
+    site_base_url: str = "",
 ) -> dict:
     """定稿 tick: 读决策 → review → publish → send_final_report。"""
     logger = logging.getLogger("ai-newsday")
     date = now.date().isoformat()
     await db.insert_run(run_id, "finalize")
     emit(logger, "tick_finalize_start", run_id=run_id, date=date)
+    # 先把 webhook 远端决策幂等并入 DB(失败降级, 非致命)
+    if decision_store is not None:
+        try:
+            remote = await decision_store.fetch()
+            pending = await db.get_pending_reviews_for_date(date)
+            today_ids = {r["item_id"] for r in pending}
+            for item_id, action in remote.items():
+                if item_id in today_ids:
+                    await db.update_decision(item_id, action)
+        except Exception as e:  # noqa: BLE001 - 拉取失败非致命
+            emit(logger, "decisions_fetch_error", run_id=run_id, error=str(e))
     # 读累积决策（未审默认 keep，review 层自动处理无决策的条目）
     decisions_raw = await db.get_decisions_dict(date)
     decisions = {link: ReviewDecision(action=action) for link, action in decisions_raw.items()}
@@ -129,6 +142,8 @@ async def run_finalize_tick(
         "date_label": date_label,
         "item_count": pres.report.item_count,
         "must_read_count": len(pres.report.must_read),
+        "url": (site_base_url.rstrip("/") + "/posts/" + date + "/") if site_base_url else "",
+        "must_read_titles": [it.title for it in pres.report.must_read],
     }
     for notifier in notifiers:
         try:
