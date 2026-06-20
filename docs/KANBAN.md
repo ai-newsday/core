@@ -39,11 +39,14 @@
 
 **M1 — 人审闭环可用 + 实测（先做）**
 
-| ✓ | 优先 | 任务 | 详情 |
+> 设计:`docs/superpowers/specs/2026-06-20-telegram-webhook-feedback-loop-design.md`。拆 3 个 plan。
+> ⚠️ **合并约束:Plan 1/2/3 必须一起合并 master**。Plan 1 已让 collect 停止轮询;若单独合并,webhook 未激活前决策完全无人收集(比现状更差)。三者齐活、实测通过后再合。
+
+| ✓ | plan | 任务 | 状态 |
 |---|---|---|---|
-| ☐ | **P0** | **Telegram 点击→决策反馈闭环(webhook)** | 根因:轮询写死在 collect、同步阻塞 120s,异步点击无在线消费者→"Loading…"不落库。机制=**Telegram webhook + Cloudflare Worker + KV**(秒回 `answerCallbackQuery`+`editMessageText`;决策写 KV;finalize 拉回)。⚠️ webhook 与 `getUpdates` 互斥。**当前正在 `/brainstorm`**。 |
-| ☐ | **P0** | **Telegram 发送出错/截断（并入,影响实测）** | 终稿 `body=markdown[:3800]` 截断;卡片 body 超 4096 报 "message too long";HTML 转义不全 400。坏的发送会毁掉实测。 |
-| ☐ | **P0** | **finalize 真跑出终稿 + 站可见(S1 可见链)** | finalize 是 `workflow_dispatch`、从没触发过 + push 用默认 `GITHUB_TOKEN`→**不触发 pages.yml**(GitHub 防递归设计)→Pages 停在 06-17。修触发链:换 PAT / finalize 自带 deploy job / repository_dispatch。让"点击→定稿→content push→Pages 重建→URL 可看"end-to-end 实测通。 |
+| ☑ | **P1** | **Python 流水线**:决策适配器 + finalize 拉取并入(非致命) + collect 去轮询 + 终稿改简报+链接 + 卡片 4096 限长 + cli 接线 | ✅ 完成(commits `3145013`..`648d308`,全量 336 绿,双审+终审通过) |
+| ☐ | **P2** | **CF Worker + KV**:webhook 端点(校验 secret → `answerCallbackQuery`+`editMessageText` → 写 KV → `GET /decisions`)+ register 脚本。`workers/telegram-webhook/` | 待写 plan |
+| ☐ | **P3** | **可见链 + 激活**:finalize.yml 换 PAT push 触发 `pages.yml`;`delivery.yaml` 切 `mode: webhook` + Worker URL;**删 dead `poll_decisions`/协议方法**(终审 Important #2);**端到端实测** | 待写 plan |
 
 **M2 — 日报文风/版式/内容质量（后做,依据 SOP）**
 
