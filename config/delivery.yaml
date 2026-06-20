@@ -1,7 +1,7 @@
 telegram:
   bot_token: ""         # 通过 TELEGRAM_BOT_TOKEN 环境变量注入, 不要写死在这里
   chat_id: ""           # 通过 TELEGRAM_CHAT_ID 环境变量注入
-  mode: "polling"       # 本地用 polling; 云端换 webhook
+  mode: "webhook"       # 已切 webhook(CF Worker); 决策经 webhook 异步收集
 
 website:
   enabled: true
@@ -10,5 +10,5 @@ website:
   site_base_url: "https://ai-newsday.github.io/core/"
 
 decisions_api:
-  url: ""               # CF Worker 基址, 例 https://xxx.workers.dev
+  url: "https://ai-newsday-telegram-webhook.ai-newwsday.workers.dev"  # CF Worker 基址
   # secret 通过 DECISIONS_API_SECRET 环境变量注入, 不要写死
