@@ -31,4 +31,3 @@ class WebsiteNotifier:
                 subprocess.run(["git", "push"], check=True, capture_output=True)
             except subprocess.CalledProcessError:
                 pass
-

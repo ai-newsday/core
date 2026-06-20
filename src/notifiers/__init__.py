@@ -14,7 +14,6 @@ class Notifier(Protocol):
         ...
 
 
-
 class FakeNotifier:
     """测试用的内存实现，记录所有调用。"""
 

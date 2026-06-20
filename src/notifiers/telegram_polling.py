@@ -100,4 +100,3 @@ class TelegramPollingNotifier:
             parse_mode="HTML",
             disable_web_page_preview=True,
         )
-

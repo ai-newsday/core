@@ -37,7 +37,6 @@ def test_send_review_card_sends_two_messages():
     asyncio.run(go())
 
 
-
 def test_send_final_report_sends_message():
     async def go():
         with patch("src.notifiers.telegram_polling.Bot") as MockBot:
@@ -79,13 +78,20 @@ def test_card_cover_escapes_link_url():
     from src.notifiers.telegram_polling import _make_card_messages
 
     card = {
-        "title_zh": "T", "title_en": "T", "source_label": "论文", "source": "s",
-        "link": "https://x/search?a=1&b=2<script>", "score": 88, "signals": {},
-        "summary_zh": "x", "takeaway": "y", "hot_take": "z",
+        "title_zh": "T",
+        "title_en": "T",
+        "source_label": "论文",
+        "source": "s",
+        "link": "https://x/search?a=1&b=2<script>",
+        "score": 88,
+        "signals": {},
+        "summary_zh": "x",
+        "takeaway": "y",
+        "hot_take": "z",
     }
     cover, _ = _make_card_messages("id1", card)
-    assert "&amp;" in cover          # & escaped
-    assert "<script>" not in cover   # raw < not present
+    assert "&amp;" in cover  # & escaped
+    assert "<script>" not in cover  # raw < not present
     assert 'href="https://x/search?a=1&b=2<script>"' not in cover  # raw URL not present
 
 

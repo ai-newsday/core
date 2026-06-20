@@ -21,7 +21,6 @@ def test_fake_notifier_captures_cards():
     asyncio.run(go())
 
 
-
 def test_fake_notifier_captures_final_report():
     async def go():
         fn = FakeNotifier()

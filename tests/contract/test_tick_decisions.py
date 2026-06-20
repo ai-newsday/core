@@ -90,5 +90,3 @@ def test_finalize_decision_fetch_failure_is_non_fatal(tmp_path):
         assert out["item_count"] >= 1
 
     asyncio.run(go())
-
-
