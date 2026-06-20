@@ -3,6 +3,7 @@ from __future__ import annotations
 import yaml
 
 from src.core.types import (
+    DecisionsApiConfig,
     DedupConfig,
     DeliveryConfig,
     EnrichConfig,
@@ -218,5 +219,11 @@ def load_delivery_config(path: str) -> DeliveryConfig:
         enabled=web_data.get("enabled", True),
         output_dir=web_data.get("output_dir", "content/posts"),
         git_push=web_data.get("git_push", False),
+        site_base_url=web_data.get("site_base_url", "https://ai-newsday.github.io/core/"),
     )
-    return DeliveryConfig(telegram=tg, website=web)
+    da_data = data.get("decisions_api", {})
+    decisions_api = DecisionsApiConfig(
+        url=da_data.get("url", ""),
+        secret=os.environ.get("DECISIONS_API_SECRET", da_data.get("secret", "")),
+    )
+    return DeliveryConfig(telegram=tg, website=web, decisions_api=decisions_api)

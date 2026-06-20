@@ -4,6 +4,7 @@ import hashlib
 import logging
 from datetime import datetime
 
+from src.adapters.decisions.worker import DecisionStore
 from src.core.config import load_publish_config, load_review_config
 from src.core.types import InterpretedItem, ReviewDecision
 from src.notifiers import Notifier
@@ -52,7 +53,7 @@ async def run_collect_tick(
     db: Database,
     notifiers: list[Notifier],
 ) -> None:
-    """采集 tick: 把新候选写 DB + 推 Telegram 卡片，再 poll 决策写回 DB。"""
+    """采集 tick: 把新候选写 DB + 推 Telegram 卡片。决策由 webhook 异步收集, finalize 时拉取。"""
     logger = logging.getLogger("ai-newsday")
     date = now.date().isoformat()
     await db.insert_run(run_id, "collect")
@@ -87,17 +88,6 @@ async def run_collect_tick(
                 except Exception as e:  # noqa: BLE001 - notifier failure is non-fatal
                     emit(logger, "notifier_send_error", item_id=item_id, error=str(e))
             pushed += 1
-    # 收决策 — 支持循环轮询的 notifier 等待用户操作
-    for notifier in notifiers:
-        try:
-            if pushed > 0 and hasattr(notifier, "poll_decisions_loop"):
-                decisions = await notifier.poll_decisions_loop(expected=pushed, timeout_secs=120)
-            else:
-                decisions = await notifier.poll_decisions()
-            for decision_item_id, action in decisions:
-                await db.update_decision(decision_item_id, action)
-        except Exception as e:  # noqa: BLE001 - notifier poll failure is non-fatal
-            emit(logger, "notifier_poll_error", error=str(e))
     emit(logger, "tick_collect_done", run_id=run_id, pushed=pushed)
 
 
@@ -109,12 +99,25 @@ async def run_finalize_tick(
     daily_take: str | None,
     db: Database,
     notifiers: list[Notifier],
+    decision_store: DecisionStore | None = None,
+    site_base_url: str = "",
 ) -> dict:
     """定稿 tick: 读决策 → review → publish → send_final_report。"""
     logger = logging.getLogger("ai-newsday")
     date = now.date().isoformat()
     await db.insert_run(run_id, "finalize")
     emit(logger, "tick_finalize_start", run_id=run_id, date=date)
+    # 先把 webhook 远端决策幂等并入 DB(失败降级, 非致命)
+    if decision_store is not None:
+        try:
+            remote = await decision_store.fetch()
+            pending = await db.get_pending_reviews_for_date(date)
+            today_ids = {r["item_id"] for r in pending}
+            for item_id, action in remote.items():
+                if item_id in today_ids:
+                    await db.update_decision(item_id, action)
+        except Exception as e:  # noqa: BLE001 - 拉取失败非致命
+            emit(logger, "decisions_fetch_error", run_id=run_id, error=str(e))
     # 读累积决策（未审默认 keep，review 层自动处理无决策的条目）
     decisions_raw = await db.get_decisions_dict(date)
     decisions = {link: ReviewDecision(action=action) for link, action in decisions_raw.items()}
@@ -129,6 +132,8 @@ async def run_finalize_tick(
         "date_label": date_label,
         "item_count": pres.report.item_count,
         "must_read_count": len(pres.report.must_read),
+        "url": (site_base_url.rstrip("/") + "/posts/" + date + "/") if site_base_url else "",
+        "must_read_titles": [it.title for it in pres.report.must_read],
     }
     for notifier in notifiers:
         try:

@@ -21,19 +21,6 @@ def test_fake_notifier_captures_cards():
     asyncio.run(go())
 
 
-def test_fake_notifier_poll_decisions():
-    async def go():
-        fn = FakeNotifier()
-        fn.queue_decision("id1", "keep")
-        fn.queue_decision("id2", "drop")
-        decisions = await fn.poll_decisions()
-        assert ("id1", "keep") in decisions
-        assert ("id2", "drop") in decisions
-        assert await fn.poll_decisions() == []
-
-    asyncio.run(go())
-
-
 def test_fake_notifier_captures_final_report():
     async def go():
         fn = FakeNotifier()

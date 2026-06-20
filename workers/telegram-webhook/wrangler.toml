@@ -1,0 +1,11 @@
+name = "ai-newsday-telegram-webhook"
+main = "src/index.js"
+compatibility_date = "2026-06-01"
+
+# KV: 决策存储。
+[[kv_namespaces]]
+binding = "DECISIONS"
+id = "8e0df2cd19a04831b6f671ab378e03a6"
+
+# Secrets(不写这里, 用 `wrangler secret put`):
+#   TELEGRAM_BOT_TOKEN, WEBHOOK_SECRET, DECISIONS_API_SECRET

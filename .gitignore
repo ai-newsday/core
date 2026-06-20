@@ -9,3 +9,6 @@ data/*
 .env
 logs/
 public/
+
+# superpowers visual brainstorm scratch
+.superpowers/
