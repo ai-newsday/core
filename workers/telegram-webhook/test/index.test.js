@@ -52,3 +52,26 @@ describe("POST /tg", () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe("GET /decisions", () => {
+  it("rejects wrong bearer with 403", async () => {
+    const req = new Request("https://w/decisions", {
+      headers: { Authorization: "Bearer WRONG" },
+    });
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns {item_id: action} map for stored decisions", async () => {
+    await env.DECISIONS.put("dec:aaa", "keep", { expirationTtl: 604800 });
+    await env.DECISIONS.put("dec:bbb", "drop", { expirationTtl: 604800 });
+    const req = new Request("https://w/decisions", {
+      headers: { Authorization: "Bearer test-api-secret" },
+    });
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.aaa).toBe("keep");
+    expect(body.bbb).toBe("drop");
+  });
+});

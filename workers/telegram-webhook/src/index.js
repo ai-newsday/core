@@ -54,6 +54,18 @@ async function handleWebhook(request, env) {
 }
 
 async function handleDecisions(request, env) {
-  // PART B 实现; 占位以便路由不 500
-  return new Response("not implemented", { status: 501 });
+  if (request.headers.get("Authorization") !== `Bearer ${env.DECISIONS_API_SECRET}`) {
+    return new Response("forbidden", { status: 403 });
+  }
+  const out = {};
+  let cursor;
+  do {
+    const page = await env.DECISIONS.list({ prefix: "dec:", cursor });
+    for (const k of page.keys) {
+      const action = await env.DECISIONS.get(k.name);
+      if (action) out[k.name.slice(4)] = action; // 去掉 "dec:" 前缀
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return Response.json(out);
 }
