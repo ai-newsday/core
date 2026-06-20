@@ -47,6 +47,23 @@ def _make_card_messages(item_id: str, card: dict) -> tuple[str, str]:
     return cover, body
 
 
+def _make_final_message(summary: dict) -> str:
+    """终稿推送 = 简报 + 链接(HTML)。不再 dump markdown, 规避 4096 截断。"""
+    esc = html_lib.escape
+    date_label = esc(str(summary.get("date_label", "")))
+    item_count = summary.get("item_count", 0)
+    must_read = summary.get("must_read_count", 0)
+    titles = summary.get("must_read_titles", []) or []
+    url = str(summary.get("url", ""))
+    lines = [f"<b>AI Daily · {date_label}</b>", f"共 {item_count} 条，必读 {must_read} 篇", ""]
+    for i, t in enumerate(titles, 1):
+        lines.append(f"{i}. {esc(str(t))}")
+    if url:
+        lines.append("")
+        lines.append(f'<a href="{esc(url)}">阅读全文 →</a>')
+    return "\n".join(lines)
+
+
 class TelegramPollingNotifier:
     def __init__(self, config: TelegramConfig, db: Database | None = None):
         self._cfg = config
@@ -75,18 +92,12 @@ class TelegramPollingNotifier:
         return msg.message_id
 
     async def send_final_report(self, markdown: str, summary: dict) -> None:
-        date_label = summary.get("date_label", "")
-        must_read = summary.get("must_read_count", 0)
-        item_count = summary.get("item_count", 0)
-        header = (
-            f"📰 <b>AI Daily · {html_lib.escape(date_label)}</b>\n"
-            f"共 {item_count} 条  |  必读 {must_read} 篇\n\n"
-        )
-        body = markdown[:3800]
+        text = _make_final_message(summary)
         await self._bot.send_message(
             chat_id=self._cfg.chat_id,
-            text=header + f"<pre>{html_lib.escape(body)}</pre>",
+            text=text,
             parse_mode="HTML",
+            disable_web_page_preview=True,
         )
 
     async def _fetch_once(self) -> list[tuple[str, str]]:

@@ -78,3 +78,20 @@ def test_send_final_report_sends_message():
             assert "2026-06-05" in call_kwargs["text"]
 
     asyncio.run(go())
+
+
+def test_make_final_message_is_summary_with_link():
+    from src.notifiers.telegram_polling import _make_final_message
+
+    msg = _make_final_message({
+        "date_label": "2026-06-19",
+        "item_count": 7,
+        "must_read_count": 2,
+        "must_read_titles": ["Moebius 反超 FLUX", "RATs 玩出技能"],
+        "url": "https://ai-newsday.github.io/core/posts/2026-06-19/",
+    })
+    assert "2026-06-19" in msg
+    assert "Moebius 反超 FLUX" in msg
+    assert "https://ai-newsday.github.io/core/posts/2026-06-19/" in msg
+    assert "<pre>" not in msg
+    assert len(msg) < 4096
