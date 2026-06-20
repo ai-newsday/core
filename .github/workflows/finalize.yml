@@ -1,6 +1,9 @@
 name: Finalize (Draft)
 
 on:
+  schedule:
+    # 北京时间 08:00 晨报 → UTC 00:00。每日定稿 + push(PAT) 触发 Pages。
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 jobs:
