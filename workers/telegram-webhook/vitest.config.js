@@ -5,6 +5,8 @@ export default defineWorkersConfig({
     poolOptions: {
       workers: {
         miniflare: {
+          compatibilityDate: "2026-06-01",
+          compatibilityFlags: ["nodejs_compat"],
           kvNamespaces: ["DECISIONS"],
           bindings: {
             WEBHOOK_SECRET: "test-webhook-secret",
