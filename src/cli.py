@@ -381,7 +381,7 @@ def run_tick(
         decision_store = WorkerDecisionStore(dcfg.decisions_api.url, dcfg.decisions_api.secret)
     notifiers = []
     if dcfg.telegram.bot_token:
-        tg = TelegramPollingNotifier(dcfg.telegram, db=db)
+        tg = TelegramPollingNotifier(dcfg.telegram)
         notifiers.append(tg)
     else:
         notifiers.append(FakeNotifier())  # 无 token = dry 模式

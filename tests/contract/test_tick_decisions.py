@@ -92,17 +92,3 @@ def test_finalize_decision_fetch_failure_is_non_fatal(tmp_path):
     asyncio.run(go())
 
 
-def test_collect_no_longer_polls_decisions(tmp_path):
-    """collect 只发卡片, 不再消费 FakeNotifier 里排队的决策。"""
-
-    async def go():
-        db = Database(str(tmp_path / "s.db"))
-        await db.init()
-        items = [_item("https://x/1", "A")]
-        notifier = FakeNotifier()
-        notifier.queue_decision(_iid("https://x/1"), "drop")
-        await run_collect_tick("r1", NOW, items, "take", db, [notifier])
-        decided = await db.get_decisions_dict("2026-06-19")
-        assert decided == {}
-
-    asyncio.run(go())

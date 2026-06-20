@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import html as html_lib
-import logging
 
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
 from src.core.types import TelegramConfig
-from src.state.db import Database
 
 
 def _fmt_signals(signals: dict) -> str:
@@ -69,10 +67,9 @@ def _make_final_message(summary: dict) -> str:
 
 
 class TelegramPollingNotifier:
-    def __init__(self, config: TelegramConfig, db: Database | None = None):
+    def __init__(self, config: TelegramConfig):
         self._cfg = config
         self._bot = Bot(token=config.bot_token)
-        self._db = db
 
     async def send_review_card(self, item_id: str, card: dict) -> int | None:
         cover, body = _make_card_messages(item_id, card)
@@ -104,76 +101,3 @@ class TelegramPollingNotifier:
             disable_web_page_preview=True,
         )
 
-    async def _fetch_once(self) -> list[tuple[str, str]]:
-        """单次 getUpdates，处理 callback_query 并持久化 offset。"""
-        logger = logging.getLogger("ai-newsday")
-        if self._db is None:
-            return []
-        offset_str = await self._db.get_kv("telegram_offset")
-        offset = int(offset_str) if offset_str else None
-        try:
-            updates = await self._bot.get_updates(
-                offset=offset, timeout=10, allowed_updates=["callback_query"]
-            )
-        except Exception as e:
-            logger.warning("getUpdates failed: %s", e)
-            return []
-        out: list[tuple[str, str]] = []
-        action_labels = {"keep": "✅ 已保留", "drop": "❌ 已删除", "skip": "⏭ 已跳过"}
-        for update in updates:
-            query = update.callback_query
-            if query and query.data:
-                parts = query.data.split(":", 1)
-                if len(parts) == 2:
-                    item_id, action = parts
-                    out.append((item_id, action))
-                    label = action_labels.get(action, action)
-                    try:
-                        await query.answer(text=label)
-                    except Exception:
-                        pass
-                    try:
-                        if query.message:
-                            old_text = query.message.text or ""
-                            await self._bot.edit_message_text(
-                                chat_id=query.message.chat_id,
-                                message_id=query.message.message_id,
-                                text=f"{old_text}\n\n{label}",
-                                parse_mode="HTML",
-                            )
-                    except Exception:
-                        pass
-            await self._db.set_kv("telegram_offset", str(update.update_id + 1))
-        return out
-
-    async def poll_decisions(self) -> list[tuple[str, str]]:
-        """单次拉取已有 callback_query（向后兼容）。"""
-        return await self._fetch_once()
-
-    async def poll_decisions_loop(
-        self, expected: int, timeout_secs: int = 120
-    ) -> list[tuple[str, str]]:
-        """持续轮询直到收齐 expected 条决策或超时。
-
-        Telegram long-poll timeout=10s，所以每轮 ~10s 循环一次。
-        用户点击后秒级响应，answer() 弹 toast + 编辑消息。
-        """
-        logger = logging.getLogger("ai-newsday")
-        all_decisions: list[tuple[str, str]] = []
-        seen_items: set[str] = set()
-        elapsed = 0
-        while len(seen_items) < expected and elapsed < timeout_secs:
-            batch = await self._fetch_once()
-            for item_id, action in batch:
-                if item_id not in seen_items:
-                    seen_items.add(item_id)
-                    all_decisions.append((item_id, action))
-            if len(seen_items) < expected and elapsed < timeout_secs:
-                elapsed += 10  # long-poll 本身就等了 ~10s
-                logger.info(
-                    "poll_decisions_loop: %d/%d decided, %.0fs elapsed",
-                    len(seen_items),
-                    expected,
-                    elapsed,
-                )
-        return all_decisions
