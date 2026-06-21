@@ -209,15 +209,13 @@ class QualityFlag(BaseModel):
 
 
 class InterpretedItem(ScoredItem):  # ScoredItem 的下游演进; 本圈加解读字段
-    title: str  # 中文标题, ≤ title_max_chars
-    summary: str  # 中文摘要, ≤ summary_max_chars
-    takeaway: str  # 对你意味着什么/怎么用; 回退时 ""
-    hot_take: str = ""  # 锐评 AI 草稿(待人工定稿)
-    tags: list[str] = Field(default_factory=list)  # 恰好 tags_count 个或回退时 []
+    title: str  # 中文钩子标题, ≤ title_max_chars; 术语保留英文原文
+    body: str  # 一段顺读正文(事实→实用→可选判断); 回退时为抽取式原文
+    tags: list[str] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
-    interpretation_status: str  # "ok" | "extractive_fallback"
+    interpretation_status: str
     eligible_for_must_read: bool
-    quality_flags: list[QualityFlag] = Field(default_factory=list)  # advisor 标注; 默认空
+    quality_flags: list[QualityFlag] = Field(default_factory=list)
 
 
 @dataclass
@@ -229,7 +227,7 @@ class InterpretConfig:
     max_tokens: int = 800
     timeout_s: int = 60
     title_max_chars: int = 64
-    summary_max_chars: int = 120
+    body_max_chars: int = 240
     tags_count: int = 3
     min_evidence: int = 1
     item_prompt_path: str = "src/prompts/interpret_item.md"
@@ -254,7 +252,7 @@ class SelfCheckConfig:
     max_tokens: int = 600
     timeout_s: int = 60
     title_max_chars: int = 64
-    summary_max_chars: int = 120
+    body_max_chars: int = 240
     tags_count: int = 3
     min_evidence: int = 1
     message_max_chars: int = 120
@@ -290,7 +288,7 @@ class ReviewedItem(InterpretedItem):  # InterpretedItem 的下游演进
 class ReviewConfig:
     decisions_path: str = "data/review_decisions.json"
     title_max_chars: int = 64
-    summary_max_chars: int = 120
+    body_max_chars: int = 240
     tags_count: int = 3
     min_evidence: int = 1
 

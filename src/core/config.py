@@ -83,7 +83,7 @@ def load_interpret_config(path: str) -> InterpretConfig:
         max_tokens=data.get("max_tokens", d.max_tokens),
         timeout_s=data.get("timeout_s", d.timeout_s),
         title_max_chars=data.get("title_max_chars", d.title_max_chars),
-        summary_max_chars=data.get("summary_max_chars", d.summary_max_chars),
+        body_max_chars=data.get("body_max_chars", d.body_max_chars),
         tags_count=data.get("tags_count", d.tags_count),
         min_evidence=data.get("min_evidence", d.min_evidence),
         item_prompt_path=data.get("item_prompt_path", d.item_prompt_path),
@@ -102,7 +102,7 @@ def load_selfcheck_config(path: str) -> SelfCheckConfig:
         max_tokens=data.get("max_tokens", d.max_tokens),
         timeout_s=data.get("timeout_s", d.timeout_s),
         title_max_chars=data.get("title_max_chars", d.title_max_chars),
-        summary_max_chars=data.get("summary_max_chars", d.summary_max_chars),
+        body_max_chars=data.get("body_max_chars", d.body_max_chars),
         tags_count=data.get("tags_count", d.tags_count),
         min_evidence=data.get("min_evidence", d.min_evidence),
         message_max_chars=data.get("message_max_chars", d.message_max_chars),
@@ -118,7 +118,7 @@ def load_review_config(path: str) -> ReviewConfig:
     return ReviewConfig(
         decisions_path=data.get("decisions_path", d.decisions_path),
         title_max_chars=data.get("title_max_chars", d.title_max_chars),
-        summary_max_chars=data.get("summary_max_chars", d.summary_max_chars),
+        body_max_chars=data.get("body_max_chars", d.body_max_chars),
         tags_count=data.get("tags_count", d.tags_count),
         min_evidence=data.get("min_evidence", d.min_evidence),
     )
