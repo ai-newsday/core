@@ -32,9 +32,7 @@ def _interp(**over):
         score_breakdown={"机构影响力": 88.0},
         is_explore=False,
         title="智谱发布 GLM-5",
-        summary="开源 MoE 模型。",
-        takeaway="可自建推理。",
-        hot_take="护城河又薄了。",
+        body="开源 MoE 模型。可自建推理。护城河又薄了。",
         tags=["#开源", "#MoE", "#GLM"],
         evidence=[Evidence(claim="MoE", anchor="https://hf.co/glm5")],
         interpretation_status="ok",
@@ -47,7 +45,7 @@ def _interp(**over):
 def test_review_config_defaults():
     c = ReviewConfig()
     assert c.decisions_path == "data/review_decisions.json"
-    assert c.title_max_chars == 64 and c.summary_max_chars == 120
+    assert c.title_max_chars == 64 and c.body_max_chars == 240
     assert c.tags_count == 3 and c.min_evidence == 1
 
 
