@@ -29,8 +29,7 @@ def _item(link: str, title: str) -> InterpretedItem:
         score_breakdown={"技术价值": 80.0},
         # InterpretedItem fields
         title=title,
-        summary="测试摘要",
-        takeaway="测试 takeaway",
+        body="测试正文，一段顺读内容。",
         tags=["AI", "测试", "新闻"],
         evidence=[Evidence(claim="测试声明", anchor=link)],
         interpretation_status="ok",

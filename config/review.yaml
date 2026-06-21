@@ -1,5 +1,5 @@
 decisions_path: "data/review_decisions.json"  # 决策表; 缺则全 keep/待审
 title_max_chars: 64        # 与解读层一致
-summary_max_chars: 120     # 与解读层一致
+body_max_chars: 240        # 与解读层一致
 tags_count: 3              # 一致性参考(本层不因 tags 数强制回退)
 min_evidence: 1            # 必读门: 至少 1 条证据

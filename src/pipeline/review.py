@@ -12,7 +12,7 @@ from src.core.types import (
 from src.observability.events import emit
 
 # edit 只允许覆盖这些内容字段; 其余(出处)字段只读
-EDITABLE_FIELDS = ("title", "summary", "takeaway", "hot_take", "tags", "evidence")
+EDITABLE_FIELDS = ("title", "body", "tags", "evidence")
 
 
 def _filter_evidence(raw_evidence, item: InterpretedItem) -> list[Evidence]:
@@ -32,9 +32,9 @@ def _filter_evidence(raw_evidence, item: InterpretedItem) -> list[Evidence]:
     return out
 
 
-def _gate(status: str, evidence: list[Evidence], takeaway: str, config: ReviewConfig) -> bool:
+def _gate(status: str, evidence: list[Evidence], body: str, config: ReviewConfig) -> bool:
     """必读门(spec §5.8); 与解读层 §5.4 同式。status 只读, 回退条目洗不白。"""
-    return status == "ok" and len(evidence) >= config.min_evidence and takeaway != ""
+    return status == "ok" and len(evidence) >= config.min_evidence and body != ""
 
 
 def apply_decision(
@@ -54,10 +54,10 @@ def apply_decision(
             edited_fields.append(key)
     # 改后重新校验
     base["title"] = str(base["title"])[: config.title_max_chars]
-    base["summary"] = str(base["summary"])[: config.summary_max_chars]
+    base["body"] = str(base["body"])[: config.body_max_chars]
     base["evidence"] = _filter_evidence(base.get("evidence"), item)
     base["eligible_for_must_read"] = _gate(
-        base["interpretation_status"], base["evidence"], base["takeaway"], config
+        base["interpretation_status"], base["evidence"], base["body"], config
     )
     return ReviewedItem(
         **base, review_action="edit", was_edited=bool(edited_fields), edited_fields=edited_fields

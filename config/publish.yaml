@@ -1,6 +1,7 @@
-must_read_count: 3                       # 今日必读取前几条
-top_keywords: 4                          # 数据概览高频关键词个数
-pending_watermark: "⚠ 未审草稿（待人工定稿，勿直接发布）"
+must_read_count: 3                       # 今日必读取前几条(保留兼容, 渲染层已不使用)
+top_keywords: 4                          # 数据概览高频关键词个数(保留兼容)
+pending_watermark: "草稿待定稿"
+min_display_score: 60
 genre_labels:                            # genre → 中文展示名(键顺序=组间顺序)
   paper: "论文"
   model: "模型"

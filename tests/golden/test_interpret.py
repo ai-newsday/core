@@ -34,9 +34,7 @@ def _ok_json(anchor):
     return json.dumps(
         {
             "title": "中文标题",
-            "summary": "中文摘要。",
-            "takeaway": "怎么用。",
-            "hot_take": "锐评。",
+            "body": "中文正文，先讲事实，再落到对从业者的意义，可用一句克制的判断收尾。",
             "tags": ["#a", "#b", "#c"],
             "evidence": [{"claim": "事实", "anchor": anchor}],
         }
@@ -62,9 +60,7 @@ def test_golden_wrong_tags_falls_back():
     bad = json.dumps(
         {
             "title": "t",
-            "summary": "s",
-            "takeaway": "x",
-            "hot_take": "",
+            "body": "正文内容。",
             "tags": ["#one"],
             "evidence": [],
         }
@@ -86,12 +82,10 @@ def test_golden_total_failure_all_fallback():
     assert res.fallback_count == 2 and res.interpreted_count == 0
     assert all(i.interpretation_status == "extractive_fallback" for i in res.interpreted_items)
     assert res.interpreted_items[0].title == "T1"
-    assert res.interpreted_items[0].summary == "R1."
+    assert res.interpreted_items[0].body == "R1."
     assert res.daily_take is None
-    # zero fabrication
-    assert all(
-        i.takeaway == "" and i.tags == [] and i.evidence == [] for i in res.interpreted_items
-    )
+    # zero fabrication: no tags, no evidence, body is extractive raw_summary
+    assert all(i.tags == [] and i.evidence == [] for i in res.interpreted_items)
 
 
 # Case 4 (spec §9.4): evidence empty -> not must-read
@@ -99,9 +93,7 @@ def test_golden_empty_evidence_not_must_read():
     j = json.dumps(
         {
             "title": "t",
-            "summary": "s",
-            "takeaway": "x",
-            "hot_take": "",
+            "body": "正文有内容但无 evidence。",
             "tags": ["#a", "#b", "#c"],
             "evidence": [],
         }

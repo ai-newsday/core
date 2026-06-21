@@ -30,9 +30,7 @@ def _ri(link="https://a/1", genre=Genre.model, score=80, eligible=True, is_explo
         score_breakdown={"机构影响力": float(score)},
         is_explore=is_explore,
         title="中文标题",
-        summary="中文摘要。",
-        takeaway="怎么用。",
-        hot_take="锐评。",
+        body="中文正文一段。",
         tags=["#a", "#b", "#c"],
         evidence=[Evidence(claim="事实", anchor=link)],
         interpretation_status="ok",
@@ -89,7 +87,8 @@ def test_daily_report_daily_take_optional():
 def test_publish_config_defaults():
     c = PublishConfig()
     assert c.must_read_count == 3 and c.top_keywords == 4
-    assert "未审" in c.pending_watermark
+    assert c.pending_watermark  # non-empty watermark string
+    assert c.min_display_score == 60
     assert c.genre_labels["model"] == "模型"
     # genre_labels 键顺序即组间顺序
     assert list(c.genre_labels)[0] == "paper"

@@ -20,3 +20,13 @@ def test_repo_prompts_exist_and_have_placeholders():
     assert "{{link}}" in item and "{{related_links}}" in item
     daily = load_prompt("src/prompts/daily_take.md")
     assert "{{items}}" in daily
+
+
+def test_interpret_prompt_uses_body_schema():
+    from src.core.prompts import load_prompt
+
+    t = load_prompt("src/prompts/interpret_item.md")
+    assert "`body`" in t
+    assert '"body"' in t
+    assert "takeaway" not in t
+    assert "hot_take" not in t

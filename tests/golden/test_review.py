@@ -10,8 +10,7 @@ def _interp(
     link="https://a/1",
     status="ok",
     title="中文标题",
-    summary="中文摘要。",
-    takeaway="怎么用。",
+    body="中文正文。怎么用。锐评。",
     tags=None,
     evidence=None,
     related=None,
@@ -32,9 +31,7 @@ def _interp(
         score_breakdown={"机构影响力": float(score)},
         is_explore=False,
         title=title,
-        summary=summary,
-        takeaway=takeaway,
-        hot_take="锐评。",
+        body=body,
         tags=tags if tags is not None else ["#a", "#b", "#c"],
         evidence=evidence if evidence is not None else [Evidence(claim="事实", anchor=link)],
         interpretation_status=status,
@@ -61,24 +58,24 @@ def test_apply_drop_returns_none():
 def test_apply_edit_overrides_and_records_fields():
     it = _interp()
     r = apply_decision(
-        it, ReviewDecision(action="edit", edits={"title": "改后标题", "hot_take": "新锐评"}), CFG
+        it, ReviewDecision(action="edit", edits={"title": "改后标题", "body": "新正文。"}), CFG
     )
     assert r.review_action == "edit" and r.was_edited is True
-    assert set(r.edited_fields) == {"title", "hot_take"}
-    assert r.title == "改后标题" and r.hot_take == "新锐评"
+    assert set(r.edited_fields) == {"title", "body"}
+    assert r.title == "改后标题" and r.body == "新正文。"
     # 未改字段保留原值
-    assert r.summary == "中文摘要。"
+    assert r.tags == ["#a", "#b", "#c"]
 
 
-def test_apply_edit_reclamps_title_and_summary():
+def test_apply_edit_reclamps_title_and_body():
     it = _interp()
     long_title = "标" * 100
-    long_summary = "要" * 200
+    long_body = "正" * 300
     r = apply_decision(
-        it, ReviewDecision(action="edit", edits={"title": long_title, "summary": long_summary}), CFG
+        it, ReviewDecision(action="edit", edits={"title": long_title, "body": long_body}), CFG
     )
     assert len(r.title) == CFG.title_max_chars
-    assert len(r.summary) == CFG.summary_max_chars
+    assert len(r.body) == CFG.body_max_chars
 
 
 def test_apply_edit_provenance_readonly():
@@ -110,12 +107,12 @@ def test_apply_edit_drops_illegal_anchor():
 
 
 def test_apply_edit_recomputes_gate_true():
-    it = _interp(eligible=False)
+    it = _interp(eligible=False, body="")
     r = apply_decision(
         it,
         ReviewDecision(
             action="edit",
-            edits={"takeaway": "可操作", "evidence": [{"claim": "事实", "anchor": "https://a/1"}]},
+            edits={"body": "可操作", "evidence": [{"claim": "事实", "anchor": "https://a/1"}]},
         ),
         CFG,
     )
@@ -123,12 +120,12 @@ def test_apply_edit_recomputes_gate_true():
 
 
 def test_apply_edit_cannot_whitewash_fallback():
-    it = _interp(status="extractive_fallback", takeaway="", evidence=[], eligible=False)
+    it = _interp(status="extractive_fallback", body="", evidence=[], eligible=False)
     r = apply_decision(
         it,
         ReviewDecision(
             action="edit",
-            edits={"takeaway": "硬补", "evidence": [{"claim": "事实", "anchor": "https://a/1"}]},
+            edits={"body": "硬补", "evidence": [{"claim": "事实", "anchor": "https://a/1"}]},
         ),
         CFG,
     )
@@ -190,13 +187,13 @@ def test_golden_drop_removes_and_counts():
 
 # Case 3 (§9.3): 改写 + 重夹 + 重算门
 def test_golden_edit_reclamp_and_gate():
-    items = [_interp("https://a/1", eligible=False, takeaway="")]
+    items = [_interp("https://a/1", eligible=False, body="")]
     decisions = {
         "https://a/1": ReviewDecision(
             action="edit",
             edits={
                 "title": "标" * 100,
-                "takeaway": "可操作",
+                "body": "可操作",
                 "evidence": [{"claim": "事实", "anchor": "https://a/1"}],
             },
         )
@@ -211,14 +208,12 @@ def test_golden_edit_reclamp_and_gate():
 # Case 4 (§9.4): 改写不能洗白回退
 def test_golden_edit_cannot_whitewash_fallback():
     items = [
-        _interp(
-            "https://a/1", status="extractive_fallback", takeaway="", evidence=[], eligible=False
-        )
+        _interp("https://a/1", status="extractive_fallback", body="", evidence=[], eligible=False)
     ]
     decisions = {
         "https://a/1": ReviewDecision(
             action="edit",
-            edits={"takeaway": "硬补", "evidence": [{"claim": "事实", "anchor": "https://a/1"}]},
+            edits={"body": "硬补", "evidence": [{"claim": "事实", "anchor": "https://a/1"}]},
         )
     }
     res = review(items, None, decisions, CFG, _ctx())

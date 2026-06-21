@@ -39,9 +39,8 @@ def _build_card(item: InterpretedItem) -> dict:
         "link": item.link,
         "score": item.score,
         "signals": item.signals,
-        "summary_zh": item.summary,
-        "takeaway": item.takeaway,
-        "hot_take": item.hot_take,
+        "body": item.body,
+        "tags": item.tags,
     }
 
 
@@ -68,9 +67,9 @@ async def run_collect_tick(
             source=item.source,
             title_en=item.title_en,
             title_zh=item.title,
-            summary_zh=item.summary,
-            takeaway=item.takeaway,
-            hot_take=item.hot_take,
+            summary_zh=item.body,
+            takeaway="",
+            hot_take="",
             score=item.score,
             signals=item.signals,
             date=date,
@@ -131,9 +130,7 @@ async def run_finalize_tick(
     summary = {
         "date_label": date_label,
         "item_count": pres.report.item_count,
-        "must_read_count": len(pres.report.must_read),
         "url": (site_base_url.rstrip("/") + "/posts/" + date + "/") if site_base_url else "",
-        "must_read_titles": [it.title for it in pres.report.must_read],
     }
     for notifier in notifiers:
         try:
@@ -145,7 +142,6 @@ async def run_finalize_tick(
         "tick_finalize_done",
         run_id=run_id,
         item_count=pres.report.item_count,
-        must_read_count=len(pres.report.must_read),
     )
     # 反馈闭环 (PRD §4.5): 派生 → 幂等入账 → 增量重算权重 → 写回。非致命。
     if not await db.has_feedback_for_run(run_id):
@@ -166,6 +162,5 @@ async def run_finalize_tick(
         "run_id": run_id,
         "date_label": date_label,
         "item_count": pres.report.item_count,
-        "must_read_count": len(pres.report.must_read),
         "is_pending": pres.is_pending,
     }

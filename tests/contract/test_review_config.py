@@ -21,7 +21,7 @@ def test_load_review_config_overrides_fields(tmp_path):
     assert cfg.title_max_chars == 40 and cfg.min_evidence == 2
     assert cfg.decisions_path == "x/y.json"
     # 未覆盖字段保持默认
-    assert cfg.summary_max_chars == 120 and cfg.tags_count == 3
+    assert cfg.body_max_chars == 240 and cfg.tags_count == 3
 
 
 def test_load_review_decisions_missing_returns_empty(tmp_path):

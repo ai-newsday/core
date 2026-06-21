@@ -63,17 +63,13 @@ def build_ok_item(parsed: dict, item: ScoredItem, config: InterpretConfig) -> In
     if not isinstance(tags, list) or len(tags) != config.tags_count:
         raise ValueError("tags count not met")
     title = str(parsed.get("title", ""))[: config.title_max_chars]
-    summary = str(parsed.get("summary", ""))[: config.summary_max_chars]
-    takeaway = str(parsed.get("takeaway", ""))
-    hot_take = str(parsed.get("hot_take", ""))
+    body = str(parsed.get("body", ""))[: config.body_max_chars]
     evidence = _filter_evidence(parsed.get("evidence"), item)
-    eligible = bool(takeaway) and len(evidence) >= config.min_evidence
+    eligible = bool(body) and len(evidence) >= config.min_evidence
     return InterpretedItem(
         **item.model_dump(),
         title=title,
-        summary=summary,
-        takeaway=takeaway,
-        hot_take=hot_take,
+        body=body,
         tags=[str(t) for t in tags],
         evidence=evidence,
         interpretation_status="ok",
@@ -87,9 +83,7 @@ def extractive_fallback(item: ScoredItem, config: InterpretConfig) -> Interprete
     return InterpretedItem(
         **item.model_dump(),
         title=item.title_en,
-        summary=(item.raw_summary or "")[: config.summary_max_chars],
-        takeaway="",
-        hot_take="",
+        body=(item.raw_summary or "")[: config.body_max_chars],
         tags=[],
         evidence=[],
         interpretation_status="extractive_fallback",
@@ -124,11 +118,11 @@ def interpret_item(
 
 
 def build_daily_prompt(items: list[InterpretedItem], template: str) -> str:
-    """Render the daily-take prompt from interpreted items' titles + summaries."""
+    """Render the daily-take prompt from interpreted items' titles."""
     lines = []
     for it in items:
         title = it.title if it.interpretation_status == "ok" else it.title_en
-        lines.append(f"- {title}: {it.summary}")
+        lines.append(f"- {title}")
     return template.replace("{{items}}", "\n".join(lines))
 
 

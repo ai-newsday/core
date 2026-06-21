@@ -41,9 +41,7 @@ def _make_item(link, source="hf-models", st=Genre.model, cluster_id=None, signal
         signals=signals or {"likes": 4622},
         is_explore=False,
         title="DeepSeek V4 发布",
-        summary="旗舰模型发布。",
-        takeaway="可替换 API。",
-        hot_take="护城河变薄。",
+        body="旗舰模型发布，可替换 API，护城河变薄。",
         tags=["#模型"],
         evidence=[Evidence(claim="发布了", anchor=link)],
         interpretation_status="ok",
@@ -150,7 +148,7 @@ def test_finalize_tick_returns_dict_keys(tmp_path):
             db=db,
             notifiers=[notifier],
         )
-        for k in ("run_id", "date_label", "item_count", "must_read_count", "is_pending"):
+        for k in ("run_id", "date_label", "item_count", "is_pending"):
             assert k in result
 
     asyncio.run(go())
@@ -177,9 +175,9 @@ def test_finalize_tick_persists_feedback_and_is_idempotent(tmp_path):
             source=item.source,
             title_en=item.title_en,
             title_zh=item.title,
-            summary_zh=item.summary,
-            takeaway=item.takeaway,
-            hot_take=item.hot_take,
+            summary_zh=item.body,
+            takeaway="",
+            hot_take="",
             score=item.score,
             signals=item.signals,
             date=TODAY,

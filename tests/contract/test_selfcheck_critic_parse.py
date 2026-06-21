@@ -22,9 +22,7 @@ def _item():
         score_breakdown={"机构影响力": 80.0},
         is_explore=False,
         title="标题",
-        summary="摘要",
-        takeaway="用法",
-        hot_take="锐评",
+        body="正文内容",
         tags=["#a", "#b", "#c"],
         evidence=[Evidence(claim="f", anchor="https://a/1")],
         interpretation_status="ok",
@@ -33,27 +31,27 @@ def _item():
 
 
 def test_build_prompt_substitutes_fields():
-    tpl = "T={{title}} S={{summary}} TA={{takeaway}} HT={{hot_take}} RAW={{raw_summary}} EV={{evidence}}"
+    tpl = "T={{title}} B={{body}} RAW={{raw_summary}} EV={{evidence}}"
     out = build_critic_prompt(_item(), tpl)
-    assert "T=标题" in out and "TA=用法" in out and "RAW=原始摘要文本" in out
+    assert "T=标题" in out and "B=正文内容" in out and "RAW=原始摘要文本" in out
 
 
 def test_parse_maps_codes_and_severity():
     raw = json.dumps(
         {
-            "consistency": [{"field": "takeaway", "message": "原文没说"}],
-            "ai_slop": [{"field": "hot_take", "message": "套话"}],
+            "consistency": [{"field": "body", "message": "原文没说"}],
+            "ai_slop": [{"field": "body", "message": "套话"}],
         }
     )
     flags = parse_critic(raw, SelfCheckConfig())
     by = {f.code: f for f in flags}
-    assert by["consistency"].severity == "warn" and by["consistency"].field == "takeaway"
+    assert by["consistency"].severity == "warn" and by["consistency"].field == "body"
     assert by["ai_slop"].severity == "info"
 
 
 def test_parse_truncates_message_and_caps_count():
     cfg = SelfCheckConfig(message_max_chars=5, max_flags_per_item=2)
-    raw = json.dumps({"ai_slop": [{"field": "summary", "message": "一二三四五六七八"}] * 4})
+    raw = json.dumps({"ai_slop": [{"field": "body", "message": "一二三四五六七八"}] * 4})
     flags = parse_critic(raw, cfg)
     assert len(flags) == 2  # capped
     assert all(len(f.message) <= 5 for f in flags)
@@ -64,8 +62,8 @@ def test_parse_cap_is_per_code_not_global():
     cfg = SelfCheckConfig(max_flags_per_item=3)
     raw = json.dumps(
         {
-            "consistency": [{"field": "takeaway", "message": "c"}] * 3,
-            "ai_slop": [{"field": "summary", "message": "s"}] * 3,
+            "consistency": [{"field": "body", "message": "c"}] * 3,
+            "ai_slop": [{"field": "title", "message": "s"}] * 3,
         }
     )
     flags = parse_critic(raw, cfg)

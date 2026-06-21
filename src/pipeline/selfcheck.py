@@ -23,8 +23,8 @@ def format_lint(item: InterpretedItem, config: SelfCheckConfig) -> list[QualityF
 
     if len(item.title) > config.title_max_chars:
         warn("title", f"标题超长(>{config.title_max_chars})")
-    if len(item.summary) > config.summary_max_chars:
-        warn("summary", f"摘要超长(>{config.summary_max_chars})")
+    if len(item.body) > config.body_max_chars:
+        warn("body", f"正文超长(>{config.body_max_chars})")
     if item.interpretation_status == "ok" and len(item.tags) != config.tags_count:
         warn("tags", f"标签数应为{config.tags_count},实为{len(item.tags)}")
     allowed = {item.link, *item.related_links}
@@ -33,12 +33,12 @@ def format_lint(item: InterpretedItem, config: SelfCheckConfig) -> list[QualityF
     if item.eligible_for_must_read:
         if len(item.evidence) < config.min_evidence:
             warn("evidence", f"必读条目证据不足(<{config.min_evidence})")
-        if not item.takeaway:
-            warn("takeaway", "必读条目缺 takeaway")
+        if not item.body:
+            warn("body", "必读条目缺 body")
     return flags
 
 
-_FIELD_WHITELIST = {"takeaway", "summary", "hot_take", "tags", "evidence"}
+_FIELD_WHITELIST = {"body", "title", "tags", "evidence"}
 _CODE_SEVERITY = {"consistency": "warn", "ai_slop": "info"}
 
 
@@ -47,9 +47,7 @@ def build_critic_prompt(item: InterpretedItem, template: str) -> str:
     ev = "\n".join(f"- {e.claim} @ {e.anchor}" for e in item.evidence)
     repl = {
         "{{title}}": item.title,
-        "{{summary}}": item.summary,
-        "{{takeaway}}": item.takeaway,
-        "{{hot_take}}": item.hot_take,
+        "{{body}}": item.body,
         "{{title_en}}": item.title_en,
         "{{raw_summary}}": item.raw_summary or "",
         "{{evidence}}": ev,

@@ -26,9 +26,8 @@ def test_send_review_card_sends_two_messages():
                 "link": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro",
                 "score": 92,
                 "signals": {"likes": 4622, "hn_points": 12},
-                "summary_zh": "DeepSeek 旗舰模型。",
-                "takeaway": "可替换 API。",
-                "hot_take": "护城河变薄。",
+                "body": "DeepSeek 旗舰模型，可替换 API，护城河变薄。",
+                "tags": ["#DeepSeek", "#模型", "#API"],
             }
             msg_id = await notifier.send_review_card("item_1", card)
             assert mock_bot.send_message.call_count == 2
@@ -45,7 +44,7 @@ def test_send_final_report_sends_message():
             notifier = TelegramPollingNotifier(_cfg())
             await notifier.send_final_report(
                 "# AI Daily · 2026-06-05\n内容",
-                {"date_label": "2026-06-05", "must_read_count": 3, "item_count": 8},
+                {"date_label": "2026-06-05", "item_count": 8},
             )
             mock_bot.send_message.assert_called_once()
             call_kwargs = mock_bot.send_message.call_args.kwargs
@@ -62,16 +61,30 @@ def test_make_final_message_is_summary_with_link():
         {
             "date_label": "2026-06-19",
             "item_count": 7,
-            "must_read_count": 2,
-            "must_read_titles": ["Moebius 反超 FLUX", "RATs 玩出技能"],
             "url": "https://ai-newsday.github.io/core/posts/2026-06-19/",
         }
     )
     assert "2026-06-19" in msg
-    assert "Moebius 反超 FLUX" in msg
+    assert "共 7 条" in msg
     assert "https://ai-newsday.github.io/core/posts/2026-06-19/" in msg
     assert "<pre>" not in msg
     assert len(msg) < 4096
+    # no must-read count or titles
+    assert "必读" not in msg
+
+
+def test_make_final_message_no_must_read_fields():
+    from src.notifiers.telegram_polling import _make_final_message
+
+    msg = _make_final_message(
+        {
+            "date_label": "2026-06-20",
+            "item_count": 5,
+        }
+    )
+    assert "共 5 条" in msg
+    assert "必读" not in msg
+    assert "2026-06-20" in msg
 
 
 def test_card_cover_escapes_link_url():
@@ -85,9 +98,8 @@ def test_card_cover_escapes_link_url():
         "link": "https://x/search?a=1&b=2<script>",
         "score": 88,
         "signals": {},
-        "summary_zh": "x",
-        "takeaway": "y",
-        "hot_take": "z",
+        "body": "x",
+        "tags": [],
     }
     cover, _ = _make_card_messages("id1", card)
     assert "&amp;" in cover  # & escaped
@@ -107,9 +119,8 @@ def test_card_body_bounded_under_telegram_limit():
         "link": "https://x/1",
         "score": 88,
         "signals": {},
-        "summary_zh": big,
-        "takeaway": big,
-        "hot_take": big,
+        "body": big,
+        "tags": [],
     }
     cover, body = _make_card_messages("id1", card)
     assert len(cover) < 4096

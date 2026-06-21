@@ -36,9 +36,7 @@ def _item(link, eligible=True, status="ok", **over):
         score_breakdown={"机构影响力": 80.0},
         is_explore=False,
         title="标题",
-        summary="摘要",
-        takeaway="用法",
-        hot_take="锐评",
+        body="正文内容",
         tags=["#a", "#b", "#c"],
         evidence=[Evidence(claim="f", anchor=link)],
         interpretation_status=status,
@@ -79,8 +77,8 @@ def test_happy_no_flags_item_unchanged():
 def test_consistency_and_ai_slop_flags():
     raw = json.dumps(
         {
-            "consistency": [{"field": "takeaway", "message": "原文没说"}],
-            "ai_slop": [{"field": "hot_take", "message": "套话"}],
+            "consistency": [{"field": "body", "message": "原文没说"}],
+            "ai_slop": [{"field": "body", "message": "套话"}],
         }
     )
     items = [_item("https://a/1")]

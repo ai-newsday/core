@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from collections import Counter
 
 from src.core.types import (
     CategorySection,
@@ -17,7 +16,7 @@ from src.observability.events import emit
 
 
 def select_must_read(items: list[ReviewedItem], config: PublishConfig) -> list[ReviewedItem]:
-    """合格(eligible)条目里按上游序取前 must_read_count 条。"""
+    """合格(eligible)条目里按上游序取前 must_read_count 条。(保留兼容，渲染层已不使用)"""
     eligible = [it for it in items if it.eligible_for_must_read]
     return eligible[: config.must_read_count]
 
@@ -47,7 +46,10 @@ def group_by_category(items: list[ReviewedItem], config: PublishConfig) -> list[
 
 
 def build_overview(items: list[ReviewedItem], config: PublishConfig) -> Overview:
-    """genre 分布计数(按 genre_labels 键序) + 高频关键词(聚合 tags 去 # 取 Top N)。"""
+    """genre 分布计数(按 genre_labels 键序) + 高频关键词(聚合 tags 去 # 取 Top N)。
+    (保留兼容，渲染层已不使用)"""
+    from collections import Counter
+
     order = list(config.genre_labels)
     counts = Counter(it.genre.value for it in items)
     dist = {st: counts[st] for st in order if counts.get(st)}
@@ -74,60 +76,37 @@ def build_overview(items: list[ReviewedItem], config: PublishConfig) -> Overview
 def build_report(
     review_result: ReviewResult, date_label: str, config: PublishConfig
 ) -> DailyReport:
-    """组装内容模型: 必读 + 分类速览 + 数据概览 + 元信息。"""
-    items = review_result.reviewed_items
+    """组装内容模型: score floor 过滤 + 分类分组 + 元信息。"""
+    items = [it for it in review_result.reviewed_items if it.score >= config.min_display_score]
     return DailyReport(
         date_label=date_label,
         daily_take=review_result.daily_take,
-        must_read=select_must_read(items, config),
+        must_read=[],
         categories=group_by_category(items, config),
-        overview=build_overview(items, config),
+        overview=Overview(genre_distribution={}, keywords=[]),
         is_pending=review_result.is_pending,
         item_count=len(items),
         explore_count=sum(1 for it in items if it.is_explore),
     )
 
 
-def _render_must_read(report: DailyReport, label_of: dict[str, str]) -> list[str]:
-    lines = ["## 🏆 今日必读", ""]
-    for i, it in enumerate(report.must_read, 1):
-        label = label_of.get(it.genre.value, it.genre.value)
-        lines.append(f"### {i}. [{label}] {it.title}（{it.title_en}）")
-        lines.append(f"- **一句话**：{it.summary}")
-        lines.append(f"- **对你**：{it.takeaway}")
-        lines.append(f"- **锐评**：{it.hot_take}")
-        lines.append(f"- **评分**：{it.score} ｜ **来源**：[{it.source}]({it.link})")
-        if it.evidence:
-            ev = "；".join(f"[{e.claim}]({e.anchor})" for e in it.evidence)
-            lines.append(f"- **依据**：{ev}")
-        lines.append("")
-    return lines
-
-
 def _render_categories(report: DailyReport) -> list[str]:
-    lines = ["## 📚 分类速览", ""]
+    lines: list[str] = []
     for cat in report.categories:
-        lines.append(f"**{cat.label}**")
-        for it in cat.items:
-            mark = " 🧭探索" if it.is_explore else ""
-            lines.append(
-                f"- `[{it.score}]`{mark} {it.title} — {it.summary} ｜ [{it.source}]({it.link})"
-            )
-            if it.takeaway:
-                lines.append(f"  ↳ 对你：{it.takeaway}")
+        lines.append(f"## {cat.label}")
         lines.append("")
-    return lines
-
-
-def _render_overview(report: DailyReport, label_of: dict[str, str]) -> list[str]:
-    lines = ["## 📊 数据概览"]
-    dist = "｜".join(
-        f"{label_of.get(st, st)} {n}" for st, n in report.overview.genre_distribution.items()
-    )
-    lines.append(f"- 分类分布：{dist}")
-    if report.overview.keywords:
-        lines.append("- 高频关键词：" + "、".join(report.overview.keywords))
-    lines.append("")
+        for it in cat.items:
+            lines.append(f"### {it.title}")
+            lines.append("")
+            lines.append(it.body)
+            lines.append("")
+            if it.tags:
+                lines.append(" ".join(it.tags))
+            if it.evidence:
+                ev = "；".join(f"[{e.claim}]({e.anchor})" for e in it.evidence)
+                lines.append(f"依据：{ev}")
+            lines.append(f"来源 [{it.source}]({it.link}) · {it.score} 分")
+            lines.append("")
     return lines
 
 
@@ -169,7 +148,6 @@ def flip_draft(text: str) -> str:
 
 def render_markdown(report: DailyReport, config: PublishConfig) -> str:
     """把 DailyReport 渲染成 Markdown(确定性, 无 now)。"""
-    label_of = config.genre_labels
     lines: list[str] = [f"# AI Daily · {report.date_label}", ""]
     if report.is_pending:
         lines.append(f"> {config.pending_watermark}")
@@ -177,13 +155,9 @@ def render_markdown(report: DailyReport, config: PublishConfig) -> str:
     if report.daily_take:
         lines.append(f"> **今日看点**：{report.daily_take}")
         lines.append("")
-    if report.must_read:
-        lines += _render_must_read(report, label_of)
-    if report.categories:
-        lines += _render_categories(report)
-    lines += _render_overview(report, label_of)
+    lines += _render_categories(report)
     lines.append("---")
-    lines.append("📬 RSS ｜ 🗂 历史归档 ｜ 🏠 主站")
+    lines.append("RSS · 历史归档 · 主站 ｜ AI News Daily")
     return "\n".join(lines)
 
 
@@ -199,7 +173,6 @@ def publish(
             ctx.logger,
             "publish_done",
             item_count=0,
-            must_read_count=0,
             is_pending=report.is_pending,
             silent=True,
         )
@@ -209,7 +182,6 @@ def publish(
     emit(
         ctx.logger,
         "report_built",
-        must_read_count=len(report.must_read),
         category_count=len(report.categories),
         item_count=report.item_count,
         is_pending=report.is_pending,
@@ -221,7 +193,6 @@ def publish(
         ctx.logger,
         "publish_done",
         item_count=report.item_count,
-        must_read_count=len(report.must_read),
         is_pending=report.is_pending,
         silent=False,
     )

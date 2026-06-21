@@ -27,9 +27,7 @@ def _interpreted(**over):
         score_breakdown={"机构影响力": 80.0},
         is_explore=False,
         title="标题",
-        summary="摘要",
-        takeaway="用法",
-        hot_take="锐评",
+        body="正文内容",
         tags=["#a", "#b", "#c"],
         evidence=[],
         interpretation_status="ok",
@@ -58,7 +56,7 @@ def test_selfcheck_config_defaults():
 def test_selfcheck_result_shape():
     item = _interpreted(
         quality_flags=[
-            QualityFlag(code="consistency", severity="warn", field="takeaway", message="原文没说")
+            QualityFlag(code="consistency", severity="warn", field="body", message="原文没说")
         ]
     )
     res = SelfCheckResult(

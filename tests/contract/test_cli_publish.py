@@ -20,7 +20,6 @@ def test_run_dry_publish_shape():
         "run_id",
         "now",
         "input_count",
-        "must_read_count",
         "item_count",
         "is_pending",
         "is_silent",

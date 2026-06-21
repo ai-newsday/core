@@ -34,7 +34,7 @@ def _scored(**over):
 
 def test_interpret_config_defaults():
     c = InterpretConfig()
-    assert c.title_max_chars == 64 and c.summary_max_chars == 120
+    assert c.title_max_chars == 64 and c.body_max_chars == 240
     assert c.tags_count == 3 and c.min_evidence == 1
     assert c.item_prompt_path == "src/prompts/interpret_item.md"
     assert c.daily_prompt_path == "src/prompts/daily_take.md"
@@ -50,9 +50,7 @@ def test_interpreted_item_extends_scored_item():
     interp = InterpretedItem(
         **it.model_dump(),
         title="智谱发布 GLM-5",
-        summary="开源 MoE 模型。",
-        takeaway="可自建推理。",
-        hot_take="护城河又薄了。",
+        body="开源 MoE 模型，推理性能大幅提升。",
         tags=["#开源", "#MoE", "#GLM"],
         evidence=[Evidence(claim="MoE", anchor="https://hf.co/glm5")],
         interpretation_status="ok",
@@ -70,12 +68,11 @@ def test_interpreted_item_defaults_for_fallback():
     interp = InterpretedItem(
         **it.model_dump(),
         title="GLM-5 released",
-        summary="MoE open weights model.",
-        takeaway="",
+        body="MoE open weights model.",
         interpretation_status="extractive_fallback",
         eligible_for_must_read=False,
     )
-    assert interp.hot_take == "" and interp.tags == [] and interp.evidence == []
+    assert interp.tags == [] and interp.evidence == []
 
 
 def test_interpret_result_shape():
