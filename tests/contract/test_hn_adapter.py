@@ -104,3 +104,13 @@ async def test_hn_http_error_raises():
     respx.get(_URL).mock(return_value=httpx.Response(503))
     with pytest.raises(httpx.HTTPStatusError):
         await HNAdapter().fetch(_spec(), _ctx(), timeout_s=15)
+
+
+def test_kw_match_word_boundary():
+    from src.adapters.sources.hn import _kw_match
+    kws = ["ai", "llm", "machine learning"]
+    assert _kw_match("your brain was never designed for this", kws) is False
+    assert _kw_match("new ai model released", kws) is True
+    assert _kw_match("a fast llm runtime", kws) is True
+    assert _kw_match("intro to machine learning", kws) is True
+    assert _kw_match("anything at all", []) is True
