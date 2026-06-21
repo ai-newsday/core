@@ -34,6 +34,7 @@ def test_interpret_prompt_uses_body_schema():
 
 def test_interpret_prompt_has_relevant_field():
     from src.core.prompts import load_prompt
+
     t = load_prompt("src/prompts/interpret_item.md")
     assert "relevant" in t
     assert '"relevant"' in t
