@@ -222,7 +222,7 @@ def test_render_markdown_full():
     assert "今日必读" not in md
     assert "分类速览" not in md
     assert "数据概览" not in md
-    assert "#MoE" not in md or "MoE" in md  # tags rendered without # prefix check
+    assert "#MoE" in md  # tags rendered as a line, keeping the # prefix
     # footer
     assert "RSS · 历史归档 · 主站 ｜ AI News Daily" in md
 
