@@ -16,7 +16,7 @@ def test_loads_overrides(tmp_path):
         "max_tokens: 500\n"
         "timeout_s: 30\n"
         "title_max_chars: 50\n"
-        "summary_max_chars: 100\n"
+        "body_max_chars: 100\n"
         "tags_count: 2\n"
         "min_evidence: 2\n"
         "item_prompt_path: a.md\n"
@@ -26,7 +26,7 @@ def test_loads_overrides(tmp_path):
     c = load_interpret_config(str(p))
     assert c.model == "my-model" and c.temperature == 0.0
     assert c.max_tokens == 500 and c.timeout_s == 30
-    assert c.title_max_chars == 50 and c.summary_max_chars == 100
+    assert c.title_max_chars == 50 and c.body_max_chars == 100
     assert c.tags_count == 2 and c.min_evidence == 2
     assert c.item_prompt_path == "a.md" and c.daily_prompt_path == "b.md"
 

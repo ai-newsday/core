@@ -204,7 +204,7 @@ class Evidence(BaseModel):
 class QualityFlag(BaseModel):
     code: str  # "consistency" | "ai_slop" | "format_lock"
     severity: str  # "warn" | "info"  (advisor 版无 "block")
-    field: str  # 命中字段: takeaway|summary|hot_take|tags|evidence|*
+    field: str  # 命中字段: body|title|tags|evidence|*
     message: str = Field(min_length=1)  # 给人看的一句话(中文)
 
 
