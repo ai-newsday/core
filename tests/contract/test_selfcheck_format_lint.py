@@ -21,8 +21,7 @@ def _item(**over):
         score_breakdown={"机构影响力": 80.0},
         is_explore=False,
         title="标题",
-        summary="摘要",
-        takeaway="用法",
+        body="正文内容",
         tags=["#a", "#b", "#c"],
         evidence=[Evidence(claim="f", anchor="https://a/1")],
         interpretation_status="ok",
@@ -54,7 +53,13 @@ def test_eligible_but_no_evidence_flagged():
     assert any(f.code == "format_lock" and f.field == "evidence" for f in flags)
 
 
-def test_oversize_summary_flagged():
-    item = _item(summary="超" * 200)
+def test_oversize_body_flagged():
+    item = _item(body="超" * 300)
     flags = format_lint(item, SelfCheckConfig())
-    assert any(f.code == "format_lock" and f.field == "summary" for f in flags)
+    assert any(f.code == "format_lock" and f.field == "body" for f in flags)
+
+
+def test_missing_body_on_eligible_flagged():
+    item = _item(body="", eligible_for_must_read=True)
+    flags = format_lint(item, SelfCheckConfig())
+    assert any(f.code == "format_lock" and f.field == "body" for f in flags)
