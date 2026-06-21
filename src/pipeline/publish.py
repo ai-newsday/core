@@ -77,7 +77,11 @@ def build_report(
     review_result: ReviewResult, date_label: str, config: PublishConfig
 ) -> DailyReport:
     """组装内容模型: score floor 过滤 + 分类分组 + 元信息。"""
-    items = [it for it in review_result.reviewed_items if it.score >= config.min_display_score]
+    items = [
+        it
+        for it in review_result.reviewed_items
+        if it.score >= config.min_display_score and it.relevant
+    ]
     return DailyReport(
         date_label=date_label,
         daily_take=review_result.daily_take,

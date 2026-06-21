@@ -89,3 +89,18 @@ def test_finalize_decision_fetch_failure_is_non_fatal(tmp_path):
         assert out["item_count"] >= 1
 
     asyncio.run(go())
+
+
+def test_collect_skips_non_relevant_cards(tmp_path):
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        ok = _item("https://x/ok", "AI thing")
+        junk = _item("https://x/junk", "Not AI").model_copy(update={"relevant": False})
+        notifier = FakeNotifier()
+        await run_collect_tick("r1", NOW, [ok, junk], "take", db, [notifier])
+        sent_links = [card.get("link") for _id, card in notifier.sent_cards]
+        assert "https://x/ok" in sent_links
+        assert "https://x/junk" not in sent_links
+
+    asyncio.run(go())

@@ -467,6 +467,22 @@ def test_flip_draft_only_touches_front_matter_not_body():
     assert out.count("draft: true") == 1  # 正文那一处保留
 
 
+def test_build_report_filters_non_relevant():
+    from src.core.types import PublishConfig
+    from src.pipeline.publish import build_report
+
+    ok = _ri(link="https://x/ok", title="AI 条目", score=80)
+    junk = _ri(link="https://x/junk", title="非 AI", score=80).model_copy(
+        update={"relevant": False}
+    )
+    rep = build_report(
+        _rr([ok, junk], daily_take="t", is_pending=False), "2026-06-21", PublishConfig()
+    )
+    titles = [it.title for cat in rep.categories for it in cat.items]
+    assert "AI 条目" in titles
+    assert "非 AI" not in titles
+
+
 def test_front_matter_escapes_newline_in_summary():
     # daily_take 含换行(LLM 输出常见): 必须转义成 \n, 不能撑断单行标量
     rep = build_report(
