@@ -2,8 +2,8 @@ name: Finalize (Draft)
 
 on:
   schedule:
-    # 北京时间 08:00 晨报 → UTC 00:00。每日定稿 + push(PAT) 触发 Pages。
-    - cron: "0 0 * * *"
+    # 北京时间 09:00 晨报 → UTC 01:00。避开 00:00 UTC 的 collect, 防 data/state.db push 撞车。
+    - cron: "0 1 * * *"
   workflow_dispatch:
 
 jobs:
