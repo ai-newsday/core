@@ -39,9 +39,8 @@ def _build_card(item: InterpretedItem) -> dict:
         "link": item.link,
         "score": item.score,
         "signals": item.signals,
-        "summary_zh": item.summary,
-        "takeaway": item.takeaway,
-        "hot_take": item.hot_take,
+        "body": item.body,
+        "tags": item.tags,
     }
 
 
@@ -68,9 +67,9 @@ async def run_collect_tick(
             source=item.source,
             title_en=item.title_en,
             title_zh=item.title,
-            summary_zh=item.summary,
-            takeaway=item.takeaway,
-            hot_take=item.hot_take,
+            summary_zh=item.body,
+            takeaway="",
+            hot_take="",
             score=item.score,
             signals=item.signals,
             date=date,

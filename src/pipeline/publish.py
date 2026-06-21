@@ -93,9 +93,7 @@ def _render_must_read(report: DailyReport, label_of: dict[str, str]) -> list[str
     for i, it in enumerate(report.must_read, 1):
         label = label_of.get(it.genre.value, it.genre.value)
         lines.append(f"### {i}. [{label}] {it.title}（{it.title_en}）")
-        lines.append(f"- **一句话**：{it.summary}")
-        lines.append(f"- **对你**：{it.takeaway}")
-        lines.append(f"- **锐评**：{it.hot_take}")
+        lines.append(f"{it.body}")
         lines.append(f"- **评分**：{it.score} ｜ **来源**：[{it.source}]({it.link})")
         if it.evidence:
             ev = "；".join(f"[{e.claim}]({e.anchor})" for e in it.evidence)
@@ -111,10 +109,8 @@ def _render_categories(report: DailyReport) -> list[str]:
         for it in cat.items:
             mark = " 🧭探索" if it.is_explore else ""
             lines.append(
-                f"- `[{it.score}]`{mark} {it.title} — {it.summary} ｜ [{it.source}]({it.link})"
+                f"- `[{it.score}]`{mark} {it.title} — {it.body} ｜ [{it.source}]({it.link})"
             )
-            if it.takeaway:
-                lines.append(f"  ↳ 对你：{it.takeaway}")
         lines.append("")
     return lines
 

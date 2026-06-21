@@ -26,9 +26,8 @@ def test_send_review_card_sends_two_messages():
                 "link": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro",
                 "score": 92,
                 "signals": {"likes": 4622, "hn_points": 12},
-                "summary_zh": "DeepSeek 旗舰模型。",
-                "takeaway": "可替换 API。",
-                "hot_take": "护城河变薄。",
+                "body": "DeepSeek 旗舰模型，可替换 API，护城河变薄。",
+                "tags": ["#DeepSeek", "#模型", "#API"],
             }
             msg_id = await notifier.send_review_card("item_1", card)
             assert mock_bot.send_message.call_count == 2
@@ -85,9 +84,8 @@ def test_card_cover_escapes_link_url():
         "link": "https://x/search?a=1&b=2<script>",
         "score": 88,
         "signals": {},
-        "summary_zh": "x",
-        "takeaway": "y",
-        "hot_take": "z",
+        "body": "x",
+        "tags": [],
     }
     cover, _ = _make_card_messages("id1", card)
     assert "&amp;" in cover  # & escaped
@@ -107,9 +105,8 @@ def test_card_body_bounded_under_telegram_limit():
         "link": "https://x/1",
         "score": 88,
         "signals": {},
-        "summary_zh": big,
-        "takeaway": big,
-        "hot_take": big,
+        "body": big,
+        "tags": [],
     }
     cover, body = _make_card_messages("id1", card)
     assert len(cover) < 4096
