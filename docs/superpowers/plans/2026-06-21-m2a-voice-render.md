@@ -336,27 +336,25 @@ git commit -m "feat(tick,telegram): card = title + single body + tags (no 3-fiel
 
 ---
 
-## Task 6: publish 渲染重写（无 emoji / 必读成段 / 其余去重 / 删概览）
+## Task 6: publish 渲染重写（无 emoji / 按分类统一 body / 分数地板 / 删必读分层+概览）
 
-**Files:** Modify `src/pipeline/publish.py`, `config/publish.yaml`; Test `tests/golden/test_publish.py`(snapshot)。
+**Files:** Modify `src/pipeline/publish.py`, `src/core/types.py`, `src/core/config.py`, `config/publish.yaml`, `src/notifiers/telegram_polling.py`, `src/pipeline/tick.py`; Test `tests/golden/test_publish.py`, `tests/contract/test_telegram_notifier.py`。
 
 - [ ] **Step 1: 改 `config/publish.yaml`**
 
-`pending_watermark: "草稿待定稿"`（去 ⚠ 长句）。`top_keywords` 行可留(数据概览删了就不读了,留着无害)。
+`pending_watermark: "草稿待定稿"`（去 ⚠ 长句）。追加 `min_display_score: 60`(分数地板,低于不渲染)。`top_keywords` 行可留(数据概览删了不读,无害)。
 
 - [ ] **Step 2: 改 `src/pipeline/publish.py`**
 
-`group_by_category` 改为**剔除必读条目**——签名加 must_read 列表:
+新增 `PublishConfig.min_display_score: int = 60`(types.py 加字段 + `load_publish_config` 读 `config/publish.yaml` 的 `min_display_score`)。
+
+`group_by_category`(分组**全部**入选条目,不再剔除必读;签名不变):
 ```python
-def group_by_category(
-    items: list[ReviewedItem], must_read: list[ReviewedItem], config: PublishConfig
-) -> list[CategorySection]:
-    mr_links = {it.link for it in must_read}
-    rest = [it for it in items if it.link not in mr_links]
+def group_by_category(items: list[ReviewedItem], config: PublishConfig) -> list[CategorySection]:
     order = list(config.genre_labels)
     seen: list[str] = []
     buckets: dict[str, list[ReviewedItem]] = {}
-    for it in rest:
+    for it in items:
         st = it.genre.value
         if st not in buckets:
             buckets[st] = []
@@ -369,42 +367,46 @@ def group_by_category(
         out.append(CategorySection(genre=st, label=config.genre_labels.get(st, st), items=buckets[st]))
     return out
 ```
-`build_report` 调用处:`categories=group_by_category(items, select_must_read(items, config), config)`(注:must_read 已在上一行算出,复用)。**删** `build_overview` 调用与 `Overview` 装配(若 `DailyReport` 要求 overview 字段,传 `Overview(genre_distribution={}, keywords=[])` 占位或把字段设默认;优先把 `DailyReport.overview` 设可选/默认空)。
-
-`_render_must_read`(无 emoji、成段、tags 行):
+`build_report`:**分数地板过滤** + 取消必读/概览:
 ```python
-def _render_must_read(report: DailyReport, label_of: dict[str, str]) -> list[str]:
-    lines = ["## 今日必读", ""]
-    for i, it in enumerate(report.must_read, 1):
-        label = label_of.get(it.genre.value, it.genre.value)
-        lines.append(f"### {i}. {it.title}")
-        lines.append("")
-        lines.append(it.body)
-        lines.append("")
-        lines.append(f"类型 {label} · 来源 [{it.source}]({it.link}) · {it.score} 分")
-        if it.tags:
-            lines.append(" ".join(it.tags))
-        if it.evidence:
-            ev = "；".join(f"[{e.claim}]({e.anchor})" for e in it.evidence)
-            lines.append(f"依据：{ev}")
-        lines.append("")
-    return lines
+def build_report(review_result: ReviewResult, date_label: str, config: PublishConfig) -> DailyReport:
+    items = [it for it in review_result.reviewed_items if it.score >= config.min_display_score]
+    return DailyReport(
+        date_label=date_label,
+        daily_take=review_result.daily_take,
+        must_read=[],                                           # 取消必读分层(字段保留,渲染不用)
+        categories=group_by_category(items, config),
+        overview=Overview(genre_distribution={}, keywords=[]),  # 数据概览删,空占位
+        is_pending=review_result.is_pending,
+        item_count=len(items),
+        explore_count=sum(1 for it in items if it.is_explore),
+    )
 ```
-`_render_categories`(标题改「其余」,一行,不重复必读,无 emoji):
+(若 `Overview`/`DailyReport` 字段与上不符,按 types.py 现状对齐——能给 `overview` 设默认就设默认并删该行。)
+
+`_render_categories`(按分类,每条统一:`### 标题`(无序号) → 成段 body → tags 行 → 依据(若有) → 末行来源·分数;无 emoji、无类型 label):
 ```python
 def _render_categories(report: DailyReport) -> list[str]:
-    if not report.categories:
-        return []
-    lines = ["## 其余", ""]
+    lines: list[str] = []
     for cat in report.categories:
-        lines.append(f"**{cat.label}**")
-        for it in cat.items:
-            lines.append(f"- {it.title} — [{it.source}]({it.link}) · {it.score} 分")
+        lines.append(f"## {cat.label}")
         lines.append("")
+        for it in cat.items:
+            lines.append(f"### {it.title}")
+            lines.append("")
+            lines.append(it.body)
+            lines.append("")
+            if it.tags:
+                lines.append(" ".join(it.tags))
+            if it.evidence:
+                ev = "；".join(f"[{e.claim}]({e.anchor})" for e in it.evidence)
+                lines.append(f"依据：{ev}")
+            lines.append(f"来源 [{it.source}]({it.link}) · {it.score} 分")
+            lines.append("")
     return lines
 ```
-**删** `_render_overview` 函数及其在 `render_markdown` 的调用。
-`render_markdown` 页脚 + watermark:
+**删** `_render_must_read`、`_render_overview` 函数及其调用,以及 `build_report` 里 `select_must_read`/`build_overview` 的使用(留作未用会被 ruff 标;一并删)。
+`render_markdown`:
 ```python
 def render_markdown(report: DailyReport, config: PublishConfig) -> str:
     lines: list[str] = [f"# AI Daily · {report.date_label}", ""]
@@ -414,33 +416,47 @@ def render_markdown(report: DailyReport, config: PublishConfig) -> str:
     if report.daily_take:
         lines.append(f"> **今日看点**：{report.daily_take}")
         lines.append("")
-    if report.must_read:
-        lines += _render_must_read(report, config.genre_labels)
-    if report.categories:
-        lines += _render_categories(report)
+    lines += _render_categories(report)
     lines.append("---")
     lines.append("RSS · 历史归档 · 主站 ｜ AI News Daily")
     return "\n".join(lines)
 ```
 
+- [ ] **Step 2b: Telegram 终稿去必读计数**
+
+`src/notifiers/telegram_polling.py` `_make_final_message` 改为(去 must_read 行/标题循环):
+```python
+def _make_final_message(summary: dict) -> str:
+    esc = html_lib.escape
+    date_label = esc(str(summary.get("date_label", "")))
+    item_count = summary.get("item_count", 0)
+    url = str(summary.get("url", ""))
+    lines = [f"<b>AI Daily · {date_label}</b>", f"共 {item_count} 条", ""]
+    if url:
+        lines.append(f'<a href="{esc(url)}">阅读全文 →</a>')
+    return "\n".join(lines)
+```
+`src/pipeline/tick.py` `run_finalize_tick` 的 `summary` dict 去掉 `must_read_count`/`must_read_titles`(保留 date_label/item_count/url)。同步改 `tests/contract/test_telegram_notifier.py` 里 `_make_final_message` 的断言(不再断言必读计数/标题)。
+
 - [ ] **Step 3: 改 snapshot `tests/golden/test_publish.py`**
 
-`grep -n "snapshot\|🏆\|📚\|一句话\|group_by_category\|build_overview" tests/golden/test_publish.py` 定位:
-- fixture 的 `ReviewedItem`/`InterpretedItem` 构造迁 `body`(去 summary/takeaway/hot_take)。
-- `group_by_category` 直接调用的 contract 加 must_read 参数;新增断言"必读条目不出现在 categories"。
-- 删/改 overview 相关断言。
-- 重录 markdown snapshot:确认无 emoji、`## 今日必读`/`## 其余`、必读成段、其余一行、页脚朴素。重录方式按本仓库 snapshot 机制(通常删旧 snapshot 文件让其重生成,或更新内联期望串)。
+`grep -n "snapshot\|🏆\|📚\|一句话\|group_by_category\|build_overview\|select_must_read\|must_read" tests/golden/test_publish.py` 定位:
+- fixture 的 `ReviewedItem`/`InterpretedItem` 构造迁 `body`(去 summary/takeaway/hot_take)。fixture 里要有**跨分数**的条目(≥60 与 <60)以验地板。
+- `group_by_category` 调用改单参 `(items, config)`;删 must_read 相关断言。
+- 新增 contract:**score<60 的条目不出现在渲染**;某分类全 <60 → 不出该节。
+- 删 overview 相关断言。
+- 重录 markdown snapshot:确认无 emoji、无 `今日必读`/`其余` 字样、`## {分类}` 节标题、每条 `### 标题`(无序号)+成段 body+tags+末行 `来源 ... · 分`、无类型 label、页脚朴素。重录按本仓库 snapshot 机制(删旧 snapshot 让重生成,或更新内联期望串)。
 
 - [ ] **Step 4: 跑测试**
 
-Run: `uv run pytest tests/golden/test_publish.py -v`
+Run: `uv run pytest tests/golden/test_publish.py tests/contract/test_telegram_notifier.py -v`
 Expected: PASS
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add src/pipeline/publish.py config/publish.yaml tests/golden/test_publish.py
-git commit -m "feat(publish): no-emoji render; must-read paragraphs; deduped 其余; drop overview"
+git add src/pipeline/publish.py src/core/types.py src/core/config.py config/publish.yaml src/notifiers/telegram_polling.py src/pipeline/tick.py tests/golden/test_publish.py tests/contract/test_telegram_notifier.py
+git commit -m "feat(publish): category-grouped uniform render; score floor 60; drop must-read tier + overview"
 ```
 
 ---

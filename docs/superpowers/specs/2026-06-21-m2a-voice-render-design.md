@@ -55,29 +55,33 @@
 
 ## 5. 渲染（`src/pipeline/publish.py`）
 
-- **全程无 emoji**(删 🏆📚📊📬🗂🏠🧭 与 `↳`、`` `[score]` `` 装饰)。
-- `_render_must_read`:
-  ```
-  ## 今日必读
+**结构(2026-06-21 用户定稿,取消必读/其余分层):** 全是要读的,**统一一种样式,按分类排**。无 emoji、无序号、不写"类型"label、来源/链接/分数放每条最后。
 
-  ### 1. {title}
+- **全程无 emoji**(删 🏆📚📊📬🗂🏠🧭 与 `↳`、`` `[score]` `` 装饰)。
+- **分数地板**:新增 `PublishConfig.min_display_score`(默认 **60**,读 `config/publish.yaml`)。`build_report` 先过滤 `score >= min_display_score` 的条目;低于的不渲染。某分类被过滤空 → 不出该节。
+- **取消必读分层**:不再有 `## 今日必读` 节,不再用 `select_must_read` 选取做渲染。`DailyReport.must_read` 置 `[]`(字段保留避免类型大改,渲染不用);`eligible_for_must_read` 字段保留(作质量信号,不再驱动渲染)。
+- **按分类渲染**(`_render_categories`),genre 顺序按 `genre_labels` 键序,空类目不出:
+  ```
+  ## {label}
+
+  ### {title}
   {body}
 
-  类型 {label} · 来源 [{source}]({link}) · {score} 分
   #tag #tag #tag
-  依据:{claim}…(若有)
+  来源 [{source}]({link}) · {score} 分
   ```
-- `group_by_category`:**剔除必读条目**(必读=`select_must_read` 选中的;categories 只含其余),空类目不出。
-- `_render_categories` → 「其余」:`- {title} — {label} · [{source}]({link}) · {score} 分`(一行,不挂 body,不挂 tags)。
-- **删 `_render_overview`** 及其调用(数据概览整块移除)。
+  (每条:`### 标题`(无序号) → 成段 body → tags 行 → 末行"来源 链接 · 分数";有 evidence 时"依据"行放 tags 与来源之间或省略——见 §7 micro。)
+- **删 `_render_overview` / `select_must_read` / `build_overview` 调用**(数据概览移除;必读选取不再用于渲染)。
 - 页脚:`---\nRSS · 历史归档 · 主站 ｜ AI News Daily`(无 emoji)。
 - 草稿水印:`config.pending_watermark` 改成朴素"草稿待定稿"(去 ⚠)。
 - front matter 不变(tags=类目 label;summary=daily_take[:140])。
+- **Telegram 终稿**(`_make_final_message` + `run_finalize_tick` summary):去掉"必读 Y 篇",改"共 X 条"(X=渲染入选条数);不再传 `must_read_titles`/`must_read_count`。
+- **"删了就不出"**:review 层 `apply_decision(drop)→None` 已保证被 drop 的条目到不了渲染;M2-A 不改此逻辑(保留)。
 
 ## 6. 测试（TDD,先红后绿）
 
 - `interpret`:golden 改新 schema(产 title/body/tags/evidence;回退产 body;eligible 用 body)。
-- `publish`:snapshot 重录(无 emoji、必读成段、其余一行不重复、无数据概览、新页脚);`group_by_category` 剔除必读的 contract。
+- `publish`:snapshot 重录(无 emoji、按分类、每条统一成段 body+tags+末行来源、无必读节、无数据概览、新页脚);分数地板过滤 contract(score<60 不渲染、空类目不出);终稿"共 X 条"无必读计数。
 - `review`/`selfcheck`/`tick`:contract 迁到 `body`(`state_db` 不变,schema 不动)。
 - `test_prompts`:校验 interpret_item.md 含新字段、不含旧字段。
 - 全量 `uv run pytest` 绿 + `ruff check . && ruff format --check .`。
