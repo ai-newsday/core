@@ -38,6 +38,7 @@ def test_repo_default_config_loads():
 
 def test_interpret_config_has_body_max_chars(tmp_path):
     from src.core.config import load_interpret_config
+
     p = tmp_path / "interpret.yaml"
     p.write_text("body_max_chars: 200\n", encoding="utf-8")
     cfg = load_interpret_config(str(p))
@@ -46,6 +47,7 @@ def test_interpret_config_has_body_max_chars(tmp_path):
 
 def test_interpreted_item_uses_body_not_old_fields():
     from src.core.types import InterpretedItem
+
     fields = InterpretedItem.model_fields
     assert "body" in fields
     assert "summary" not in fields

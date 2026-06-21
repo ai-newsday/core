@@ -145,6 +145,7 @@ def load_publish_config(path: str) -> PublishConfig:
         must_read_count=data.get("must_read_count", d.must_read_count),
         top_keywords=data.get("top_keywords", d.top_keywords),
         pending_watermark=data.get("pending_watermark", d.pending_watermark),
+        min_display_score=data.get("min_display_score", d.min_display_score),
         genre_labels=data.get("genre_labels", d.genre_labels),
     )
 

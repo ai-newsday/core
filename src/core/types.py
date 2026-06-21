@@ -333,7 +333,8 @@ class DailyReport(BaseModel):
 class PublishConfig:
     must_read_count: int = 3
     top_keywords: int = 4
-    pending_watermark: str = "⚠ 未审草稿（待人工定稿，勿直接发布）"
+    pending_watermark: str = "草稿待定稿"
+    min_display_score: int = 60
     genre_labels: dict[str, str] = field(
         default_factory=lambda: {
             "paper": "论文",

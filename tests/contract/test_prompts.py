@@ -24,6 +24,7 @@ def test_repo_prompts_exist_and_have_placeholders():
 
 def test_interpret_prompt_uses_body_schema():
     from src.core.prompts import load_prompt
+
     t = load_prompt("src/prompts/interpret_item.md")
     assert "`body`" in t
     assert '"body"' in t

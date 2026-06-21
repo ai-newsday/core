@@ -85,9 +85,7 @@ def test_golden_total_failure_all_fallback():
     assert res.interpreted_items[0].body == "R1."
     assert res.daily_take is None
     # zero fabrication: no tags, no evidence, body is extractive raw_summary
-    assert all(
-        i.tags == [] and i.evidence == [] for i in res.interpreted_items
-    )
+    assert all(i.tags == [] and i.evidence == [] for i in res.interpreted_items)
 
 
 # Case 4 (spec §9.4): evidence empty -> not must-read

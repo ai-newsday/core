@@ -68,9 +68,7 @@ def test_build_ok_item_full_fields():
     it = _scored()
     parsed = {
         "title": "智谱发布 GLM-5",
-        "summary": "开源 MoE。",
-        "takeaway": "可自建推理。",
-        "hot_take": "护城河变薄。",
+        "body": "开源 MoE，推理性能大幅提升。",
         "tags": ["#开源", "#MoE", "#GLM"],
         "evidence": [{"claim": "MoE 开源", "anchor": "https://hf.co/glm5"}],
     }
@@ -81,28 +79,24 @@ def test_build_ok_item_full_fields():
     assert out.eligible_for_must_read is True
 
 
-def test_build_ok_item_clamps_title_and_summary():
+def test_build_ok_item_clamps_title_and_body():
     it = _scored()
-    cfg = InterpretConfig(title_max_chars=5, summary_max_chars=4)
+    cfg = InterpretConfig(title_max_chars=5, body_max_chars=4)
     parsed = {
         "title": "0123456789",
-        "summary": "abcdefgh",
-        "takeaway": "t",
-        "hot_take": "",
+        "body": "abcdefgh",
         "tags": ["#a", "#b", "#c"],
         "evidence": [{"claim": "c", "anchor": "https://hf.co/glm5"}],
     }
     out = build_ok_item(parsed, it, cfg)
-    assert out.title == "01234" and out.summary == "abcd"
+    assert out.title == "01234" and out.body == "abcd"
 
 
 def test_build_ok_item_drops_illegal_anchor():
     it = _scored()
     parsed = {
         "title": "t",
-        "summary": "s",
-        "takeaway": "x",
-        "hot_take": "",
+        "body": "s。",
         "tags": ["#a", "#b", "#c"],
         "evidence": [
             {"claim": "bad", "anchor": "https://evil/elsewhere"},
@@ -117,9 +111,7 @@ def test_build_ok_item_wrong_tag_count_raises():
     it = _scored()
     parsed = {
         "title": "t",
-        "summary": "s",
-        "takeaway": "x",
-        "hot_take": "",
+        "body": "s。",
         "tags": ["#only", "#two"],
         "evidence": [{"claim": "c", "anchor": "https://hf.co/glm5"}],
     }
@@ -131,9 +123,7 @@ def test_build_ok_item_empty_evidence_not_eligible():
     it = _scored()
     parsed = {
         "title": "t",
-        "summary": "s",
-        "takeaway": "x",
-        "hot_take": "",
+        "body": "s。",
         "tags": ["#a", "#b", "#c"],
         "evidence": [],
     }
@@ -141,13 +131,11 @@ def test_build_ok_item_empty_evidence_not_eligible():
     assert out.evidence == [] and out.eligible_for_must_read is False
 
 
-def test_build_ok_item_empty_takeaway_not_eligible():
+def test_build_ok_item_empty_body_not_eligible():
     it = _scored()
     parsed = {
         "title": "t",
-        "summary": "s",
-        "takeaway": "",
-        "hot_take": "",
+        "body": "",
         "tags": ["#a", "#b", "#c"],
         "evidence": [{"claim": "c", "anchor": "https://hf.co/glm5"}],
     }
@@ -160,17 +148,16 @@ def test_extractive_fallback_zero_fabrication():
     out = extractive_fallback(it, InterpretConfig())
     assert out.interpretation_status == "extractive_fallback"
     assert out.title == "GLM-5 released"
-    assert out.summary == "MoE open weights model."
-    assert out.takeaway == "" and out.hot_take == ""
+    assert out.body == "MoE open weights model."
     assert out.tags == [] and out.evidence == []
     assert out.eligible_for_must_read is False
 
 
-def test_extractive_fallback_truncates_summary_and_handles_none():
-    it = _scored(raw_summary="x" * 200)
-    assert len(extractive_fallback(it, InterpretConfig()).summary) == 120
+def test_extractive_fallback_truncates_body_and_handles_none():
+    it = _scored(raw_summary="x" * 300)
+    assert len(extractive_fallback(it, InterpretConfig()).body) == 240
     it2 = _scored(raw_summary=None)
-    assert extractive_fallback(it2, InterpretConfig()).summary == ""
+    assert extractive_fallback(it2, InterpretConfig()).body == ""
 
 
 from src.core.prompts import load_prompt
@@ -180,9 +167,7 @@ from tests.fakes import FailingLLMProvider, FakeLLMProvider
 _OK_JSON = json.dumps(
     {
         "title": "智谱 GLM-5",
-        "summary": "开源 MoE。",
-        "takeaway": "可自建推理。",
-        "hot_take": "变薄了。",
+        "body": "开源 MoE，推理性能大幅提升，可自建推理。",
         "tags": ["#开源", "#MoE", "#GLM"],
         "evidence": [{"claim": "MoE", "anchor": "https://hf.co/glm5"}],
     }

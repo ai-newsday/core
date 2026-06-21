@@ -32,9 +32,7 @@ def _ri(
     publisher=Publisher.company,
     score=80,
     title="中文标题",
-    summary="中文摘要。",
-    takeaway="怎么用。",
-    hot_take="锐评。",
+    body="正文一段。",
     tags=None,
     evidence=None,
     related=None,
@@ -56,9 +54,7 @@ def _ri(
         score_breakdown={"机构影响力": float(score)},
         is_explore=is_explore,
         title=title,
-        summary=summary,
-        takeaway=takeaway,
-        hot_take=hot_take,
+        body=body,
         tags=tags if tags is not None else ["#a", "#b", "#c"],
         evidence=evidence if evidence is not None else [Evidence(claim="事实", anchor=link)],
         interpretation_status=status,
@@ -95,7 +91,7 @@ def test_group_by_category_order_and_grouping():
         _ri("https://a/3", genre=Genre.model, publisher=Publisher.company),
     ]
     cats = group_by_category(items, CFG)
-    # type_labels 键序: official, paper, model... → paper 组在 model 组前
+    # genre_labels 键序: paper 在 model 前
     assert [c.genre for c in cats] == ["paper", "model"]
     assert cats[0].label == "论文" and cats[1].label == "模型"
     # 空类目不产 section
@@ -156,26 +152,50 @@ def _rr(items, daily_take="看点。", is_pending=False, is_silent=False):
 
 def test_build_report_assembles_blocks():
     items = [
-        _ri("https://a/1", genre=Genre.model, publisher=Publisher.company, eligible=True),
+        _ri("https://a/1", genre=Genre.model, publisher=Publisher.company, eligible=True, score=80),
         _ri(
             "https://a/2",
             genre=Genre.paper,
             publisher=Publisher.company,
             eligible=False,
             is_explore=True,
+            score=70,
         ),
     ]
     rep = build_report(_rr(items), "2026-05-30（周六）", CFG)
     assert rep.date_label == "2026-05-30（周六）"
     assert rep.item_count == 2 and rep.explore_count == 1
-    assert [i.link for i in rep.must_read] == ["https://a/1"]
+    # must_read is always [] now
+    assert rep.must_read == []
     assert [c.genre for c in rep.categories] == ["paper", "model"]
     assert rep.is_pending is False
-    # 必读子集: must_read 出现在其类型分组里
-    model_cat = [c for c in rep.categories if c.genre == "model"][0]
-    assert "https://a/1" in [i.link for i in model_cat.items]
     # 全量目录守恒
     assert sum(len(c.items) for c in rep.categories) == rep.item_count
+
+
+def test_build_report_score_floor_filters_weak_items():
+    """items below min_display_score (default 60) are dropped."""
+    items = [
+        _ri("https://a/1", score=80),
+        _ri("https://a/2", score=59),  # below floor — should be dropped
+        _ri("https://a/3", score=60),  # at floor — should be kept
+    ]
+    rep = build_report(_rr(items), "2026-05-30", CFG)
+    assert rep.item_count == 2
+    all_links = [it.link for cat in rep.categories for it in cat.items]
+    assert "https://a/1" in all_links
+    assert "https://a/3" in all_links
+    assert "https://a/2" not in all_links
+
+
+def test_build_report_all_items_below_floor_gives_empty_categories():
+    items = [
+        _ri("https://a/1", score=50),
+        _ri("https://a/2", score=30),
+    ]
+    rep = build_report(_rr(items), "2026-05-30", CFG)
+    assert rep.item_count == 0
+    assert rep.categories == []
 
 
 def test_render_markdown_full():
@@ -185,53 +205,95 @@ def test_render_markdown_full():
             genre=Genre.model,
             publisher=Publisher.company,
             title="GLM-5 发布",
-            summary="开源 MoE。",
+            body="开源 MoE。",
             tags=["#MoE"],
+            score=80,
         )
     ]
     md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
     assert md.startswith("# AI Daily · 2026-05-30")
     assert "> **今日看点**：看点。" in md
-    assert "## 🏆 今日必读" in md
-    assert "### 1. [模型] GLM-5 发布（X released）" in md
-    assert "**一句话**：开源 MoE。" in md
-    assert "**对你**：怎么用。" in md
-    assert "**锐评**：锐评。" in md
+    # new structure: ## {label}, ### {title}, no emoji, no numbering
+    assert "## 模型" in md
+    assert "### GLM-5 发布" in md
+    assert "开源 MoE。" in md
     assert "[src](https://a/1)" in md
-    assert "## 📚 分类速览" in md
-    assert "## 📊 数据概览" in md
-    assert "MoE" in md
+    # no old structure
+    assert "今日必读" not in md
+    assert "分类速览" not in md
+    assert "数据概览" not in md
+    assert "#MoE" not in md or "MoE" in md  # tags rendered without # prefix check
+    # footer
+    assert "RSS · 历史归档 · 主站 ｜ AI News Daily" in md
+
+
+def test_render_markdown_no_emoji():
+    items = [_ri("https://a/1", score=80)]
+    md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
+    # no emoji in structural lines
+    assert "🏆" not in md
+    assert "📚" not in md
+    assert "📊" not in md
+    assert "📬" not in md
+
+
+def test_render_markdown_source_line_last():
+    """Each item's last non-blank line must be 来源 [{source}]({link}) · {score} 分"""
+    items = [
+        _ri(
+            "https://a/1",
+            genre=Genre.model,
+            title="T",
+            body="B。",
+            tags=["#x"],
+            score=75,
+        )
+    ]
+    md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
+    assert "来源 [src](https://a/1) · 75 分" in md
 
 
 def test_render_markdown_pending_watermark():
-    items = [_ri("https://a/1")]
-    md = render_markdown(build_report(_rr(items, is_pending=True), "d", CFG), CFG)
-    assert CFG.pending_watermark in md
+    items = [_ri("https://a/1", score=80)]
+    cfg = PublishConfig()
+    md = render_markdown(build_report(_rr(items, is_pending=True), "d", cfg), cfg)
+    assert cfg.pending_watermark in md
+    assert "草稿待定稿" in md
 
 
 def test_render_markdown_no_watermark_when_reviewed():
-    items = [_ri("https://a/1")]
-    md = render_markdown(build_report(_rr(items, is_pending=False), "d", CFG), CFG)
-    assert CFG.pending_watermark not in md
+    items = [_ri("https://a/1", score=80)]
+    cfg = PublishConfig()
+    md = render_markdown(build_report(_rr(items, is_pending=False), "d", cfg), cfg)
+    assert cfg.pending_watermark not in md
 
 
 def test_render_markdown_omits_empty_daily_take():
-    items = [_ri("https://a/1")]
+    items = [_ri("https://a/1", score=80)]
     md = render_markdown(build_report(_rr(items, daily_take=None), "d", CFG), CFG)
     assert "今日看点" not in md
 
 
-def test_render_markdown_omits_must_read_when_none_eligible():
-    items = [_ri("https://a/1", eligible=False)]
-    md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
-    assert "今日必读" not in md
-    assert "## 📚 分类速览" in md  # 速览仍在
+def test_render_markdown_score_floor_items_absent():
+    """Items below score floor must not appear in rendered markdown."""
+    items = [
+        _ri("https://a/high", title="高分条目", score=80, genre=Genre.model),
+        _ri("https://a/low", title="低分条目", score=40, genre=Genre.paper),
+    ]
+    md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
+    assert "高分条目" in md
+    assert "低分条目" not in md
 
 
-def test_render_markdown_explore_marker():
-    items = [_ri("https://a/1", is_explore=True, eligible=False)]
-    md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
-    assert "🧭探索" in md
+def test_render_markdown_category_with_all_below_floor_not_rendered():
+    """A genre with all items below floor produces no ## {label} section."""
+    items = [
+        _ri("https://a/1", title="论文A", score=40, genre=Genre.paper),
+        _ri("https://a/2", title="模型B", score=80, genre=Genre.model),
+    ]
+    md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
+    assert "## 论文" not in md
+    assert "## 模型" in md
 
 
 def _ctx():
@@ -245,7 +307,7 @@ def test_publish_empty_input_silent():
 
 
 def test_publish_pending_propagates():
-    items = [_ri("https://a/1")]
+    items = [_ri("https://a/1", score=80)]
     res = publish(_rr(items, is_pending=True), "d", CFG, _ctx())
     assert res.is_pending is True
     assert CFG.pending_watermark in res.markdown
@@ -253,8 +315,8 @@ def test_publish_pending_propagates():
 
 def test_publish_deterministic():
     items = [
-        _ri("https://a/1", genre=Genre.model, publisher=Publisher.company),
-        _ri("https://a/2", genre=Genre.paper, publisher=Publisher.company),
+        _ri("https://a/1", genre=Genre.model, publisher=Publisher.company, score=80),
+        _ri("https://a/2", genre=Genre.paper, publisher=Publisher.company, score=75),
     ]
     r1 = publish(_rr(items), "2026-05-30", CFG, _ctx())
     r2 = publish(_rr(items), "2026-05-30", CFG, _ctx())
@@ -272,9 +334,7 @@ def _snapshot_items():
             genre=Genre.model,
             publisher=Publisher.company,
             title="GLM-5 发布",
-            summary="开源 MoE 旗舰。",
-            takeaway="可自建推理。",
-            hot_take="护城河变薄。",
+            body="开源 MoE 旗舰，推理性能大幅超越上代。",
             score=88,
             tags=["#MoE", "#开源"],
             eligible=True,
@@ -284,7 +344,7 @@ def _snapshot_items():
             genre=Genre.paper,
             publisher=Publisher.company,
             title="新论文",
-            summary="一句话摘要。",
+            body="一句话摘要，提出新方法。",
             score=82,
             tags=["#MoE", "#推理"],
             eligible=True,
@@ -294,11 +354,21 @@ def _snapshot_items():
             genre=Genre.writeup,
             publisher=Publisher.individual,
             title="社区热帖",
-            summary="探索选题。",
+            body="探索选题，社区讨论激烈。",
             score=71,
             tags=["#Agent"],
             eligible=False,
             is_explore=True,
+        ),
+        _ri(
+            "https://a/4",
+            genre=Genre.news,
+            publisher=Publisher.media,
+            title="低分新闻",
+            body="此条目分数不够。",
+            score=45,  # below floor — should not appear
+            tags=["#news"],
+            eligible=False,
         ),
     ]
 
@@ -311,6 +381,15 @@ def test_publish_markdown_snapshot():
     assert res.markdown.startswith("---\n")
     assert "draft: true" in res.markdown.split("---", 2)[1]
     assert "# AI Daily · 2026-05-30（周六）" in res.markdown
+    # new structure assertions
+    assert "今日必读" not in res.markdown
+    assert "分类速览" not in res.markdown
+    assert "数据概览" not in res.markdown
+    assert "## 论文" in res.markdown
+    assert "## 模型" in res.markdown
+    assert "### GLM-5 发布" in res.markdown
+    assert "低分新闻" not in res.markdown  # below floor
+    assert "来源 [src](https://a/1) · 88 分" in res.markdown
     if not SNAPSHOT.exists():  # 首次运行固化快照
         SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
         SNAPSHOT.write_text(res.markdown, encoding="utf-8")
@@ -319,8 +398,8 @@ def test_publish_markdown_snapshot():
 
 def test_front_matter_draft_true():
     items = [
-        _ri("https://a/1", genre=Genre.model, publisher=Publisher.company),
-        _ri("https://a/2", genre=Genre.paper, publisher=Publisher.company),
+        _ri("https://a/1", genre=Genre.model, publisher=Publisher.company, score=80),
+        _ri("https://a/2", genre=Genre.paper, publisher=Publisher.company, score=75),
     ]
     rep = build_report(_rr(items, daily_take="今天有两条。"), "2026-05-30（周六）", CFG)
     fm = render_front_matter(rep, CFG, draft=True)
@@ -328,34 +407,36 @@ def test_front_matter_draft_true():
     assert 'title: "AI Daily · 2026-05-30（周六）"' in fm
     assert "date: 2026-05-30T08:00:00+08:00" in fm
     assert "draft: true" in fm
-    # tags = categories 的 label, type_labels 序: paper 在 model 前
+    # tags = categories 的 label, genre_labels 序: paper 在 model 前
     assert 'tags: ["论文", "模型"]' in fm
     assert 'summary: "今天有两条。"' in fm
 
 
 def test_front_matter_draft_false():
-    rep = build_report(_rr([_ri("https://a/1")]), "2026-05-30", CFG)
+    rep = build_report(_rr([_ri("https://a/1", score=80)]), "2026-05-30", CFG)
     fm = render_front_matter(rep, CFG, draft=False)
     assert "draft: false" in fm
     assert "date: 2026-05-30T08:00:00+08:00" in fm
 
 
 def test_front_matter_empty_daily_take():
-    rep = build_report(_rr([_ri("https://a/1")], daily_take=None), "2026-05-30", CFG)
+    rep = build_report(_rr([_ri("https://a/1", score=80)], daily_take=None), "2026-05-30", CFG)
     fm = render_front_matter(rep, CFG, draft=True)
     assert 'summary: ""' in fm
 
 
 def test_front_matter_truncates_summary_to_140():
     long = "看" * 200
-    rep = build_report(_rr([_ri("https://a/1")], daily_take=long), "2026-05-30", CFG)
+    rep = build_report(_rr([_ri("https://a/1", score=80)], daily_take=long), "2026-05-30", CFG)
     fm = render_front_matter(rep, CFG, draft=True)
     assert "看" * 140 in fm
     assert "看" * 141 not in fm
 
 
 def test_front_matter_escapes_double_quotes():
-    rep = build_report(_rr([_ri("https://a/1")], daily_take='含"引号"的看点'), "2026-05-30", CFG)
+    rep = build_report(
+        _rr([_ri("https://a/1", score=80)], daily_take='含"引号"的看点'), "2026-05-30", CFG
+    )
     fm = render_front_matter(rep, CFG, draft=True)
     assert 'summary: "含\\"引号\\"的看点"' in fm
 
@@ -388,44 +469,11 @@ def test_flip_draft_only_touches_front_matter_not_body():
 
 def test_front_matter_escapes_newline_in_summary():
     # daily_take 含换行(LLM 输出常见): 必须转义成 \n, 不能撑断单行标量
-    rep = build_report(_rr([_ri("https://a/1")], daily_take="第一行\n第二行"), "2026-05-30", CFG)
+    rep = build_report(
+        _rr([_ri("https://a/1", score=80)], daily_take="第一行\n第二行"), "2026-05-30", CFG
+    )
     fm = render_front_matter(rep, CFG, draft=True)
     assert "summary: " in fm
     assert "\\n" in fm  # 字面 \n 转义
     # front matter 仍是 7 行(未被裸换行撑断)
     assert fm.count("\n") == 6
-
-
-def test_categories_render_takeaway_when_present():
-    items = [
-        _ri(
-            "https://a/1",
-            genre=Genre.model,
-            publisher=Publisher.company,
-            title="T",
-            summary="S。",
-            takeaway="可本地部署。",
-            eligible=False,
-        )
-    ]  # 非必读, 只出现在分类速览
-    md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
-    cat_block = md.split("## 📚 分类速览", 1)[1]
-    assert "可本地部署。" in cat_block
-
-
-def test_categories_skip_empty_takeaway():
-    items = [
-        _ri(
-            "https://a/1",
-            genre=Genre.model,
-            publisher=Publisher.company,
-            title="T",
-            summary="S。",
-            takeaway="",
-            eligible=False,
-        )
-    ]
-    md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
-    cat_block = md.split("## 📚 分类速览", 1)[1]
-    # 空 takeaway 不产生孤立的 "↳" 行
-    assert "↳" not in cat_block

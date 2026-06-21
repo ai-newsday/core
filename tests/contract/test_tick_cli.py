@@ -43,7 +43,7 @@ def test_run_tick_finalize_shape(tmp_path, monkeypatch):
         embedder=FakeEmbeddingProvider({}),
         llm=FailingLLMProvider(),
     )
-    for k in ("run_id", "tick", "item_count", "must_read_count"):
+    for k in ("run_id", "tick", "item_count"):
         assert k in out
     json.dumps(out, ensure_ascii=False)
 

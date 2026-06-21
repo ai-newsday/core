@@ -44,7 +44,7 @@ def test_send_final_report_sends_message():
             notifier = TelegramPollingNotifier(_cfg())
             await notifier.send_final_report(
                 "# AI Daily · 2026-06-05\n内容",
-                {"date_label": "2026-06-05", "must_read_count": 3, "item_count": 8},
+                {"date_label": "2026-06-05", "item_count": 8},
             )
             mock_bot.send_message.assert_called_once()
             call_kwargs = mock_bot.send_message.call_args.kwargs
@@ -61,16 +61,30 @@ def test_make_final_message_is_summary_with_link():
         {
             "date_label": "2026-06-19",
             "item_count": 7,
-            "must_read_count": 2,
-            "must_read_titles": ["Moebius 反超 FLUX", "RATs 玩出技能"],
             "url": "https://ai-newsday.github.io/core/posts/2026-06-19/",
         }
     )
     assert "2026-06-19" in msg
-    assert "Moebius 反超 FLUX" in msg
+    assert "共 7 条" in msg
     assert "https://ai-newsday.github.io/core/posts/2026-06-19/" in msg
     assert "<pre>" not in msg
     assert len(msg) < 4096
+    # no must-read count or titles
+    assert "必读" not in msg
+
+
+def test_make_final_message_no_must_read_fields():
+    from src.notifiers.telegram_polling import _make_final_message
+
+    msg = _make_final_message(
+        {
+            "date_label": "2026-06-20",
+            "item_count": 5,
+        }
+    )
+    assert "共 5 条" in msg
+    assert "必读" not in msg
+    assert "2026-06-20" in msg
 
 
 def test_card_cover_escapes_link_url():

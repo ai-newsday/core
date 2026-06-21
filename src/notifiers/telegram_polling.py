@@ -51,14 +51,9 @@ def _make_final_message(summary: dict) -> str:
     esc = html_lib.escape
     date_label = esc(str(summary.get("date_label", "")))
     item_count = summary.get("item_count", 0)
-    must_read = summary.get("must_read_count", 0)
-    titles = summary.get("must_read_titles", []) or []
     url = str(summary.get("url", ""))
-    lines = [f"<b>AI Daily · {date_label}</b>", f"共 {item_count} 条，必读 {must_read} 篇", ""]
-    for i, t in enumerate(titles, 1):
-        lines.append(f"{i}. {esc(str(t))}")
+    lines = [f"<b>AI Daily · {date_label}</b>", f"共 {item_count} 条", ""]
     if url:
-        lines.append("")
         lines.append(f'<a href="{esc(url)}">阅读全文 →</a>')
     return "\n".join(lines)
 

@@ -208,9 +208,7 @@ def test_golden_edit_reclamp_and_gate():
 # Case 4 (§9.4): 改写不能洗白回退
 def test_golden_edit_cannot_whitewash_fallback():
     items = [
-        _interp(
-            "https://a/1", status="extractive_fallback", body="", evidence=[], eligible=False
-        )
+        _interp("https://a/1", status="extractive_fallback", body="", evidence=[], eligible=False)
     ]
     decisions = {
         "https://a/1": ReviewDecision(
