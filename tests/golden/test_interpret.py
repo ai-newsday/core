@@ -37,6 +37,7 @@ def _ok_json(anchor):
             "body": "中文正文，先讲事实，再落到对从业者的意义，可用一句克制的判断收尾。",
             "tags": ["#a", "#b", "#c"],
             "evidence": [{"claim": "事实", "anchor": anchor}],
+            "relevant": True,
         }
     )
 
@@ -126,3 +127,21 @@ def test_golden_illegal_anchor_dropped_and_deterministic():
     res2 = interpret(items, InterpretConfig(), _ctx(), llm2)
     assert [e.model_dump() for e in res2.interpreted_items[0].evidence] == []
     assert res1.interpreted_items[0].title == res2.interpreted_items[0].title
+
+
+# Case 7 (spec §M2-B1): relevant=false from LLM propagates
+def test_golden_relevant_false_propagates():
+    j = json.dumps(
+        {
+            "title": "中文标题",
+            "body": "正文内容。",
+            "tags": ["#a", "#b", "#c"],
+            "evidence": [{"claim": "事实", "anchor": "https://a/1"}],
+            "relevant": False,
+        }
+    )
+    items = [_scored("https://a/1")]
+    llm = FakeLLMProvider({"https://a/1": j}, default=json.dumps({"highlights": "h"}))
+    res = interpret(items, InterpretConfig(), _ctx(), llm)
+    assert res.interpreted_items[0].interpretation_status == "ok"
+    assert res.interpreted_items[0].relevant is False

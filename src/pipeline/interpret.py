@@ -56,6 +56,20 @@ def _filter_evidence(raw_evidence, item: ScoredItem) -> list[Evidence]:
     return out
 
 
+_SENT_ENDS = "。！？!?；;."
+
+
+def _trim_to_sentence(text: str, n: int) -> str:
+    """超长则截到上限内最后一个句末标点(含); 无标点则硬切 + 省略号。"""
+    if len(text) <= n:
+        return text
+    window = text[:n]
+    cut = max((window.rfind(ch) for ch in _SENT_ENDS), default=-1)
+    if cut >= 0:
+        return window[: cut + 1]
+    return text[: n - 1] + "…"
+
+
 def build_ok_item(parsed: dict, item: ScoredItem, config: InterpretConfig) -> InterpretedItem:
     """Enforce field constraints (spec §5.2) and build an 'ok' InterpretedItem.
     Raises ValueError if tags count != config.tags_count (caller falls back)."""
@@ -63,7 +77,8 @@ def build_ok_item(parsed: dict, item: ScoredItem, config: InterpretConfig) -> In
     if not isinstance(tags, list) or len(tags) != config.tags_count:
         raise ValueError("tags count not met")
     title = str(parsed.get("title", ""))[: config.title_max_chars]
-    body = str(parsed.get("body", ""))[: config.body_max_chars]
+    body = _trim_to_sentence(str(parsed.get("body", "")), config.body_max_chars)
+    relevant = bool(parsed.get("relevant", True))
     evidence = _filter_evidence(parsed.get("evidence"), item)
     eligible = bool(body) and len(evidence) >= config.min_evidence
     return InterpretedItem(
@@ -74,6 +89,7 @@ def build_ok_item(parsed: dict, item: ScoredItem, config: InterpretConfig) -> In
         evidence=evidence,
         interpretation_status="ok",
         eligible_for_must_read=eligible,
+        relevant=relevant,
     )
 
 
@@ -83,11 +99,12 @@ def extractive_fallback(item: ScoredItem, config: InterpretConfig) -> Interprete
     return InterpretedItem(
         **item.model_dump(),
         title=item.title_en,
-        body=(item.raw_summary or "")[: config.body_max_chars],
+        body=_trim_to_sentence(item.raw_summary or "", config.body_max_chars),
         tags=[],
         evidence=[],
         interpretation_status="extractive_fallback",
         eligible_for_must_read=False,
+        relevant=True,
     )
 
 
