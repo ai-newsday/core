@@ -2,7 +2,7 @@
 
 > 唯一任务看板 + 进度表（合并自旧 `ROADMAP.md`）。源头意图见 `docs/intent/`，每层契约见 `docs/specs/`。
 > 约定:一次一个子项目、小 PR、issue-per-PR、从真实 `origin/master` 起有意义分支名。
-> 最后更新:2026-06-19。
+> 最后更新:2026-06-23。
 
 ---
 
@@ -31,33 +31,18 @@
 
 ---
 
-## 3. 🚧 In Progress / 下一步（按优先级）
+## 3. 🚧 下一步（按优先级）
 
-> 意图已确认:`docs/intent/telegram-feedback-loop-and-visibility.md`。产品形态=(b)对外,但现阶段先做到"我能看、能审、能定稿"。**这三件先于 GitHub 源。**
-
-> **实现顺序(2026-06-20 重排):** 先把**实际坏掉的 Telegram 人审闭环解决并实测通**(M1),再回来做文风/渲染(M2)。文风+版式+配额规范已聊定并落 `references/editorial-and-format-sop.md`。
-
-**M1 — 人审闭环可用 + 实测（先做）**
-
-> 设计:`docs/superpowers/specs/2026-06-20-telegram-webhook-feedback-loop-design.md`。拆 3 个 plan。
-> ⚠️ **合并约束:Plan 1/2/3 必须一起合并 master**。Plan 1 已让 collect 停止轮询;若单独合并,webhook 未激活前决策完全无人收集(比现状更差)。三者齐活、实测通过后再合。
-
-| ✓ | plan | 任务 | 状态 |
-|---|---|---|---|
-| ☑ | **P1** | **Python 流水线**:决策适配器 + finalize 拉取并入(非致命) + collect 去轮询 + 终稿改简报+链接 + 卡片 4096 限长 + cli 接线 | ✅ 完成(commits `3145013`..`648d308`,全量 336 绿,双审+终审通过) |
-| ☑ | **P2** | **CF Worker + KV**:webhook 端点(校验 secret → `answerCallbackQuery`+`editMessageText` → 写 KV → `GET /decisions`)+ register 脚本。`workers/telegram-webhook/` | ✅ **完成 + 实测通过**(2026-06-21)。已部署 `https://ai-newsday-telegram-webhook.ai-newwsday.workers.dev`;KV id `8e0df2cd19a04831b6f671ab378e03a6`。冒烟:点按钮秒回(toast+编辑消息)、`/decisions` 读出决策。⚠️ secrets(WEBHOOK_SECRET/DECISIONS_API_SECRET/bot token)已配在 Worker;**DECISIONS_API_SECRET 同值要在 Plan 3 配进 GitHub Actions**。 |
-| ◑ | **P3** | **可见链 + 激活**:finalize.yml 换 PAT + 注入 DECISIONS_API_SECRET;`delivery.yaml` 切 `mode: webhook` + Worker URL;删 dead 轮询码;实测 | **代码完成**(commits 至 `2ebfcec`,334 绿)。**剩:用户建 2 个 GitHub secret(`DECISIONS_API_SECRET`、`PAGES_PUSH_TOKEN`)→ 合并 master(Plan1/2/3 一起)→ 端到端实测(cron 发卡→点击→finalize→Pages 可见)** |
-
-**M2 — 日报文风/版式/内容质量（后做,依据 SOP）**
+> **M1(人审闭环+可见链)与 M2(文风/版式/配额/过滤)已全部 SHIPPED**(见 §5)。pipeline 上线,每日 **09:00 北京(01:00 UTC `finalize.yml`)** 自动出报,Pages 部署,live **https://ai-newsday.github.io/core/**。
 
 | ✓ | 优先 | 任务 | 详情 |
 |---|---|---|---|
-| ☐ | **P1** | **S2 文风 prompts + 内容契约** | `interpret_item.md`/`daily_take.md` 产出新文风(钩子标题/成段正文/3 tags/英文术语);数据模型 `summary/takeaway/hot_take` → 新字段。依据 `references/editorial-and-format-sop.md`。 |
-| ☐ | **P1** | **S3 publish 渲染重做** | 去 emoji、新页面结构(今日看点/必读成段/其余一行/去重/删数据概览/tags 展示)。确定性、snapshot 可测。与 S2 强耦合,可合一个 spec。 |
-| ☐ | **P2** | **S4 配额 + 内容过滤(甲-3)** | 软配额+质量地板(目标10/上限11,每类门槛,见 SOP §4);垃圾空条目过滤、摘要不截病句、firehose 噪声降权。score/config + selfcheck。 |
-| ☐ | **P2** | 子项目 2:`tool` genre + GitHub 源 | 最后。GitHub Trending/repos + schema 动 genre/publisher。 |
+| ☐ | **P1** | 子项目 2:`tool` genre + GitHub 源 | GitHub Trending/repos,owner 权威。schema 动 genre/publisher;新 `tool` genre_value + 配额槽。开放设计点见 §4 注。 |
+| ☐ | **P2** | Reddit 403 生产决策 | 见 §2。代理/换源/砍掉三选一。 |
+| ☐ | **P2** | 可选:per-genre 质量地板 | 仅当当前 flat-60 `min_display_score` floor 误判某 genre 时再做。 |
+| ☐ | **P1** | 多渠道发布 | RSS/公众号/网站 JSON 渲染器。门槛:源质量达标(M2 后已改善)。详见 §4。 |
 
-> 文风/版式/配额规范见 **`references/editorial-and-format-sop.md`**（v0.2,已锁定）。
+> 文风/版式/配额规范见 **`references/editorial-and-format-sop.md`**(v0.2,已锁定)。
 
 ---
 
@@ -82,6 +67,9 @@
 
 | ✓ | 任务 | 详情 |
 |---|---|---|
+| ☑ | state.db 移出 git(#25,ADR 0004) | 去 `!data/state.db` 白名单,`git rm --cached`,改用 `actions/cache`(rolling key)跨 run 持久化;`content/` 仍进 git。[PR #34](https://github.com/ai-newsday/core/pull/34)。 |
+| ☑ | M2 文风/版式/内容质量 | M2-A voice/render `summary/takeaway/hot_take`→`body`、去 emoji 分类渲染(#27);M2-B1 AI 相关性过滤+词界匹配(#29);M2-B2 firehose 降权+配额 8→11(#31);report-yesterday 晨报汇总昨天完整一天(#33)。SOP `references/editorial-and-format-sop.md`。 |
+| ☑ | M1 Telegram 人审闭环 + 可见链 | CF Worker+KV webhook(点按钮秒回→写 KV→finalize 拉取),finalize 日 cron 用 PAT 触发 Pages(#21/#24)。上线自动出报。 |
 | ☑ | 子项目 1:HN + Reddit 信号源(#20) | 已合并。⚠️ Reddit 部分生产被封(见 §2);HN(Algolia front_page)待确认生产 yield。 |
 | ☑ | genre/publisher split(#16) | `source_type` → `genre`+`publisher`+signal 层。ADR 0003。 |
 | ☑ | 质量自检层 selfcheck(#14) | pipeline step 4.5,贴 `quality_flags` 不 gate。 |
