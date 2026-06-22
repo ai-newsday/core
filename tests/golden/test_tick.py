@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime, timezone
 
+from src.adapters.decisions.worker import FakeDecisionStore
 from src.core.types import (
     Evidence,
     Genre,
@@ -182,7 +183,8 @@ def test_finalize_tick_persists_feedback_and_is_idempotent(tmp_path):
             signals=item.signals,
             date=TODAY,
         )
-        await db.update_decision(iid, "keep")
+        # webhook 模型: 决策在 KV(decision_store), 按 item_id 匹配本报条目
+        store = FakeDecisionStore({iid: "keep"})
 
         # run finalize twice with the SAME run_id
         for _ in range(2):
@@ -194,6 +196,7 @@ def test_finalize_tick_persists_feedback_and_is_idempotent(tmp_path):
                 daily_take="x",
                 db=db,
                 notifiers=[notifier],
+                decision_store=store,
             )
 
         # keep -> 升权 from baseline 1.0 by step 0.2
