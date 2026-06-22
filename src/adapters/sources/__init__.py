@@ -1,4 +1,5 @@
 from src.adapters.sources.base import SourceAdapter
+from src.adapters.sources.github_releases import GithubReleasesAdapter
 from src.adapters.sources.hf_models import HFModelsAdapter
 from src.adapters.sources.hf_papers import HFPapersAdapter
 from src.adapters.sources.hn import HNAdapter
@@ -11,4 +12,5 @@ ADAPTERS: dict[str, SourceAdapter] = {
     "hf_models": HFModelsAdapter(),
     "hn": HNAdapter(),
     "reddit": RedditAdapter(),
+    "github_releases": GithubReleasesAdapter(),
 }
