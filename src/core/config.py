@@ -61,6 +61,7 @@ def load_scoring_config(path: str) -> ScoringConfig:
         stale_hours=recency.get("stale_hours", d.stale_hours),
         stale_penalty=recency.get("stale_penalty", d.stale_penalty),
         same_source_penalty=penalty.get("same_source", d.same_source_penalty),
+        firehose_penalty=penalty.get("firehose", d.firehose_penalty),
         quota=data.get("quota", d.quota),
         popularity_weights=data.get("popularity_weights", d.popularity_weights),
         popularity_cap=data.get("popularity_cap", d.popularity_cap),

@@ -87,7 +87,7 @@ def test_same_source_penalty_tiebreak_falls_back_to_link_when_no_signals():
         _ni("a", "https://b/1", "blog-x", Genre.writeup),
         _ni("b", "https://b/2", "blog-x", Genre.writeup),
     ]
-    scored = compute_scores(items, {}, ScoringConfig(), _ctx())
+    scored = compute_scores(items, {}, ScoringConfig(firehose_penalty=0.0), _ctx())
     pen = {s.link: s.score_breakdown["惩罚"] for s in scored}
     assert pen["https://b/1"] == 0.0  # link字母序最小 -> 免罚
     assert pen["https://b/2"] == ScoringConfig().same_source_penalty
@@ -103,7 +103,7 @@ def test_compute_scores_same_source_penalty_by_published_order():
         _ni("early", "https://s/1", "blog-x", Genre.writeup, t1),
         _ni("mid", "https://s/2", "blog-x", Genre.writeup, t2),
     ]
-    scored = compute_scores(items, {}, ScoringConfig(), _ctx())
+    scored = compute_scores(items, {}, ScoringConfig(firehose_penalty=0.0), _ctx())
     pen = {s.link: s.score_breakdown["惩罚"] for s in scored}
     assert pen["https://s/1"] == 0.0  # earliest: no penalty
     assert pen["https://s/2"] == ScoringConfig().same_source_penalty
@@ -281,3 +281,40 @@ def test_recency_band_with_production_config():
     assert recency_band(NOW - timedelta(hours=40), NOW, cfg) == 0.0
     # 50h old -> stale penalty (> 48)
     assert recency_band(NOW - timedelta(hours=50), NOW, cfg) == cfg.stale_penalty
+
+
+def test_firehose_penalty_demotes_individual_zero_signal():
+    """信号闸: model/writeup + individual + 零人气 → 扣 firehose_penalty; 有人气或 company 不扣。"""
+    import logging
+    from datetime import datetime, timezone
+
+    from src.core.types import Genre, NewsItem, Publisher, RunContext, ScoringConfig
+    from src.pipeline.score import compute_scores
+
+    now = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
+    ctx = RunContext(run_id="t", now=now, logger=logging.getLogger("t"))
+    cfg = ScoringConfig(popularity_weights={"likes": 0.3}, firehose_penalty=-20.0)
+
+    def ni(link, source, publisher, signals, genre=Genre.model):
+        return NewsItem(
+            title_en="m",
+            link=link,
+            source=source,
+            genre=genre,
+            publisher=publisher,
+            published_at=now,
+            cluster_id="c",
+            signals=signals,
+        )
+
+    items = [
+        ni("https://x/1", "s1", Publisher.individual, {}),  # noise → penalty
+        ni("https://x/2", "s2", Publisher.individual, {"likes": 50}),  # traction → no
+        ni("https://x/3", "s3", Publisher.company, {}),  # company → no
+        ni("https://x/4", "s4", Publisher.individual, {}, Genre.paper),  # paper → no
+    ]
+    by = {s.link: s for s in compute_scores(items, {}, cfg, ctx)}
+    assert by["https://x/1"].score_breakdown["惩罚"] == -20.0
+    assert by["https://x/2"].score_breakdown["惩罚"] == 0.0
+    assert by["https://x/3"].score_breakdown["惩罚"] == 0.0
+    assert by["https://x/4"].score_breakdown["惩罚"] == 0.0
