@@ -9,8 +9,6 @@ on:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write          # 允许 Persist state 步骤 git push 回仓库
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -22,13 +20,13 @@ jobs:
           version: "latest"
       - run: uv sync
 
+      # ADR 0004: state.db 不进 git,用 cache 跨 run 滚动持久化
+      - name: Restore/save state.db
+        uses: actions/cache@v4
+        with:
+          path: data/state.db
+          key: state-db-${{ github.run_id }}
+          restore-keys: state-db-
+
       - name: Run collect tick
         run: uv run python -m src.cli --tick collect
-
-      - name: Persist state
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/
-          git diff --cached --quiet || git commit -m "chore: update state after collect [skip ci]"
-          git push
