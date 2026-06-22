@@ -211,6 +211,7 @@ class QualityFlag(BaseModel):
 class InterpretedItem(ScoredItem):  # ScoredItem 的下游演进; 本圈加解读字段
     title: str  # 中文钩子标题, ≤ title_max_chars; 术语保留英文原文
     body: str  # 一段顺读正文(事实→实用→可选判断); 回退时为抽取式原文
+    relevant: bool = True  # LLM 判定: 是否 AI/ML 相关且有真实内容; False → 不进卡片/正刊
     tags: list[str] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
     interpretation_status: str

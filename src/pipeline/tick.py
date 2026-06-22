@@ -59,6 +59,8 @@ async def run_collect_tick(
     emit(logger, "tick_collect_start", run_id=run_id, date=date, item_count=len(interpreted_items))
     pushed = 0
     for item in interpreted_items:
+        if not item.relevant:
+            continue
         item_id = _item_id(item)
         await db.upsert_pending_review(
             item_id=item_id,

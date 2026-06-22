@@ -89,7 +89,8 @@ def test_build_ok_item_clamps_title_and_body():
         "evidence": [{"claim": "c", "anchor": "https://hf.co/glm5"}],
     }
     out = build_ok_item(parsed, it, cfg)
-    assert out.title == "01234" and out.body == "abcd"
+    # title still hard-sliced; body uses sentence-aware trim: no punctuation → hard cut + ellipsis
+    assert out.title == "01234" and out.body == "abc…"
 
 
 def test_build_ok_item_drops_illegal_anchor():
@@ -216,3 +217,29 @@ def test_generate_daily_take_failure_returns_none():
     it_ok = build_ok_item(json.loads(_OK_JSON), _scored(), InterpretConfig())
     tpl = load_prompt("src/prompts/daily_take.md")
     assert generate_daily_take([it_ok], tpl, InterpretConfig(), FailingLLMProvider()) is None
+
+
+def test_trim_to_sentence_cuts_at_punctuation():
+    from src.pipeline.interpret import _trim_to_sentence
+
+    assert _trim_to_sentence("第一句。第二句很长很长很长。", 6) == "第一句。"
+    assert _trim_to_sentence("短句。", 50) == "短句。"
+    assert _trim_to_sentence("没有标点的很长一段文字内容", 5) == "没有标点…"
+
+
+def test_build_ok_item_reads_relevant_and_defaults_true():
+    from src.core.types import InterpretConfig
+    from src.pipeline.interpret import build_ok_item
+
+    cfg = InterpretConfig()
+    item = _scored(link="https://x/1")
+    parsed = {
+        "title": "T",
+        "body": "正文。",
+        "tags": ["#a", "#b", "#c"],
+        "evidence": [{"claim": "c", "anchor": "https://x/1"}],
+        "relevant": False,
+    }
+    assert build_ok_item(parsed, item, cfg).relevant is False
+    parsed.pop("relevant")
+    assert build_ok_item(parsed, item, cfg).relevant is True

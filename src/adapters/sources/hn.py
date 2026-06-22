@@ -1,10 +1,27 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 import httpx
 
 from src.core.types import RawItem, RunContext, SourceSpec
+
+
+def _kw_match(haystack: str, keywords: list[str]) -> bool:
+    """关键词命中判定。单词用词边界(\\b) 防子串误放(ai 不命中 brain); 含空格的短语按子串。
+    空关键词表 → True(不过滤)。"""
+    if not keywords:
+        return True
+    hay = haystack.lower()
+    for kw in keywords:
+        k = kw.lower()
+        if " " in k:
+            if k in hay:
+                return True
+        elif re.search(r"\b" + re.escape(k) + r"\b", hay):
+            return True
+    return False
 
 
 class HNAdapter:
@@ -17,7 +34,6 @@ class HNAdapter:
             resp.raise_for_status()
             hits = (resp.json() or {}).get("hits") or []
 
-        kws = [k.lower() for k in (source.keywords or [])]
         items: list[RawItem] = []
         for h in hits:
             title = h.get("title")
@@ -28,8 +44,8 @@ class HNAdapter:
             if source.min_score is not None and points < source.min_score:
                 continue
             url = h.get("url")
-            haystack = f"{title} {url or ''}".lower()
-            if kws and not any(k in haystack for k in kws):
+            haystack = f"{title} {url or ''}"
+            if not _kw_match(haystack, source.keywords or []):
                 continue
             link = url or f"https://news.ycombinator.com/item?id={h.get('objectID')}"
             # key MUST be `hn_points` — that's what scoring popularity_weights + enrich read
