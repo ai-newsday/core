@@ -8,7 +8,7 @@ import os
 import sys
 import uuid
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from src.adapters.decisions.worker import WorkerDecisionStore
 from src.adapters.embedding.modelscope import ModelScopeEmbedder
@@ -429,6 +429,9 @@ def run_tick(
         }
 
     elif tick == "finalize":
+        # 晨报总结"昨天"完整一天(papers/新闻齐、投票稳); cron 跑在 01:00 UTC, now.date()-1 = 昨天。
+        # ponytail: 假设 finalize 跑在北京上午(=UTC 凌晨), UTC 日 == 北京日; 非此时刻手动触发日期可能偏一天。
+        date_label = (now.date() - timedelta(days=1)).isoformat()
         result = asyncio.run(
             run_finalize_tick(
                 run_id=ctx.run_id,

@@ -108,19 +108,19 @@ async def run_finalize_tick(
     date = now.date().isoformat()
     await db.insert_run(run_id, "finalize")
     emit(logger, "tick_finalize_start", run_id=run_id, date=date)
-    # 先把 webhook 远端决策幂等并入 DB(失败降级, 非致命)
+    # webhook 决策按 item_id 直接匹配本报条目(与采集日解耦); 失败降级=未审默认 keep
+    decisions_raw: dict[str, str] = {}
     if decision_store is not None:
         try:
-            remote = await decision_store.fetch()
-            pending = await db.get_pending_reviews_for_date(date)
-            today_ids = {r["item_id"] for r in pending}
+            remote = await decision_store.fetch()  # {item_id: action}
+            id_to_link = {_item_id(it): it.link for it in interpreted_items}
             for item_id, action in remote.items():
-                if item_id in today_ids:
-                    await db.update_decision(item_id, action)
+                link = id_to_link.get(item_id)
+                if link is not None and action in ("keep", "drop"):
+                    decisions_raw[link] = action
+                    await db.update_decision(item_id, action)  # 记录用, 无行则 no-op
         except Exception as e:  # noqa: BLE001 - 拉取失败非致命
             emit(logger, "decisions_fetch_error", run_id=run_id, error=str(e))
-    # 读累积决策（未审默认 keep，review 层自动处理无决策的条目）
-    decisions_raw = await db.get_decisions_dict(date)
     decisions = {link: ReviewDecision(action=action) for link, action in decisions_raw.items()}
     from src.core.types import RunContext
 
@@ -132,7 +132,7 @@ async def run_finalize_tick(
     summary = {
         "date_label": date_label,
         "item_count": pres.report.item_count,
-        "url": (site_base_url.rstrip("/") + "/posts/" + date + "/") if site_base_url else "",
+        "url": (site_base_url.rstrip("/") + "/posts/" + date_label + "/") if site_base_url else "",
     }
     for notifier in notifiers:
         try:

@@ -14,12 +14,12 @@ publisher_authority: {lab: 18, company: 14, individual: 8, media: 12}
 priority_bonus: {1: 6, 2: 3, 3: 0, 4: -2, 5: -4}
 priority_bonus_default: 0
 
-recency:                          # 时效分 (spec §5.2)
-  fresh_hours: 18
+recency:                          # 时效分 (spec §5.2). 晨报报昨天: 放宽让昨天一整天算新鲜, 按质量排而非按几点发
+  fresh_hours: 30
   fresh_bonus: 10
-  mid_hours: 36
+  mid_hours: 48
   mid_bonus: 4
-  stale_hours: 48
+  stale_hours: 60
   stale_penalty: -10
 
 # 读者偏好话题: 标题/摘要命中关键词 → 读者相关度 bonus

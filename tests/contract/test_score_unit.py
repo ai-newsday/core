@@ -273,14 +273,16 @@ def test_recency_band_with_production_config():
     from src.core.config import load_scoring_config
 
     cfg = load_scoring_config("config/scoring.yaml")
-    assert cfg.fresh_hours == 18
-    assert cfg.stale_hours == 48
-    # 20h old -> mid band (18 < 20 <= 36)
-    assert recency_band(NOW - timedelta(hours=20), NOW, cfg) == cfg.mid_bonus
-    # 40h old -> neutral (36 < 40 <= 48)
-    assert recency_band(NOW - timedelta(hours=40), NOW, cfg) == 0.0
-    # 50h old -> stale penalty (> 48)
-    assert recency_band(NOW - timedelta(hours=50), NOW, cfg) == cfg.stale_penalty
+    assert cfg.fresh_hours == 30
+    assert cfg.stale_hours == 60
+    # 25h old -> fresh band (<= 30): 昨天一整天算新鲜
+    assert recency_band(NOW - timedelta(hours=25), NOW, cfg) == cfg.fresh_bonus
+    # 40h old -> mid band (30 < 40 <= 48)
+    assert recency_band(NOW - timedelta(hours=40), NOW, cfg) == cfg.mid_bonus
+    # 55h old -> neutral (48 < 55 <= 60)
+    assert recency_band(NOW - timedelta(hours=55), NOW, cfg) == 0.0
+    # 70h old -> stale penalty (> 60)
+    assert recency_band(NOW - timedelta(hours=70), NOW, cfg) == cfg.stale_penalty
 
 
 def test_firehose_penalty_demotes_individual_zero_signal():

@@ -104,3 +104,28 @@ def test_collect_skips_non_relevant_cards(tmp_path):
         assert "https://x/junk" not in sent_links
 
     asyncio.run(go())
+
+
+def test_finalize_applies_kv_decision_by_item_id_without_pending_rows(tmp_path):
+    """决策解耦: 即使没发过卡(无 pending_reviews 行)、date 不匹配, KV 决策仍按 item_id 生效。"""
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        items = [_item("https://x/1", "Keep me"), _item("https://x/2", "Drop me")]
+        store = FakeDecisionStore({_iid("https://x/2"): "drop"})
+        out = await run_finalize_tick(
+            "r2",
+            NOW,
+            "2026-06-21",
+            items,
+            "take",
+            db,
+            [FakeNotifier()],
+            decision_store=store,
+            site_base_url="https://s/",
+        )
+        # x/2 被 drop, 即便从没 collect 过、date_label 与采集日无关
+        assert out["item_count"] <= 1
+
+    asyncio.run(go())
