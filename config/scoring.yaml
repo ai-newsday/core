@@ -2,8 +2,8 @@
 # genre → 4 维内容价值 (一手性/技术价值/产业影响/扩散潜力). 机构影响力由 publisher 提供.
 genre_value:
   paper:        {一手性: 20, 技术价值: 16, 产业影响: 8,  扩散潜力: 7}
-  model:        {一手性: 18, 技术价值: 14, 产业影响: 10, 扩散潜力: 9}
-  announcement: {一手性: 20, 技术价值: 10, 产业影响: 12, 扩散潜力: 9}
+  model:        {一手性: 18, 技术价值: 14, 产业影响: 12, 扩散潜力: 9}
+  announcement: {一手性: 20, 技术价值: 10, 产业影响: 16, 扩散潜力: 12}
   writeup:      {一手性: 12, 技术价值: 12, 产业影响: 8,  扩散潜力: 9}
   news:         {一手性: 8,  技术价值: 6,  产业影响: 12, 扩散潜力: 11}
 
@@ -41,6 +41,7 @@ topic_boost:
 
 penalty:
   same_source: -5                 # 同源第2+条各扣 (spec §5.3)
+  firehose: -20                   # 信号闸: 个人+零人气的 model/writeup 扣分(压 gemma 类噪声)
 
 # "可见指标" = sum(weight * sqrt(signals[key]))  → cap (spec §5.1 PRD §5.5 该维度的接入)
 # - hf-papers.upvotes 范围常见 0-300 → sqrt 后 0-17, 大头都在 5-12
@@ -50,8 +51,9 @@ penalty:
 popularity_weights: {upvotes: 0.6, hn_points: 0.5, likes: 0.3, num_comments: 0.4}
 popularity_cap: 15.0              # 单条最高 +15 分, 防异常超大数值
 
-# genre 配额 (PRD §4.2). 各 quota 之和(=8) <= total_limit.
-quota: {paper: 2, announcement: 2, writeup: 2, model: 1, news: 1}
-total_limit: 8
+# genre 配额上限 (PRD §4.2). 各 quota 是 per-genre 上限, 和可 > total_limit;
+# 最终由 total_limit + publish min_display_score(60 地板) 截。商用模型/大厂更新坑位拉高。
+quota: {paper: 3, model: 3, announcement: 3, writeup: 2, news: 1}
+total_limit: 11
 
 sources_registry_path: "config/sources.yaml"

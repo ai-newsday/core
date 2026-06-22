@@ -51,8 +51,10 @@ def test_load_scoring_config_reads_genre_and_publisher(tmp_path):
 
 def test_repo_default_config_is_consistent():
     c = load_scoring_config("config/scoring.yaml")
-    # invariant: sum of quotas must not exceed the hard total limit (spec §5.4)
-    assert sum(c.quota.values()) <= c.total_limit
+    # 软配额: quota 是 per-genre 上限(和可 > total_limit), total_limit 是最终硬上限。
+    # 不变量: total_limit 可达(<= 各上限之和), 且单类上限不超过 total_limit。
+    assert c.total_limit <= sum(c.quota.values())
+    assert all(q <= c.total_limit for q in c.quota.values())
 
 
 def test_loads_topic_boost(tmp_path):
