@@ -15,7 +15,9 @@ class GithubReleasesAdapter:
     async def fetch(self, source: SourceSpec, ctx: RunContext, timeout_s: int) -> list[RawItem]:
         repo_url = source.url.rsplit("/releases", 1)[0]
         headers = _auth_headers()
-        async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=True, headers=headers) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout_s, follow_redirects=True, headers=headers
+        ) as client:
             resp = await client.get(source.url)
             resp.raise_for_status()
             releases = resp.json() or []

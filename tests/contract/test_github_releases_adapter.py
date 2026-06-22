@@ -13,17 +13,29 @@ _REPO = "https://api.github.com/repos/comfyanonymous/ComfyUI"
 
 
 def _ctx():
-    return RunContext(run_id="t", now=datetime(2026, 6, 23, 12, 0, tzinfo=timezone.utc),
-                      logger=logging.getLogger("test.ghr"))
+    return RunContext(
+        run_id="t",
+        now=datetime(2026, 6, 23, 12, 0, tzinfo=timezone.utc),
+        logger=logging.getLogger("test.ghr"),
+    )
 
 
 def _spec():
-    return SourceSpec(name="comfyui", url=_RELEASES, genre=Genre.announcement,
-                      publisher=Publisher.individual, adapter="github_releases")
+    return SourceSpec(
+        name="comfyui",
+        url=_RELEASES,
+        genre=Genre.announcement,
+        publisher=Publisher.individual,
+        adapter="github_releases",
+    )
 
 
-def _release(tag="v0.3.40", body="adds new nodes", date="2026-06-22T10:00:00Z",
-             url="https://github.com/comfyanonymous/ComfyUI/releases/tag/v0.3.40"):
+def _release(
+    tag="v0.3.40",
+    body="adds new nodes",
+    date="2026-06-22T10:00:00Z",
+    url="https://github.com/comfyanonymous/ComfyUI/releases/tag/v0.3.40",
+):
     return {"tag_name": tag, "body": body, "published_at": date, "html_url": url}
 
 
@@ -53,8 +65,11 @@ async def test_releases_empty_returns_empty():
 @respx.mock
 async def test_releases_skips_release_without_published_at():
     # draft / unpublished release has published_at: null
-    respx.get(_RELEASES).mock(return_value=httpx.Response(
-        200, json=[{"tag_name": "v9", "body": "", "published_at": None, "html_url": "u"}]))
+    respx.get(_RELEASES).mock(
+        return_value=httpx.Response(
+            200, json=[{"tag_name": "v9", "body": "", "published_at": None, "html_url": "u"}]
+        )
+    )
     respx.get(_REPO).mock(return_value=httpx.Response(200, json={"stargazers_count": 1}))
     items = await GithubReleasesAdapter().fetch(_spec(), _ctx(), timeout_s=15)
     assert items == []

@@ -10,7 +10,9 @@ from src.core.types import RawItem, RunContext, SourceSpec
 # ponytail: canonical Trending endpoint hardcoded (an endpoint, not a tuning knob)
 _TRENDING_URL = "https://github.com/trending"
 # /owner/repo inside the trending list heading anchors
-_TRENDING_RE = re.compile(r'<h2[^>]*class="[^"]*lh-condensed[^"]*"[^>]*>\s*<a[^>]*href="/([^"/]+/[^"/]+)"')
+_TRENDING_RE = re.compile(
+    r'<h2[^>]*class="[^"]*lh-condensed[^"]*"[^>]*>\s*<a[^>]*href="/([^"/]+/[^"/]+)"'
+)
 
 
 def _scrape_trending(html: str) -> list[str]:
@@ -47,7 +49,9 @@ class GithubTrendingAdapter:
 
     async def fetch(self, source: SourceSpec, ctx: RunContext, timeout_s: int) -> list[RawItem]:
         headers = _auth_headers()
-        async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=True, headers=headers) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout_s, follow_redirects=True, headers=headers
+        ) as client:
             resp = await client.get(source.url)
             resp.raise_for_status()
             repos = (resp.json() or {}).get("items") or []
