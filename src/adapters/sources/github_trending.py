@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timedelta
 
 import httpx
 
@@ -9,10 +10,26 @@ from src.core.types import RawItem, RunContext, SourceSpec
 
 # ponytail: canonical Trending endpoint hardcoded (an endpoint, not a tuning knob)
 _TRENDING_URL = "https://github.com/trending"
+# ponytail: "newness" window — Search sorts by ABSOLUTE stars, so without this the
+# query returns ancient high-star giants (AutoGPT etc.) that merely got a recent push.
+# created:>=cutoff restricts to repos *created* in the window = genuinely new+rising.
+# Widen/narrow this one number to loosen/tighten "new".
+_NEW_REPO_DAYS = 180
 # /owner/repo inside the trending list heading anchors
 _TRENDING_RE = re.compile(
     r'<h2[^>]*class="[^"]*lh-condensed[^"]*"[^>]*>\s*<a[^>]*href="/([^"/]+/[^"/]+)"'
 )
+
+
+def _inject_created_window(url: str, now: datetime) -> str:
+    """Add `created:>=<now-_NEW_REPO_DAYS>` to the Search `q=` so only recently-created
+    repos surface. No-op if the query already pins `created:` (operator override)."""
+    if "created:" in url:
+        return url
+    cutoff = (now - timedelta(days=_NEW_REPO_DAYS)).date().isoformat()
+    return re.sub(
+        r"(q=)([^&]*)", lambda m: f"{m.group(1)}{m.group(2)}+created:>={cutoff}", url, count=1
+    )
 
 
 def _scrape_trending(html: str) -> list[str]:
@@ -49,10 +66,11 @@ class GithubTrendingAdapter:
 
     async def fetch(self, source: SourceSpec, ctx: RunContext, timeout_s: int) -> list[RawItem]:
         headers = _auth_headers()
+        search_url = _inject_created_window(source.url, ctx.now)
         async with httpx.AsyncClient(
             timeout=timeout_s, follow_redirects=True, headers=headers
         ) as client:
-            resp = await client.get(source.url)
+            resp = await client.get(search_url)
             resp.raise_for_status()
             repos = (resp.json() or {}).get("items") or []
 

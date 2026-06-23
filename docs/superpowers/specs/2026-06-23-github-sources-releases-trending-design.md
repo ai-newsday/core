@@ -64,6 +64,7 @@
 
 - 同一项目可能**既作为 trending repo、又作为它的 release** 双重出现(两条 link 不同,单轮 link 去重抓不到)。低频,v1 接受;`seen_repos`(v1.1)或按 repo full_name 跨机制去重时一并解决。
 - Search API 按**绝对 star** 排,非当日涨速 → 小而爆的新 repo 不如真榜灵敏;这正是保留 Trending HTML 尽力而为的原因。
+- **(2026-06-24 修)** 仅靠 `sort:stars` 会返回老牌巨无霸(AutoGPT/hf-datasets 等,创建上千天、只因日常 push 而"最近活跃")。adapter 现在向 Search `q=` 注入滚动的 `created:>=<now-180d>`(`_inject_created_window`,常量 `_NEW_REPO_DAYS=180`,operator 在 url 写死 `created:` 则不覆盖),只捞**新建**的 repo = 真·新+涨。httpx 会把 `>` 编码为 `%3E`,GitHub 照常接受。
 
 ## 5. 测试(TDD,对外只读,天然 `--dry-run`)
 
