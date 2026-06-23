@@ -66,6 +66,8 @@ def test_finalize_merges_remote_decision(tmp_path):
 
 
 def test_finalize_decision_fetch_failure_is_non_fatal(tmp_path):
+    """拉取失败非致命: finalize 不崩、正常返回。失败=无决策=无确认 → 空报告(确认门)。"""
+
     class BoomStore:
         async def fetch(self):
             raise RuntimeError("worker down")
@@ -86,7 +88,8 @@ def test_finalize_decision_fetch_failure_is_non_fatal(tmp_path):
             decision_store=BoomStore(),
             site_base_url="https://s/",
         )
-        assert out["item_count"] >= 1
+        # 非致命: 跑完不抛; 拉取失败 → 无确认 → 空报告
+        assert out["item_count"] == 0
 
     asyncio.run(go())
 
@@ -102,6 +105,76 @@ def test_collect_skips_non_relevant_cards(tmp_path):
         sent_links = [card.get("link") for _id, card in notifier.sent_cards]
         assert "https://x/ok" in sent_links
         assert "https://x/junk" not in sent_links
+
+    asyncio.run(go())
+
+
+def test_select_report_items_gate():
+    """纯函数确认门: keep/edit 进, drop/未决策 排除。"""
+    from src.core.types import ReviewDecision
+    from src.pipeline.tick import select_report_items
+
+    items = [_item(f"https://x/{n}", n) for n in ("keep", "edit", "drop", "undecided")]
+    decisions = {
+        "https://x/keep": ReviewDecision(action="keep"),
+        "https://x/edit": ReviewDecision(action="edit"),
+        "https://x/drop": ReviewDecision(action="drop"),
+    }
+    out = select_report_items(items, decisions)
+    assert [it.link for it in out] == ["https://x/keep", "https://x/edit"]
+
+
+def test_finalize_only_ships_confirmed_items(tmp_path):
+    """确认门(review.md/publish.md 推迟给发布层的"未审拦截"): 报告只收显式 keep,
+    未决策 + drop 都排除。修 finalize 把未确认内容总结进去的 bug。"""
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        items = [
+            _item("https://x/keep", "Keep me"),
+            _item("https://x/drop", "Drop me"),
+            _item("https://x/undecided", "Never reviewed"),
+        ]
+        await run_collect_tick("r1", NOW, items, "take", db, [FakeNotifier()])
+        store = FakeDecisionStore({_iid("https://x/keep"): "keep", _iid("https://x/drop"): "drop"})
+        out = await run_finalize_tick(
+            "r2",
+            NOW,
+            "2026-06-19",
+            items,
+            "take",
+            db,
+            [FakeNotifier()],
+            decision_store=store,
+            site_base_url="https://s/",
+        )
+        # 只有显式 keep 的进; drop 和 undecided 都不进
+        assert out["item_count"] == 1
+
+    asyncio.run(go())
+
+
+def test_finalize_zero_confirmations_empty_report(tmp_path):
+    """零确认 → 空报告(不再默认 keep 全发)。"""
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        items = [_item("https://x/1", "A"), _item("https://x/2", "B")]
+        await run_collect_tick("r1", NOW, items, "take", db, [FakeNotifier()])
+        out = await run_finalize_tick(
+            "r2",
+            NOW,
+            "2026-06-19",
+            items,
+            "take",
+            db,
+            [FakeNotifier()],
+            decision_store=FakeDecisionStore({}),
+            site_base_url="https://s/",
+        )
+        assert out["item_count"] == 0
 
     asyncio.run(go())
 

@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 from datetime import datetime, timezone
 
 from src.adapters.decisions.worker import FakeDecisionStore
@@ -119,6 +120,8 @@ def test_finalize_tick_builds_report_and_notifies(tmp_path):
             _make_item(link, source="openai", st=Genre.announcement, signals={})
             for link in ["https://a/1", "https://a/2"]
         ]
+        # 确认门: 报告只收显式 keep 的条目, 故提供 a/1=keep 的远程决策
+        keep_id = hashlib.sha256(b"https://a/1").hexdigest()[:16]
         result = await run_finalize_tick(
             run_id="r2",
             now=NOW,
@@ -127,8 +130,10 @@ def test_finalize_tick_builds_report_and_notifies(tmp_path):
             daily_take=None,
             db=db,
             notifiers=[notifier],
+            decision_store=FakeDecisionStore({keep_id: "keep"}),
         )
-        assert result["item_count"] >= 0
+        # a/1 keep 进, a/2 pending(无远程决策) 不进
+        assert result["item_count"] == 1
         assert notifier.final_report is not None
         assert "AI Daily" in notifier.final_report
 
