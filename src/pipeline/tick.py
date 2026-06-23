@@ -19,6 +19,22 @@ def _item_id(item: InterpretedItem) -> str:
     return hashlib.sha256(item.link.encode()).hexdigest()[:16]
 
 
+def select_report_items(
+    items: list[InterpretedItem], decisions: dict[str, ReviewDecision]
+) -> list[InterpretedItem]:
+    """确认门: 报告只收显式 keep/edit 的条目, 未决策 + drop 都排除。
+
+    实现 spec(review.md §3.4 / publish.md)一直推迟给"发布层/CLI"的"未审自动发拦截":
+    review 层仍默认 keep + 标 is_pending, 真正的"未确认不发"在 finalize 这层落地。
+    决策仍按 link(由 item_id 解耦匹配而来)查, 不引入日期耦合(保留 #33)。
+    """
+    return [
+        it
+        for it in items
+        if (dec := decisions.get(it.link)) is not None and dec.action in ("keep", "edit")
+    ]
+
+
 def _genre_label(genre_value: str) -> str:
     labels = {
         "paper": "论文",
@@ -126,7 +142,9 @@ async def run_finalize_tick(
 
     ctx = RunContext(run_id=run_id, now=now, logger=logger)
     rcfg = load_review_config("config/review.yaml")
-    rres = review(interpreted_items, daily_take, decisions, rcfg, ctx)
+    # 确认门: 只把显式 keep/edit 的条目送进报告(未确认/drop 不发)。feedback 仍吃全量(下方)。
+    report_items = select_report_items(interpreted_items, decisions)
+    rres = review(report_items, daily_take, decisions, rcfg, ctx)
     pcfg = load_publish_config("config/publish.yaml")
     pres = publish(rres, date_label, pcfg, ctx)
     summary = {

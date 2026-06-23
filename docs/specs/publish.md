@@ -175,7 +175,13 @@ daily_take  = review_result.daily_take   # 可为 None
 | True | 报头打 `> {pending_watermark}` 水印，正文照常 | True |
 | False | 无水印 | False |
 
-本层只**标**，不拦发布；"未审自动发"拦不拦交 CLI / P1 渠道层。
+本层只**标**，不拦发布；"未审自动发"的拦截在 **finalize tick** 落地（见下）。
+
+### 5.8 确认门（finalize 层，2026-06-23）
+
+review 层保持"无决策 → 默认 keep + 标 `is_pending`"的语义（§3.4 不变）。真正的"未确认不发"在 **`run_finalize_tick`** 实现：调 `review()` 前用纯函数 `select_report_items(items, decisions)` 过滤，**报告只收显式 `keep`/`edit` 的条目，未决策 + `drop` 一律排除**。决策仍按 link（由 item_id 解耦匹配而来）查，不引入日期耦合（保留 #33 的决策-日期解耦）。`feedback` 的 `derive_events` 仍吃**全量** interpreted_items（keep/drop 都是信号，与是否进报告无关）。
+
+后果：某天零确认 → 空报告（不再默认全发）。修了 finalize 把未确认内容总结进报告、并在 72h 采集窗口内跨天复发的 bug。**残留**：显式 keep 的条目理论上仍可能在窗口内跨天复发（需按日切或"已发布"存储另解），单独决策。
 
 ## 6. 配置与加载
 
