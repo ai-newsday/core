@@ -176,3 +176,30 @@
 - {name: ollama-gh, url: "https://api.github.com/repos/ollama/ollama/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}  # -gh 后缀: 避开已存在的 ollama blog RSS 源同名
 - {name: vllm-gh, url: "https://api.github.com/repos/vllm-project/vllm/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}
 - {name: gh-trending-ai, url: "https://api.github.com/search/repositories?q=topic:llm+topic:artificial-intelligence+sort:stars&sort=stars&order=desc&per_page=30", genre: announcement, publisher: company, adapter: github_trending, status: working, priority: 3}
+# --- 扩源 2026-06 (探活全部确认出条目): 公司官博 + 产品 YouTube 第一方 + 聚合 newsletter ---
+# 聚合/补墙后公司(Mistral/Perplexity/ElevenLabs 等无 RSS, 靠这些二手覆盖)
+- {name: smol-ai-news, url: "https://news.smol.ai/rss.xml", genre: news, publisher: media, adapter: rss, status: working, priority: 3, max_items: 10}  # 660 条 firehose, 限流
+- {name: lastweekin-ai, url: "https://lastweekin.ai/feed", genre: news, publisher: media, adapter: rss, status: working, priority: 3}
+- {name: the-gradient, url: "https://thegradient.pub/rss/", genre: writeup, publisher: media, adapter: rss, status: working, priority: 3}
+# 公司官博 (直连 RSS)
+- {name: google-developers, url: "https://developers.googleblog.com/feeds/posts/default", genre: announcement, publisher: company, adapter: rss, status: working, priority: 2}
+- {name: google-ai, url: "https://blog.google/innovation-and-ai/technology/ai/rss/", genre: announcement, publisher: company, adapter: rss, status: working, priority: 2}
+- {name: cursor, url: "https://cursor.com/changelog/rss.xml", genre: announcement, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: windsurf, url: "https://windsurf.com/feed", genre: announcement, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: weaviate, url: "https://weaviate.io/blog/rss.xml", genre: writeup, publisher: company, adapter: rss, status: working, priority: 3}
+# 产品发布 (第一方 YouTube 频道 Atom feed, rss 适配器实测可解析)
+- {name: luma-yt, url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC45T0I4p7A3dI0XvhivafZQ", genre: announcement, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: runway-yt, url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCUBqu_z5uP0AZhYtuyFZB3g", genre: announcement, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: kling-yt, url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC1i21joJVJVVRUGUOGFEdVQ", genre: announcement, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: pika-yt, url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC0SclYU4iiQRihtmDnak-gQ", genre: announcement, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: meshy-yt, url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCz9e8s9x8QbyyYTGftoXn2g", genre: announcement, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: krea-yt, url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC7Vnwia5cnhlbaA5bmZW-lA", genre: announcement, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: manus-yt, url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC6ZqF_MuREr_bFFKoHV3ZdQ", genre: announcement, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: xai-yt, url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCo2ri0cvAs8Lxbp18UHZsgg", genre: announcement, publisher: lab, adapter: rss, status: working, priority: 3}
+- {name: groq-yt, url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCC4EsuM0n_-u5_eOuZFCfpA", genre: writeup, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: replit-yt, url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCgoJjdR6-7AMu9fDitb6nVw", genre: writeup, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: assemblyai-yt, url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCtatfZMf-8EkIwASXM4ts0A", genre: writeup, publisher: company, adapter: rss, status: working, priority: 3}
+- {name: deepgram-yt, url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCZD2IkWTzZvajgiy9CjNfxA", genre: writeup, publisher: company, adapter: rss, status: working, priority: 3}
+# OSS 发布 (github_releases 适配器)
+- {name: sglang-gh, url: "https://api.github.com/repos/sgl-project/sglang/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}
+- {name: unsloth-gh, url: "https://api.github.com/repos/unslothai/unsloth/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}
