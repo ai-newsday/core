@@ -180,7 +180,6 @@
 # 聚合/补墙后公司(Mistral/Perplexity/ElevenLabs 等无 RSS, 靠这些二手覆盖)
 - {name: smol-ai-news, url: "https://news.smol.ai/rss.xml", genre: news, publisher: media, adapter: rss, status: working, priority: 3, max_items: 10}  # 660 条 firehose, 限流
 - {name: lastweekin-ai, url: "https://lastweekin.ai/feed", genre: news, publisher: media, adapter: rss, status: working, priority: 3}
-- {name: ahead-of-ai, url: "https://magazine.sebastianraschka.com/feed", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 2}
 - {name: the-gradient, url: "https://thegradient.pub/rss/", genre: writeup, publisher: media, adapter: rss, status: working, priority: 3}
 # 公司官博 (直连 RSS)
 - {name: google-developers, url: "https://developers.googleblog.com/feeds/posts/default", genre: announcement, publisher: company, adapter: rss, status: working, priority: 2}
