@@ -5,11 +5,15 @@ import httpx
 import pytest
 import respx
 
-from src.adapters.sources.github_trending import GithubTrendingAdapter, _scrape_trending
+from src.adapters.sources.github_trending import (
+    GithubTrendingAdapter,
+    _inject_created_window,
+    _scrape_trending,
+)
 from src.core.types import Genre, Publisher, RawItem, RunContext, SourceSpec
 
-_SEARCH = "https://api.github.com/search/repositories?q=topic:llm+sort:stars&sort=stars&order=desc&per_page=30"
-_TRENDING_HTML = "https://github.com/trending?since=daily"
+# already pins created: → adapter injection is a no-op, so respx exact-match stays stable
+_SEARCH = "https://api.github.com/search/repositories?q=topic:llm+created:>=2026-01-01+sort:stars&sort=stars&order=desc&per_page=30"
 
 
 def _ctx():
@@ -96,3 +100,46 @@ def test_scrape_trending_extracts_full_names():
 
 def test_scrape_trending_empty_on_garbage():
     assert _scrape_trending("<html>nope</html>") == []
+
+
+def test_inject_created_window_adds_recency_filter():
+    """新仓库闸: 注入 created:>=<now-180d> 到 q=, 不破坏其余参数 (修 trending 出老 repo)。"""
+    url = "https://api.github.com/search/repositories?q=topic:llm+sort:stars&per_page=30"
+    out = _inject_created_window(url, datetime(2026, 6, 24, tzinfo=timezone.utc))
+    assert "q=topic:llm+sort:stars+created:>=2025-12-26" in out
+    assert out.endswith("&per_page=30")
+
+
+def test_inject_created_window_respects_operator_created():
+    """已显式写 created: → 不再注入 (operator override)。"""
+    url = "https://api.github.com/search/repositories?q=topic:llm+created:>=2026-05-01&per_page=30"
+    assert _inject_created_window(url, datetime(2026, 6, 24, tzinfo=timezone.utc)) == url
+
+
+def test_trending_fetch_injects_created_when_absent():
+    """fetch 对无 created 的 source.url 注入新仓库闸; 验证打到 API 的 URL 带 created:>=。"""
+
+    @respx.mock
+    async def go():
+        base = "https://api.github.com/search/repositories?q=topic:llm&per_page=30"
+        route = respx.get(url__regex=r"https://api\.github\.com/search/repositories.*").mock(
+            return_value=httpx.Response(200, json={"items": [_repo()]})
+        )
+        respx.get("https://github.com/trending").mock(
+            return_value=httpx.Response(200, text="<html></html>")
+        )
+        spec = SourceSpec(
+            name="t",
+            url=base,
+            genre=Genre.announcement,
+            publisher=Publisher.company,
+            adapter="github_trending",
+        )
+        await GithubTrendingAdapter().fetch(spec, _ctx(), timeout_s=15)
+        called = str(route.calls.last.request.url)
+        # httpx percent-encodes '>' → '%3E'; assert encoding-robustly. 2026-06-23 - 180d
+        assert "created:" in called and "2025-12-25" in called
+
+    import asyncio
+
+    asyncio.run(go())
