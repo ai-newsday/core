@@ -37,7 +37,7 @@
 
 | ✓ | 优先 | 任务 | 详情 |
 |---|---|---|---|
-| ☐ | **P1** | 子项目 2:`tool` genre + GitHub 源 | GitHub Trending/repos,owner 权威。schema 动 genre/publisher;新 `tool` genre_value + 配额槽。开放设计点见 §4 注。 |
+| ◑ | **P1** | 子项目 2:GitHub 源(releases + trending) | **代码完成 on branch `github-sources-releases-trending`**(ADR 0003 一致:不造 `tool` genre,release/repo 归 `announcement`;star 当 `github_stars` 信号轴)。adapter `github_releases`(策展清单:comfyui/ollama/vllm)+ `github_trending`(Search API 保底 + Trending HTML 尽力而为)。设计 `docs/superpowers/specs/2026-06-23-github-sources-releases-trending-design.md`。**真实 dry-run --score(本地 2026-06-23)**:Search trending 24 条、`github_stars` 贯通打分(73127/18505/…)、releases 端点可达。⚠️ **Trending HTML 抓取本地 200,但 prod 是 Actions(Azure IP) 仍可能 403——首跑 Actions 时确认;Search 保底不受影响**。**剩:合并 + 首跑 Actions 验证 + 按需补 ComfyUI 生态/OpenClaw repo 行。** 闸 i(跨轮 `seen_repos` 去重)推迟 v1.1。 |
 | ☐ | **P2** | Reddit 403 生产决策 | 见 §2。代理/换源/砍掉三选一。 |
 | ☐ | **P2** | 可选:per-genre 质量地板 | 仅当当前 flat-60 `min_display_score` floor 误判某 genre 时再做。 |
 | ☐ | **P1** | 多渠道发布 | RSS/公众号/网站 JSON 渲染器。门槛:源质量达标(M2 后已改善)。详见 §4。 |

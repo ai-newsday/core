@@ -171,3 +171,8 @@
 - {name: reddit-geminiai, url: "https://old.reddit.com/r/GeminiAI/top/?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
 - {name: reddit-midjourney, url: "https://old.reddit.com/r/midjourney/top/?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
 - {name: reddit-comfyui, url: "https://old.reddit.com/r/comfyui/top/?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 30, max_items: 10}
+# --- github (releases watch + trending discovery) ---  ADR 0003 一致: release/repo 归 announcement, star 当 github_stars 信号
+- {name: comfyui-gh, url: "https://api.github.com/repos/comfyanonymous/ComfyUI/releases", genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 2}
+- {name: ollama-gh, url: "https://api.github.com/repos/ollama/ollama/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}  # -gh 后缀: 避开已存在的 ollama blog RSS 源同名
+- {name: vllm-gh, url: "https://api.github.com/repos/vllm-project/vllm/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}
+- {name: gh-trending-ai, url: "https://api.github.com/search/repositories?q=topic:llm+topic:artificial-intelligence+sort:stars&sort=stars&order=desc&per_page=30", genre: announcement, publisher: company, adapter: github_trending, status: working, priority: 3}

@@ -10,7 +10,7 @@ from src.core.types import EnrichConfig, RawItem, RunContext
 from src.observability.events import emit
 
 # 已经具备 popularity 信号的键 (任一存在即跳过 HN 查)
-_POPULARITY_KEYS = {"upvotes", "likes", "hn_points", "downloads"}
+_POPULARITY_KEYS = {"upvotes", "likes", "hn_points", "downloads", "github_stars"}
 
 
 def _has_popularity(item: RawItem) -> bool:
