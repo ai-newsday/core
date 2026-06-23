@@ -55,6 +55,12 @@ CREATE TABLE IF NOT EXISTS kv_state (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS published_items (
+    item_id    TEXT PRIMARY KEY,
+    date_label TEXT NOT NULL,
+    ts         TEXT NOT NULL
+);
 """
 
 
@@ -126,6 +132,30 @@ class Database:
                 ),
             )
             await conn.commit()
+
+    async def mark_published(self, item_ids: list[str], date_label: str) -> None:
+        """记录条目在某 date_label 报告中已发布。INSERT OR IGNORE: 首发 label 固定不被覆盖。"""
+        if not item_ids:
+            return
+        ts = datetime.now(timezone.utc).isoformat()
+        async with aiosqlite.connect(self._path) as conn:
+            await conn.executemany(
+                "INSERT OR IGNORE INTO published_items(item_id,date_label,ts) VALUES(?,?,?)",
+                [(i, date_label, ts) for i in item_ids],
+            )
+            await conn.commit()
+
+    async def already_published_elsewhere(self, item_ids: list[str], date_label: str) -> set[str]:
+        """返回这些 item_id 中已在 *别的* date_label 下发布过的(同 label 不算, 允许同日重跑)。"""
+        if not item_ids:
+            return set()
+        ph = ",".join("?" * len(item_ids))
+        async with aiosqlite.connect(self._path) as conn:
+            async with conn.execute(
+                f"SELECT item_id FROM published_items WHERE item_id IN ({ph}) AND date_label!=?",
+                (*item_ids, date_label),
+            ) as cur:
+                return {row[0] for row in await cur.fetchall()}
 
     async def update_decision(self, item_id: str, action: str) -> None:
         ts = datetime.now(timezone.utc).isoformat()
