@@ -144,9 +144,16 @@ async def run_finalize_tick(
     rcfg = load_review_config("config/review.yaml")
     # 确认门: 只把显式 keep/edit 的条目送进报告(未确认/drop 不发)。feedback 仍吃全量(下方)。
     report_items = select_report_items(interpreted_items, decisions)
+    # 已发布去重: 排除已在别的 date_label 报告里发过的条目(72h 窗口内同条目跨天复发 → 去重)。
+    already = await db.already_published_elsewhere(
+        [_item_id(it) for it in report_items], date_label
+    )
+    report_items = [it for it in report_items if _item_id(it) not in already]
     rres = review(report_items, daily_take, decisions, rcfg, ctx)
     pcfg = load_publish_config("config/publish.yaml")
     pres = publish(rres, date_label, pcfg, ctx)
+    # 记录本报已发布条目(按 date_label), 供后续 tick 跨天去重。首发 label 固定。
+    await db.mark_published([_item_id(it) for it in report_items], date_label)
     summary = {
         "date_label": date_label,
         "item_count": pres.report.item_count,

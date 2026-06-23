@@ -181,7 +181,11 @@ daily_take  = review_result.daily_take   # 可为 None
 
 review 层保持"无决策 → 默认 keep + 标 `is_pending`"的语义（§3.4 不变）。真正的"未确认不发"在 **`run_finalize_tick`** 实现：调 `review()` 前用纯函数 `select_report_items(items, decisions)` 过滤，**报告只收显式 `keep`/`edit` 的条目，未决策 + `drop` 一律排除**。决策仍按 link（由 item_id 解耦匹配而来）查，不引入日期耦合（保留 #33 的决策-日期解耦）。`feedback` 的 `derive_events` 仍吃**全量** interpreted_items（keep/drop 都是信号，与是否进报告无关）。
 
-后果：某天零确认 → 空报告（不再默认全发）。修了 finalize 把未确认内容总结进报告、并在 72h 采集窗口内跨天复发的 bug。**残留**：显式 keep 的条目理论上仍可能在窗口内跨天复发（需按日切或"已发布"存储另解），单独决策。
+后果：某天零确认 → 空报告（不再默认全发）。修了 finalize 把未确认内容总结进报告的 bug。
+
+### 5.9 已发布去重（跨天，2026-06-24）
+
+72h 采集窗口跨 ~3 个日历日，finalize 每天重采全窗口 → 同一条目在窗口内**天天进报告**（即便已 keep）。`run_finalize_tick` 在确认门之后再过一道：`db.already_published_elsewhere(item_ids, date_label)` 排除**已在别的 date_label 报告里发过**的条目；发布后 `db.mark_published(item_ids, date_label)` 记录（`published_items` 表，item_id PK，INSERT OR IGNORE → 首发 label 固定）。**同一 date_label 重跑（手动重触发）不受影响**（只排除"别的 label"），可重现当日报告。按 item_id 去重，不引入日期耦合（保留 #33）。
 
 ## 6. 配置与加载
 

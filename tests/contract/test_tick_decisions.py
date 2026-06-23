@@ -179,6 +179,94 @@ def test_finalize_zero_confirmations_empty_report(tmp_path):
     asyncio.run(go())
 
 
+def test_finalize_excludes_items_published_on_another_day(tmp_path):
+    """已发布去重: 一条在 label 21 发过后, label 22 即便仍被 keep+在窗口内也不再进(修跨天重复)。"""
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        items = [_item("https://x/a", "A")]
+        store = FakeDecisionStore({_iid("https://x/a"): "keep"})
+        out1 = await run_finalize_tick(
+            "r1",
+            NOW,
+            "2026-06-21",
+            items,
+            "take",
+            db,
+            [FakeNotifier()],
+            decision_store=store,
+            site_base_url="https://s/",
+        )
+        out2 = await run_finalize_tick(
+            "r2",
+            NOW,
+            "2026-06-22",
+            items,
+            "take",
+            db,
+            [FakeNotifier()],
+            decision_store=store,
+            site_base_url="https://s/",
+        )
+        assert out1["item_count"] == 1  # 首日发
+        assert out2["item_count"] == 0  # 次日不再发(已在 21 发过)
+
+    asyncio.run(go())
+
+
+def test_finalize_same_day_rerun_still_ships(tmp_path):
+    """同一 date_label 重跑(手动重触发) → 仍发, 不被已发布去重误伤。"""
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        items = [_item("https://x/a", "A")]
+        store = FakeDecisionStore({_iid("https://x/a"): "keep"})
+        out1 = await run_finalize_tick(
+            "r1",
+            NOW,
+            "2026-06-21",
+            items,
+            "take",
+            db,
+            [FakeNotifier()],
+            decision_store=store,
+            site_base_url="https://s/",
+        )
+        out2 = await run_finalize_tick(
+            "r2",
+            NOW,
+            "2026-06-21",
+            items,
+            "take",
+            db,
+            [FakeNotifier()],
+            decision_store=store,
+            site_base_url="https://s/",
+        )
+        assert out1["item_count"] == 1 and out2["item_count"] == 1
+
+    asyncio.run(go())
+
+
+def test_published_items_db_roundtrip(tmp_path):
+    """db: mark_published + already_published_elsewhere(按 item_id, 排除其它 label)。"""
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        await db.mark_published(["a", "b"], "2026-06-21")
+        # 同 label 不算"别处发过"; 不同 label 才算
+        assert await db.already_published_elsewhere(["a", "b", "c"], "2026-06-21") == set()
+        assert await db.already_published_elsewhere(["a", "b", "c"], "2026-06-22") == {"a", "b"}
+        # 首发 label 固定(INSERT OR IGNORE): 再 mark 到别 label 不改原 label
+        await db.mark_published(["a"], "2026-06-22")
+        assert await db.already_published_elsewhere(["a"], "2026-06-21") == set()
+
+    asyncio.run(go())
+
+
 def test_finalize_applies_kv_decision_by_item_id_without_pending_rows(tmp_path):
     """决策解耦: 即使没发过卡(无 pending_reviews 行)、date 不匹配, KV 决策仍按 item_id 生效。"""
 
