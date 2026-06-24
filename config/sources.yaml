@@ -203,3 +203,7 @@
 # OSS 发布 (github_releases 适配器)
 - {name: sglang-gh, url: "https://api.github.com/repos/sgl-project/sglang/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}
 - {name: unsloth-gh, url: "https://api.github.com/repos/unslothai/unsloth/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}
+# --- 扩源 2026-06-24 (竞品 hot_news_daily_push 有而我们缺, 已探活) ---
+- {name: marktechpost, url: "https://www.marktechpost.com/feed/", genre: news, publisher: media, adapter: rss, status: working, priority: 3}
+- {name: wired-ai, url: "https://www.wired.com/feed/tag/ai/latest/rss", genre: news, publisher: media, adapter: rss, status: working, priority: 3}
+- {name: meta-research, url: "https://research.facebook.com/feed/", genre: announcement, publisher: lab, adapter: rss, status: working, priority: 2}
