@@ -35,14 +35,18 @@
 
 > **M1(人审闭环+可见链)与 M2(文风/版式/配额/过滤)已全部 SHIPPED**(见 §5)。pipeline 上线,每日 **09:00 北京(01:00 UTC `finalize.yml`)** 自动出报,Pages 部署,live **https://ai-newsday.github.io/core/**。
 
+> **竞品/BRD 分析见 `docs/competitive-analysis-ai-news.md`**(2026-06-24,12 个开源 AI 日报项目实读对比)。以下 P0 直接来自该分析的结论。
+
 | ✓ | 优先 | 任务 | 详情 |
 |---|---|---|---|
-| ◑ | **P1** | 子项目 2:GitHub 源(releases + trending) | **代码完成 on branch `github-sources-releases-trending`**(ADR 0003 一致:不造 `tool` genre,release/repo 归 `announcement`;star 当 `github_stars` 信号轴)。adapter `github_releases`(策展清单:comfyui/ollama/vllm)+ `github_trending`(Search API 保底 + Trending HTML 尽力而为)。设计 `docs/superpowers/specs/2026-06-23-github-sources-releases-trending-design.md`。**真实 dry-run --score(本地 2026-06-23)**:Search trending 24 条、`github_stars` 贯通打分(73127/18505/…)、releases 端点可达。⚠️ **Trending HTML 抓取本地 200,但 prod 是 Actions(Azure IP) 仍可能 403——首跑 Actions 时确认;Search 保底不受影响**。**剩:合并 + 首跑 Actions 验证 + 按需补 ComfyUI 生态/OpenClaw repo 行。** 闸 i(跨轮 `seen_repos` 去重)推迟 v1.1。 |
-| ☐ | **P2** | Reddit 403 生产决策 | 见 §2。代理/换源/砍掉三选一。 |
-| ☐ | **P2** | 可选:per-genre 质量地板 | 仅当当前 flat-60 `min_display_score` floor 误判某 genre 时再做。 |
-| ☐ | **P1** | 多渠道发布 | RSS/公众号/网站 JSON 渲染器。门槛:源质量达标(M2 后已改善)。详见 §4。 |
+| ☐ | **P0** | **放宽发卡池(解耦 可审候选 vs 发布 top-N)** | **根因**:`--tick collect` 在发卡前就 `score→quota` 砍到 top-11(`interpret(sres.selected_items)`),Telegram 只发这 11 条 → 低信号但重要的发布(如 **Krea-2**,来自 comfy priority-3 writeup 零信号)**到不了人眼前,无从 keep**。修:发卡阶段放宽(发 relevant 的 top-N 更大,或不在发卡前砍配额),最终刊物仍由 `total_limit` 控。**最高优先,直接解"只发 11 条没得选"。** |
+| ☐ | **P0** | **Reddit 换 PRAW 官方 OAuth** | 现 old.reddit HTML 抓取在 prod 403、yield=0。竞品 `reddit-ai-trends` 用 `praw`(client_id/secret)走官方 API**不吃 403**。换之,拿回 Reddit 信号。**现成解。**(替代旧 §2 的"代理/换源/砍"三选一。) |
+| ☐ | **P1** | **评估 Folo cookie 读 X(首发信道)** | 我们零 X 覆盖=最大缺口(Krea-2 等先发 X)。竞品 `CloudFlare-AI-Insight` 用 Folo cookie 读 X。**Folo RSS 阅读免费+开源(AGPL)**,只 AI 功能付费 → 免费层可跑。备:tuber0613 那份 AI 大佬 X handle 清单可复用。**不碰付费 X API;不自托管 RSSHub-X(脆+封号)。** |
+| ☐ | **P1** | 故事线合并(同事件跨源聚合) | 竞品 `ai-news-radar` 把同一事件多源报道聚成时间线;我们仅按 genre 分类。 |
+| ☐ | **P2** | 多频率 + 差异化输出 | 4H/周/月(clawfeed)、播客 TTS(CloudFlare-AI)、社媒卡图(ai-daily-skill)。多渠道发布(RSS/公众号/JSON)归此。 |
+| ☐ | **P2** | 可选:per-genre 质量地板 | 仅当 flat-60 `min_display_score` floor 误判某 genre 时再做。 |
 
-> 文风/版式/配额规范见 **`references/editorial-and-format-sop.md`**(v0.2,已锁定)。
+> 文风/版式/配额规范见 **`references/editorial-and-format-sop.md`**(v0.2,已锁定);标杆=TLDR AI / The Rundown / Ben's Bites / Import AI(SOP §7)。
 
 ---
 
@@ -67,6 +71,10 @@
 
 | ✓ | 任务 | 详情 |
 |---|---|---|
+| ☑ | 子项目 2:GitHub 源(releases+trending)(#36) | `github_releases`(comfyui/ollama/vllm)+`github_trending`(Search 保底+Trending 尽力)+`github_stars` 信号轴(ADR 0003 一致,不造 tool genre)。[PR #37](https://github.com/ai-newsday/core/pull/37)。**trending 出老 repo 修复**:注入 `created:>=now-180d` 只捞新建([PR #43](https://github.com/ai-newsday/core/pull/43),#42)。 |
+| ☑ | finalize 确认门(#38) | 未确认内容不进报告:`select_report_items` 只放显式 keep/edit。[PR #39](https://github.com/ai-newsday/core/pull/39)。 |
+| ☑ | finalize 跨天去重(#44) | `published_items` 表排除已在别 date_label 发过的条目(72h 窗口跨天复发)。[PR #45](https://github.com/ai-newsday/core/pull/45)。 |
+| ☑ | 扩源(#40) | 22 个新源:聚合 newsletter(smol/LWiAI/gradient)+公司官博(Google/cursor/windsurf)+产品 YouTube 第一方(luma/runway/kling…)+OSS releases(sglang/unsloth)。[PR #41](https://github.com/ai-newsday/core/pull/41)。+竞品补 MarkTechPost/Wired-AI/Meta-Research。可达性见 [[ai-source-reachability]]。 |
 | ☑ | state.db 移出 git(#25,ADR 0004) | 去 `!data/state.db` 白名单,`git rm --cached`,改用 `actions/cache`(rolling key)跨 run 持久化;`content/` 仍进 git。[PR #34](https://github.com/ai-newsday/core/pull/34)。 |
 | ☑ | M2 文风/版式/内容质量 | M2-A voice/render `summary/takeaway/hot_take`→`body`、去 emoji 分类渲染(#27);M2-B1 AI 相关性过滤+词界匹配(#29);M2-B2 firehose 降权+配额 8→11(#31);report-yesterday 晨报汇总昨天完整一天(#33)。SOP `references/editorial-and-format-sop.md`。 |
 | ☑ | M1 Telegram 人审闭环 + 可见链 | CF Worker+KV webhook(点按钮秒回→写 KV→finalize 拉取),finalize 日 cron 用 PAT 触发 Pages(#21/#24)。上线自动出报。 |
