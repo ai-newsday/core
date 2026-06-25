@@ -339,7 +339,19 @@ class PublishConfig:
     must_read_count: int = 3
     top_keywords: int = 4
     pending_watermark: str = "草稿待定稿"
-    min_display_score: int = 60
+    min_display_score: int = (
+        40  # 人工 keep 条目的质量底(确认门已保证全是 keep; 60 太高会吞 keep 的低分首发)
+    )
+    quota: dict[str, int] = field(
+        default_factory=lambda: {
+            "paper": 3,
+            "model": 3,
+            "announcement": 3,
+            "writeup": 2,
+            "news": 1,
+        }
+    )
+    total_limit: int = 11  # 刊物总条目硬上限(人 keep 后施加)
     genre_labels: dict[str, str] = field(
         default_factory=lambda: {
             "paper": "论文",

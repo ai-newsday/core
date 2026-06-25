@@ -88,7 +88,9 @@ def test_publish_config_defaults():
     c = PublishConfig()
     assert c.must_read_count == 3 and c.top_keywords == 4
     assert c.pending_watermark  # non-empty watermark string
-    assert c.min_display_score == 60
+    assert c.min_display_score == 40
+    assert c.total_limit == 11
+    assert c.quota["paper"] == 3
     assert c.genre_labels["model"] == "模型"
     # genre_labels 键顺序即组间顺序
     assert list(c.genre_labels)[0] == "paper"

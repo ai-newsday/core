@@ -148,6 +148,8 @@ def load_publish_config(path: str) -> PublishConfig:
         top_keywords=data.get("top_keywords", d.top_keywords),
         pending_watermark=data.get("pending_watermark", d.pending_watermark),
         min_display_score=data.get("min_display_score", d.min_display_score),
+        quota=data.get("quota", d.quota),
+        total_limit=data.get("total_limit", d.total_limit),
         genre_labels=data.get("genre_labels", d.genre_labels),
     )
 

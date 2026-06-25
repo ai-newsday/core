@@ -13,6 +13,7 @@ from src.core.types import (
     RunContext,
 )
 from src.observability.events import emit
+from src.pipeline.score import apply_quota
 
 
 def select_must_read(items: list[ReviewedItem], config: PublishConfig) -> list[ReviewedItem]:
@@ -82,6 +83,8 @@ def build_report(
         for it in review_result.reviewed_items
         if it.score >= config.min_display_score and it.relevant
     ]
+    # per-genre 配额 + total_limit: 人 keep 之后对 kept 集合施加(组成控制, 复用 score 纯函数)
+    items, _ = apply_quota(items, config.quota, config.total_limit)
     return DailyReport(
         date_label=date_label,
         daily_take=review_result.daily_take,
