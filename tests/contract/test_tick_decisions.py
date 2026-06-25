@@ -11,13 +11,13 @@ from src.state.db import Database
 NOW = datetime(2026, 6, 19, 12, tzinfo=timezone.utc)
 
 
-def _item(link: str, title: str) -> InterpretedItem:
+def _item(link: str, title: str, genre: Genre = Genre.news) -> InterpretedItem:
     return InterpretedItem(
         # RawItem fields
         title_en=title,
         link=link,
         source="test-source",
-        genre=Genre.news,
+        genre=genre,
         publisher=Publisher.media,
         published_at=NOW,
         signals={},
@@ -66,7 +66,7 @@ def test_finalize_merges_remote_decision(tmp_path):
 
 
 def test_finalize_decision_fetch_failure_is_non_fatal(tmp_path):
-    """拉取失败非致命: finalize 不崩、正常返回。失败=无决策=无确认 → 空报告(确认门)。"""
+    """拉取失败非致命: finalize 不崩。失败=零决策 → 兜底自动发(不空报)。"""
 
     class BoomStore:
         async def fetch(self):
@@ -88,8 +88,9 @@ def test_finalize_decision_fetch_failure_is_non_fatal(tmp_path):
             decision_store=BoomStore(),
             site_base_url="https://s/",
         )
-        # 非致命: 跑完不抛; 拉取失败 → 无确认 → 空报告
-        assert out["item_count"] == 0
+        # 非致命: 跑完不抛; 拉取失败 → 零决策 → 兜底发
+        assert out["item_count"] == 1
+        assert out["is_pending"] is True
 
     asyncio.run(go())
 
@@ -155,13 +156,17 @@ def test_finalize_only_ships_confirmed_items(tmp_path):
     asyncio.run(go())
 
 
-def test_finalize_zero_confirmations_empty_report(tmp_path):
-    """零确认 → 空报告(不再默认 keep 全发)。"""
+def test_finalize_zero_decisions_falls_back_to_auto_publish(tmp_path):
+    """零决策(没碰 TG) → 兜底自动发 top-N 草稿, 而非空报; 标 is_pending。"""
 
     async def go():
         db = Database(str(tmp_path / "s.db"))
         await db.init()
-        items = [_item("https://x/1", "A"), _item("https://x/2", "B")]
+        # 两条不同 genre(各自 quota>=1), 避免 publish per-genre 配额把同类砍掉
+        items = [
+            _item("https://x/1", "A", genre=Genre.paper),
+            _item("https://x/2", "B", genre=Genre.model),
+        ]
         await run_collect_tick("r1", NOW, items, "take", db, [FakeNotifier()])
         out = await run_finalize_tick(
             "r2",
@@ -174,7 +179,8 @@ def test_finalize_zero_confirmations_empty_report(tmp_path):
             decision_store=FakeDecisionStore({}),
             site_base_url="https://s/",
         )
-        assert out["item_count"] == 0
+        assert out["item_count"] == 2  # 两条都过地板(score=80)且不同 genre, 配额不砍
+        assert out["is_pending"] is True  # 未审 → 草稿水印 + draft:true
 
     asyncio.run(go())
 
