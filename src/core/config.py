@@ -66,6 +66,7 @@ def load_scoring_config(path: str) -> ScoringConfig:
         popularity_weights=data.get("popularity_weights", d.popularity_weights),
         popularity_cap=data.get("popularity_cap", d.popularity_cap),
         total_limit=data.get("total_limit", d.total_limit),
+        card_pool_limit=data.get("card_pool_limit", d.card_pool_limit),
         sources_registry_path=data.get("sources_registry_path", d.sources_registry_path),
         topic_keywords=data.get("topic_boost", {}).get("keywords", d.topic_keywords),
         topic_bonus=data.get("topic_boost", {}).get("bonus", d.topic_bonus),

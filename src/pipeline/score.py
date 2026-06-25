@@ -151,10 +151,11 @@ def compute_scores(
 
 
 def apply_quota(
-    scored: list[ScoredItem], config: ScoringConfig
+    scored: list[ScoredItem], quota: dict[str, int], total_limit: int
 ) -> tuple[list[ScoredItem], dict[str, QuotaLine]]:
     """Strict per-type quota selection (spec §5.4). No cross-type fill.
-    `scored` is assumed sorted (compute_scores output) but we re-sort defensively."""
+    纯函数: 按 genre 分组, 每组按 (score desc, published_at, link) 取 top-N(quota[genre]),
+    再总量截到 total_limit。score 阶段已不调用(发卡池=top-N); publish 阶段在人 keep 后复用。"""
     by_genre: dict[str, list[ScoredItem]] = defaultdict(list)
     for s in scored:
         by_genre[s.genre.value].append(s)
@@ -163,14 +164,14 @@ def apply_quota(
     report: dict[str, QuotaLine] = {}
     for g, group in by_genre.items():
         group_sorted = sorted(group, key=lambda s: (-s.score, s.published_at, s.link))
-        q = config.quota.get(g, 0)
+        q = quota.get(g, 0)
         take = group_sorted[:q]
         selected.extend(take)
         report[g] = QuotaLine(genre=g, available=len(group), quota=q, selected=len(take))
 
     selected.sort(key=lambda s: (-s.score, s.published_at, s.link))
-    if len(selected) > config.total_limit:
-        selected = selected[: config.total_limit]
+    if len(selected) > total_limit:
+        selected = selected[:total_limit]
     return selected, report
 
 
@@ -199,23 +200,15 @@ def score(
     for s in scored:
         emit(ctx.logger, "item_scored", link=s.link, genre=s.genre.value, score=s.score)
 
-    selected, report = apply_quota(scored, config)
-    for g, line in report.items():
-        emit(
-            ctx.logger,
-            "quota_applied",
-            genre=g,
-            available=line.available,
-            quota=line.quota,
-            selected=line.selected,
-        )
+    # 发卡候选池: 按 score top-N(成本上界); per-genre 配额已移到 publish 阶段(人 keep 后施加)。
+    selected = scored[: config.card_pool_limit]
     for s in selected:
         emit(ctx.logger, "item_selected", link=s.link, genre=s.genre.value, score=s.score)
 
     result = ScoreResult(
         selected_items=selected,
         all_scored=scored,
-        quota_report=report,
+        quota_report={},
         input_count=len(items),
         selected_count=len(selected),
         is_silent=False,

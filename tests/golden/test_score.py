@@ -29,27 +29,30 @@ def _cfg():
     return load_scoring_config("tests/golden/data/scoring_golden.yaml")
 
 
-# Case 1 (spec §9.1): over-quota type trimmed to top-scored
-def test_golden_quota_trims_top_scored():
+# Case 1: selected_items = 发卡候选池(按 score top-N), 不再 per-genre 配额
+def test_score_selected_is_card_pool_top_n():
+    cfg = _cfg()
+    cfg.card_pool_limit = 2
     items = [
-        _ni("p-fresh", "https://p/1", "p1", Genre.paper, NOW),
-        _ni("p-mid", "https://p/2", "p2", Genre.paper, NOW - timedelta(hours=36)),
-        _ni("p-stale", "https://p/3", "p3", Genre.paper, NOW - timedelta(hours=100)),
+        _ni("p1", "https://p/1", "s1", Genre.paper, NOW),
+        _ni("p2", "https://p/2", "s2", Genre.paper, NOW - timedelta(hours=36)),
+        _ni("p3", "https://p/3", "s3", Genre.paper, NOW - timedelta(hours=100)),
     ]
-    res = score(items, _cfg(), _ctx())
-    assert res.quota_report["paper"].selected == 2  # quota paper=2
-    assert res.quota_report["paper"].available == 3
-    kept = {s.link for s in res.selected_items}
-    assert kept == {"https://p/1", "https://p/2"}  # stale dropped
+    res = score(items, cfg, _ctx())
+    assert res.selected_count == 2
+    assert len(res.all_scored) == 3
+    assert res.selected_items == res.all_scored[:2]  # all_scored 已按 score 降序
+    assert res.quota_report == {}
 
 
-# Case 2 (spec §9.2): under-quota type fully kept, no fabrication
-def test_golden_under_quota_keeps_all():
-    items = [_ni("t", "https://t/1", "t1", Genre.writeup, NOW)]  # quota writeup=2
-    res = score(items, _cfg(), _ctx())
-    assert res.quota_report["writeup"].available == 1
-    assert res.quota_report["writeup"].selected == 1
+# Case 2: 候选池未满 -> 全留, 不编造
+def test_score_card_pool_keeps_all_when_under_limit():
+    cfg = _cfg()
+    cfg.card_pool_limit = 25
+    items = [_ni("t", "https://t/1", "t1", Genre.writeup, NOW)]
+    res = score(items, cfg, _ctx())
     assert res.selected_count == 1
+    assert res.selected_items == res.all_scored
 
 
 # Case 3 (spec §9.3): recency bands

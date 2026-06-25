@@ -78,3 +78,10 @@ def test_production_config_has_topic_keywords():
     assert len(c.topic_keywords) > 0
     assert c.topic_bonus > 0
     assert "multimodal" in c.topic_keywords
+
+
+def test_card_pool_limit_default_and_override(tmp_path):
+    assert ScoringConfig().card_pool_limit == 25
+    p = tmp_path / "s.yaml"
+    p.write_text("card_pool_limit: 40\n", encoding="utf-8")
+    assert load_scoring_config(str(p)).card_pool_limit == 40
