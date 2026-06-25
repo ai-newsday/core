@@ -174,11 +174,11 @@ def test_build_report_assembles_blocks():
 
 
 def test_build_report_score_floor_filters_weak_items():
-    """items below min_display_score (default 60) are dropped."""
+    """human-keep 条目质量底 = min_display_score(default 40): <40 砍, >=40 留。"""
     items = [
         _ri("https://a/1", score=80),
-        _ri("https://a/2", score=59),  # below floor — should be dropped
-        _ri("https://a/3", score=60),  # at floor — should be kept
+        _ri("https://a/2", score=39),  # below floor — should be dropped
+        _ri("https://a/3", score=40),  # at floor — should be kept
     ]
     rep = build_report(_rr(items), "2026-05-30", CFG)
     assert rep.item_count == 2
@@ -190,12 +190,40 @@ def test_build_report_score_floor_filters_weak_items():
 
 def test_build_report_all_items_below_floor_gives_empty_categories():
     items = [
-        _ri("https://a/1", score=50),
-        _ri("https://a/2", score=30),
+        _ri("https://a/1", score=30),
+        _ri("https://a/2", score=20),
     ]
     rep = build_report(_rr(items), "2026-05-30", CFG)
     assert rep.item_count == 0
     assert rep.categories == []
+
+
+def test_build_report_applies_per_genre_quota():
+    """kept 集合某 genre 超配额 → 只留该类 top-N(按 score)。"""
+    cfg = PublishConfig()
+    cfg.quota = {"paper": 1}
+    cfg.total_limit = 99
+    items = [
+        _ri("https://a/1", score=80, genre=Genre.paper, title="高分论文"),
+        _ri("https://a/2", score=70, genre=Genre.paper, title="低分论文"),
+    ]
+    rep = build_report(_rr(items), "2026-05-30", cfg)
+    assert rep.item_count == 1
+    titles = {it.title for c in rep.categories for it in c.items}
+    assert titles == {"高分论文"}
+
+
+def test_build_report_respects_total_limit():
+    cfg = PublishConfig()
+    cfg.quota = {"paper": 5, "model": 5}
+    cfg.total_limit = 2
+    items = [
+        _ri("https://a/1", score=90, genre=Genre.paper),
+        _ri("https://a/2", score=80, genre=Genre.model),
+        _ri("https://a/3", score=70, genre=Genre.paper),
+    ]
+    rep = build_report(_rr(items), "2026-05-30", cfg)
+    assert rep.item_count == 2
 
 
 def test_render_markdown_full():
@@ -278,7 +306,7 @@ def test_render_markdown_score_floor_items_absent():
     """Items below score floor must not appear in rendered markdown."""
     items = [
         _ri("https://a/high", title="高分条目", score=80, genre=Genre.model),
-        _ri("https://a/low", title="低分条目", score=40, genre=Genre.paper),
+        _ri("https://a/low", title="低分条目", score=30, genre=Genre.paper),
     ]
     md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
     assert "高分条目" in md
@@ -288,7 +316,7 @@ def test_render_markdown_score_floor_items_absent():
 def test_render_markdown_category_with_all_below_floor_not_rendered():
     """A genre with all items below floor produces no ## {label} section."""
     items = [
-        _ri("https://a/1", title="论文A", score=40, genre=Genre.paper),
+        _ri("https://a/1", title="论文A", score=30, genre=Genre.paper),
         _ri("https://a/2", title="模型B", score=80, genre=Genre.model),
     ]
     md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
@@ -366,7 +394,7 @@ def _snapshot_items():
             publisher=Publisher.media,
             title="低分新闻",
             body="此条目分数不够。",
-            score=45,  # below floor — should not appear
+            score=30,  # below floor (min_display_score=40) — should not appear
             tags=["#news"],
             eligible=False,
         ),

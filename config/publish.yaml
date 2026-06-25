@@ -1,7 +1,9 @@
 must_read_count: 3                       # 今日必读取前几条(保留兼容, 渲染层已不使用)
 top_keywords: 4                          # 数据概览高频关键词个数(保留兼容)
 pending_watermark: "草稿待定稿"
-min_display_score: 60
+min_display_score: 40                    # 人工 keep 条目质量底(确认门已保证全是 keep; 60 会吞 keep 的低分首发)
+quota: {paper: 3, model: 3, announcement: 3, writeup: 2, news: 1}  # per-genre 上限(人 keep 后施加)
+total_limit: 11                          # 刊物总条目硬上限
 genre_labels:                            # genre → 中文展示名(键顺序=组间顺序)
   paper: "论文"
   model: "模型"

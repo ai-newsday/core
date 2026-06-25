@@ -26,3 +26,19 @@ def test_load_publish_config_overrides_genre_labels(tmp_path):
     assert cfg.genre_labels == {"model": "大模型", "paper": "论文"}
     # 未覆盖标量字段保持默认
     assert cfg.must_read_count == 3
+
+
+def test_publish_quota_total_limit_and_floor(tmp_path):
+    d = PublishConfig()
+    assert d.min_display_score == 40
+    assert d.total_limit == 11
+    assert d.quota["paper"] == 3
+
+    p = tmp_path / "p.yaml"
+    p.write_text(
+        "min_display_score: 40\ntotal_limit: 5\nquota: {paper: 1, model: 1}\n",
+        encoding="utf-8",
+    )
+    c = load_publish_config(str(p))
+    assert c.total_limit == 5
+    assert c.quota == {"paper": 1, "model": 1}

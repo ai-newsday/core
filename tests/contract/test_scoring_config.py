@@ -5,8 +5,7 @@ from src.core.types import ScoringConfig
 def test_missing_file_returns_defaults():
     c = load_scoring_config("does/not/exist.yaml")
     assert isinstance(c, ScoringConfig)
-    assert c.total_limit == 8
-    assert c.quota["paper"] == 2
+    assert c.card_pool_limit == 25
 
 
 def test_loads_and_flattens_nested_recency_and_penalty(tmp_path):
@@ -20,9 +19,7 @@ def test_loads_and_flattens_nested_recency_and_penalty(tmp_path):
         "  stale_hours: 60\n"
         "  stale_penalty: -15\n"
         "penalty:\n"
-        "  same_source: -8\n"
-        "quota: {paper: 1, model: 1}\n"
-        "total_limit: 5\n",
+        "  same_source: -8\n",
         encoding="utf-8",
     )
     c = load_scoring_config(str(p))
@@ -30,8 +27,6 @@ def test_loads_and_flattens_nested_recency_and_penalty(tmp_path):
     assert c.mid_hours == 36 and c.mid_bonus == 5
     assert c.stale_hours == 60 and c.stale_penalty == -15
     assert c.same_source_penalty == -8
-    assert c.quota == {"paper": 1, "model": 1}
-    assert c.total_limit == 5
     # untouched keys keep defaults
     assert c.genre_value["paper"]["一手性"] == 20
     assert c.publisher_authority["lab"] == 18
@@ -40,21 +35,12 @@ def test_loads_and_flattens_nested_recency_and_penalty(tmp_path):
 def test_load_scoring_config_reads_genre_and_publisher(tmp_path):
     p = tmp_path / "scoring.yaml"
     p.write_text(
-        "genre_value: {paper: {一手性: 20}}\npublisher_authority: {lab: 18}\nquota: {paper: 2}\n",
+        "genre_value: {paper: {一手性: 20}}\npublisher_authority: {lab: 18}\n",
         encoding="utf-8",
     )
     c = load_scoring_config(str(p))
     assert c.genre_value["paper"]["一手性"] == 20
     assert c.publisher_authority["lab"] == 18
-    assert c.quota == {"paper": 2}
-
-
-def test_repo_default_config_is_consistent():
-    c = load_scoring_config("config/scoring.yaml")
-    # 软配额: quota 是 per-genre 上限(和可 > total_limit), total_limit 是最终硬上限。
-    # 不变量: total_limit 可达(<= 各上限之和), 且单类上限不超过 total_limit。
-    assert c.total_limit <= sum(c.quota.values())
-    assert all(q <= c.total_limit for q in c.quota.values())
 
 
 def test_loads_topic_boost(tmp_path):
@@ -78,3 +64,10 @@ def test_production_config_has_topic_keywords():
     assert len(c.topic_keywords) > 0
     assert c.topic_bonus > 0
     assert "multimodal" in c.topic_keywords
+
+
+def test_card_pool_limit_default_and_override(tmp_path):
+    assert ScoringConfig().card_pool_limit == 25
+    p = tmp_path / "s.yaml"
+    p.write_text("card_pool_limit: 40\n", encoding="utf-8")
+    assert load_scoring_config(str(p)).card_pool_limit == 40

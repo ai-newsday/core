@@ -62,10 +62,9 @@ def load_scoring_config(path: str) -> ScoringConfig:
         stale_penalty=recency.get("stale_penalty", d.stale_penalty),
         same_source_penalty=penalty.get("same_source", d.same_source_penalty),
         firehose_penalty=penalty.get("firehose", d.firehose_penalty),
-        quota=data.get("quota", d.quota),
         popularity_weights=data.get("popularity_weights", d.popularity_weights),
         popularity_cap=data.get("popularity_cap", d.popularity_cap),
-        total_limit=data.get("total_limit", d.total_limit),
+        card_pool_limit=data.get("card_pool_limit", d.card_pool_limit),
         sources_registry_path=data.get("sources_registry_path", d.sources_registry_path),
         topic_keywords=data.get("topic_boost", {}).get("keywords", d.topic_keywords),
         topic_bonus=data.get("topic_boost", {}).get("bonus", d.topic_bonus),
@@ -147,6 +146,8 @@ def load_publish_config(path: str) -> PublishConfig:
         top_keywords=data.get("top_keywords", d.top_keywords),
         pending_watermark=data.get("pending_watermark", d.pending_watermark),
         min_display_score=data.get("min_display_score", d.min_display_score),
+        quota=data.get("quota", d.quota),
+        total_limit=data.get("total_limit", d.total_limit),
         genre_labels=data.get("genre_labels", d.genre_labels),
     )
 

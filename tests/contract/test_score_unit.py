@@ -138,9 +138,7 @@ def test_apply_quota_trims_to_quota_keeping_top_scored():
         ("p-mid", "https://p/2", "p2", Genre.paper, mid),
         ("p-stale", "https://p/3", "p3", Genre.paper, stale),
     )
-    cfg = ScoringConfig()
-    cfg.quota = {"paper": 2}
-    selected, report = apply_quota(scored, cfg)
+    selected, report = apply_quota(scored, {"paper": 2}, total_limit=99)
     assert report["paper"].available == 3
     assert report["paper"].quota == 2
     assert report["paper"].selected == 2
@@ -151,9 +149,7 @@ def test_apply_quota_trims_to_quota_keeping_top_scored():
 def test_apply_quota_keeps_all_when_under_quota():
     ctx = _ctx()
     scored = _scored_list(ctx, ("t", "https://t/1", "t1", Genre.writeup, NOW))
-    cfg = ScoringConfig()
-    cfg.quota = {"writeup": 2}
-    selected, report = apply_quota(scored, cfg)
+    selected, report = apply_quota(scored, {"writeup": 2}, total_limit=99)
     assert report["writeup"].available == 1
     assert report["writeup"].selected == 1  # min(quota, available)
     assert len(selected) == 1
@@ -162,9 +158,7 @@ def test_apply_quota_keeps_all_when_under_quota():
 def test_apply_quota_zero_for_unlisted_type():
     ctx = _ctx()
     scored = _scored_list(ctx, ("n", "https://n/1", "n1", Genre.news, NOW))
-    cfg = ScoringConfig()
-    cfg.quota = {"paper": 2}  # news not listed
-    selected, report = apply_quota(scored, cfg)
+    selected, report = apply_quota(scored, {"paper": 2}, total_limit=99)  # news not listed
     assert report["news"].quota == 0 and report["news"].selected == 0
     assert selected == []
 
@@ -177,10 +171,7 @@ def test_apply_quota_respects_total_limit():
         ("b", "https://b/2", "s2", Genre.model, NOW),
         ("c", "https://c/3", "s3", Genre.writeup, NOW),
     )
-    cfg = ScoringConfig()
-    cfg.quota = {"paper": 1, "model": 1, "writeup": 1}
-    cfg.total_limit = 2
-    selected, _ = apply_quota(scored, cfg)
+    selected, _ = apply_quota(scored, {"paper": 1, "model": 1, "writeup": 1}, total_limit=2)
     assert len(selected) == 2  # trimmed to total_limit
     # kept the 2 highest-scored
     assert selected[0].score >= selected[1].score
@@ -198,9 +189,7 @@ def test_apply_quota_does_not_dedupe_same_source_within_genre():
         ("post-a", "https://langchain.com/a", "langchain", Genre.writeup, NOW),
         ("post-b", "https://langchain.com/b", "langchain", Genre.writeup, NOW),
     )
-    cfg = ScoringConfig()
-    cfg.quota = {"writeup": 2}
-    selected, report = apply_quota(scored, cfg)
+    selected, report = apply_quota(scored, {"writeup": 2}, total_limit=99)
     assert report["writeup"].selected == 2
     assert {s.source for s in selected} == {"langchain"}  # both slots, same source
 
