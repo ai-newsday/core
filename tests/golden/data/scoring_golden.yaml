@@ -16,6 +16,4 @@ recency:
   stale_penalty: -10
 penalty:
   same_source: -5
-quota: {paper: 2, model: 1, writeup: 2, announcement: 1, news: 1}
-total_limit: 8
 sources_registry_path: "does/not/exist.yaml"

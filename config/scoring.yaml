@@ -51,13 +51,9 @@ penalty:
 popularity_weights: {upvotes: 0.6, hn_points: 0.5, likes: 0.3, github_stars: 0.3, num_comments: 0.4}
 popularity_cap: 15.0              # 单条最高 +15 分, 防异常超大数值
 
-# genre 配额上限 (PRD §4.2). 各 quota 是 per-genre 上限, 和可 > total_limit;
-# 最终由 total_limit + publish min_display_score(60 地板) 截。商用模型/大厂更新坑位拉高。
-quota: {paper: 3, model: 3, announcement: 3, writeup: 2, news: 1}
-total_limit: 11
-
-# 发卡候选池: score 排序后取 top-N 进 interpret(发卡)。比 quota→top-11 宽,
+# 发卡候选池: score 排序后取 top-N 进 interpret(发卡)。比旧 quota→top-11 宽,
 # 让低分相关首发也能发卡被 keep。interpret 成本上界 = card_pool_limit。
+# per-genre 配额 + total_limit 已移到 config/publish.yaml(人 keep 后施加)。
 card_pool_limit: 25
 
 sources_registry_path: "config/sources.yaml"

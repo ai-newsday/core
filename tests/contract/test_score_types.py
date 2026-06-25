@@ -56,8 +56,7 @@ def test_quota_line_and_result_shapes():
 
 def test_scoring_config_defaults():
     c = ScoringConfig()
-    assert c.quota["paper"] == 2
-    assert c.total_limit == 8
+    assert c.card_pool_limit == 25
     assert c.fresh_bonus == 10
     assert c.genre_value["paper"]["一手性"] == 20
     assert c.publisher_authority["lab"] == 18

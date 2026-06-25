@@ -165,17 +165,8 @@ class ScoringConfig:
     # 缺省空 = 0 (向后兼容)。production yaml 里配上 weights 才激活。
     popularity_weights: dict[str, float] = field(default_factory=dict)
     popularity_cap: float = 15.0  # 单条最高加 15 分, 防异常超大数值
-    quota: dict[str, int] = field(
-        default_factory=lambda: {
-            "paper": 2,
-            "announcement": 2,
-            "writeup": 2,
-            "model": 1,
-            "news": 1,
-        }
-    )
-    total_limit: int = 8
-    card_pool_limit: int = 25  # 发卡候选池: 按 score 取 top-N 进 interpret(成本上界)
+    # 发卡候选池: 按 score 取 top-N 进 interpret(成本上界)。per-genre 配额/总量已移到 PublishConfig。
+    card_pool_limit: int = 25
     sources_registry_path: str = "config/sources.yaml"
     topic_keywords: list[str] = field(default_factory=list)
     topic_bonus: float = 5.0
