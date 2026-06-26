@@ -9,8 +9,8 @@ def _cfg():
     return TelegramConfig(bot_token="fake_token", chat_id="12345", mode="polling")
 
 
-def test_send_review_card_sends_two_messages():
-    """发一张卡片 = 两条消息: 封面 + 正文+按钮。"""
+def test_send_review_card_sends_one_message_with_keyboard():
+    """病1 修复: 卡片合一 → send_message 调一次, 按钮挂这条, 消除孤儿封面。"""
 
     async def go():
         with patch("src.notifiers.telegram_polling.Bot") as MockBot:
@@ -30,8 +30,11 @@ def test_send_review_card_sends_two_messages():
                 "tags": ["#DeepSeek", "#模型", "#API"],
             }
             msg_id = await notifier.send_review_card("item_1", card)
-            assert mock_bot.send_message.call_count == 2
+            assert mock_bot.send_message.call_count == 1
             assert msg_id == 42
+            # 按钮(reply_markup)必须挂在这唯一消息上
+            kwargs = mock_bot.send_message.call_args.kwargs
+            assert kwargs.get("reply_markup") is not None
 
     asyncio.run(go())
 
@@ -88,7 +91,7 @@ def test_make_final_message_no_must_read_fields():
 
 
 def test_card_cover_escapes_link_url():
-    from src.notifiers.telegram_polling import _make_card_messages
+    from src.notifiers.telegram_polling import _make_card_message
 
     card = {
         "title_zh": "T",
@@ -101,14 +104,14 @@ def test_card_cover_escapes_link_url():
         "body": "x",
         "tags": [],
     }
-    cover, _ = _make_card_messages("id1", card)
-    assert "&amp;" in cover  # & escaped
-    assert "<script>" not in cover  # raw < not present
-    assert 'href="https://x/search?a=1&b=2<script>"' not in cover  # raw URL not present
+    msg = _make_card_message("id1", card)
+    assert "&amp;" in msg  # & escaped
+    assert "<script>" not in msg  # raw < not present
+    assert 'href="https://x/search?a=1&b=2<script>"' not in msg
 
 
 def test_card_body_bounded_under_telegram_limit():
-    from src.notifiers.telegram_polling import _make_card_messages
+    from src.notifiers.telegram_polling import _make_card_message
 
     big = "字" * 5000
     card = {
@@ -122,6 +125,115 @@ def test_card_body_bounded_under_telegram_limit():
         "body": big,
         "tags": [],
     }
-    cover, body = _make_card_messages("id1", card)
-    assert len(cover) < 4096
-    assert len(body) < 4096
+    msg = _make_card_message("id1", card)
+    assert len(msg) < 4096
+
+
+def test_card_empty_body_uses_placeholder():
+    from src.notifiers.telegram_polling import _make_card_message
+
+    card = {
+        "title_zh": "标题",
+        "title_en": "Title",
+        "source_label": "模型",
+        "source": "hf-models",
+        "link": "https://x/1",
+        "score": 80,
+        "signals": {},
+        "body": "",  # interpret 回退 + raw_summary 空
+        "tags": [],
+    }
+    msg = _make_card_message("id1", card)
+    assert "(未生成解读，请参见原文链接)" in msg
+    assert msg.strip()
+
+
+def test_card_message_contains_cover_body_and_tags():
+    from src.notifiers.telegram_polling import _make_card_message
+
+    card = {
+        "title_zh": "中文标题",
+        "title_en": "English title",
+        "source_label": "论文",
+        "source": "hf-papers",
+        "link": "https://x/1",
+        "score": 88,
+        "signals": {"upvotes": 12},
+        "body": "正文内容",
+        "tags": ["#a", "#b"],
+    }
+    msg = _make_card_message("id1", card)
+    assert "[论文]" in msg and "中文标题" in msg
+    assert "English title" in msg
+    assert "88" in msg and "hf-papers" in msg
+    assert "正文内容" in msg
+    assert "#a #b" in msg
+
+
+def test_card_fallback_shows_badge():
+    from src.notifiers.telegram_polling import _make_card_message
+
+    card = {
+        "title_zh": "mauriceboe/TREK",
+        "title_en": "mauriceboe/TREK",
+        "source_label": "博客 / 工具",
+        "source": "gh-trending-ai",
+        "link": "https://x/1",
+        "score": 95,
+        "signals": {},
+        "body": "A self-hosted planner.",
+        "tags": [],
+        "status": "extractive_fallback",
+    }
+    msg = _make_card_message("id1", card)
+    assert msg.startswith("⚠️ [未解读] ")
+
+
+def test_card_ok_has_no_badge():
+    from src.notifiers.telegram_polling import _make_card_message
+
+    card = {
+        "title_zh": "中文标题",
+        "title_en": "Title",
+        "source_label": "论文",
+        "source": "hf-papers",
+        "link": "https://x/1",
+        "score": 88,
+        "signals": {},
+        "body": "正文",
+        "tags": [],
+        "status": "ok",
+    }
+    msg = _make_card_message("id1", card)
+    assert "未解读" not in msg
+
+
+def test_build_card_includes_interpretation_status():
+    """_build_card 透出 status 字段, renderer 用它决定徽章。"""
+    import hashlib
+    from datetime import datetime, timezone
+
+    from src.core.types import Evidence, Genre, InterpretedItem, Publisher
+    from src.pipeline.tick import _build_card
+
+    item = InterpretedItem(
+        title_en="x",
+        link="https://x/1",
+        source="s",
+        genre=Genre.writeup,
+        publisher=Publisher.individual,
+        published_at=datetime(2026, 6, 26, tzinfo=timezone.utc),
+        signals={},
+        cluster_id=hashlib.sha256(b"x").hexdigest()[:16],
+        related_links=[],
+        score=80,
+        score_breakdown={"技术价值": 80.0},
+        title="x",
+        body="b",
+        tags=["#a"],
+        evidence=[Evidence(claim="c", anchor="https://x/1")],
+        interpretation_status="extractive_fallback",
+        eligible_for_must_read=False,
+    )
+    card = _build_card(item)
+    assert card["status"] == "extractive_fallback"
