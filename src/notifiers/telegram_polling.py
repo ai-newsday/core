@@ -18,8 +18,9 @@ def _fmt_signals(signals: dict) -> str:
     return "  ｜  ".join(parts) if parts else ""
 
 
-def _make_card_messages(item_id: str, card: dict) -> tuple[str, str]:
-    """返回 (封面文字, 内容文字)，均为 HTML 格式。"""
+def _make_card_message(item_id: str, card: dict) -> str:
+    """卡片合一: 返回单条 HTML 文本(含封面+正文+tags),按钮在 send_review_card 挂这条上。
+    空 body 用占位文兜底(interpret 回退 + raw_summary 空时,防 Telegram 拒空 text 致孤儿)。"""
     esc = html_lib.escape
 
     def _clip(s: str, n: int = 1000) -> str:
@@ -32,7 +33,8 @@ def _make_card_messages(item_id: str, card: dict) -> tuple[str, str]:
     source = esc(card.get("source", ""))
     link = card.get("link", "")
     sig_line = _fmt_signals(card.get("signals", {}))
-    body = esc(_clip(card.get("body", "")))
+    raw_body = card.get("body", "") or ""
+    body = esc(_clip(raw_body)) if raw_body else "(未生成解读，请参见原文链接)"
     tags = " ".join(esc(str(t)) for t in card.get("tags", []))
 
     cover = (
@@ -42,8 +44,7 @@ def _make_card_messages(item_id: str, card: dict) -> tuple[str, str]:
         + (f" ｜ {sig_line}" if sig_line else "")
         + f'\n<a href="{esc(link)}">{source}</a>'
     )
-    body_msg = body + (f"\n\n{tags}" if tags else "")
-    return cover, body_msg
+    return cover + "\n\n" + body + (f"\n\n{tags}" if tags else "")
 
 
 def _make_final_message(summary: dict) -> str:
@@ -64,7 +65,7 @@ class TelegramPollingNotifier:
         self._bot = Bot(token=config.bot_token)
 
     async def send_review_card(self, item_id: str, card: dict) -> int | None:
-        cover, body = _make_card_messages(item_id, card)
+        text = _make_card_message(item_id, card)
         keyboard = InlineKeyboardMarkup(
             [
                 [
@@ -74,13 +75,12 @@ class TelegramPollingNotifier:
                 ]
             ]
         )
-        # 消息 1: 封面
-        await self._bot.send_message(
-            chat_id=self._cfg.chat_id, text=cover, parse_mode="HTML", disable_web_page_preview=True
-        )
-        # 消息 2: 正文 + 按钮
         msg = await self._bot.send_message(
-            chat_id=self._cfg.chat_id, text=body, parse_mode="HTML", reply_markup=keyboard
+            chat_id=self._cfg.chat_id,
+            text=text,
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+            reply_markup=keyboard,
         )
         return msg.message_id
 
