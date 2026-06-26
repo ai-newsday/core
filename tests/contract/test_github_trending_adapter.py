@@ -143,3 +143,28 @@ def test_trending_fetch_injects_created_when_absent():
     import asyncio
 
     asyncio.run(go())
+
+
+from src.adapters.sources.github_trending import _item_from_repo, _publisher_for_owner
+
+
+def _repo_with_owner(otype):
+    r = _repo()
+    r["owner"] = {"type": otype} if otype else {}
+    return r
+
+
+def test_publisher_from_owner_type():
+    src = _spec()  # source.publisher == Publisher.company (fallback)
+    assert _publisher_for_owner(_repo_with_owner("Organization"), src) == Publisher.company
+    assert _publisher_for_owner(_repo_with_owner("User"), src) == Publisher.individual
+    # 缺 owner / 未知 type → 回退 source.publisher
+    assert _publisher_for_owner(_repo_with_owner(None), src) == src.publisher
+    assert _publisher_for_owner({}, src) == src.publisher
+
+
+def test_item_from_repo_uses_owner_publisher():
+    src = _spec()
+    user_repo = _repo_with_owner("User")
+    it = _item_from_repo(user_repo, src)
+    assert it.publisher == Publisher.individual  # 个人 repo, 不随 source.publisher=company

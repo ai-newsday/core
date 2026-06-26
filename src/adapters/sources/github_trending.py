@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import httpx
 
 from src.adapters.sources._github import _auth_headers, _parse_dt
-from src.core.types import RawItem, RunContext, SourceSpec
+from src.core.types import Publisher, RawItem, RunContext, SourceSpec
 
 # ponytail: canonical Trending endpoint hardcoded (an endpoint, not a tuning knob)
 _TRENDING_URL = "https://github.com/trending"
@@ -37,6 +37,17 @@ def _scrape_trending(html: str) -> list[str]:
     return _TRENDING_RE.findall(html)
 
 
+def _publisher_for_owner(repo: dict, source: SourceSpec) -> Publisher:
+    """Repo owner.type → publisher: Organization=company, User=individual.
+    缺 owner / 未知 type → source.publisher(registry fallback)。"""
+    otype = (repo.get("owner") or {}).get("type")
+    if otype == "Organization":
+        return Publisher.company
+    if otype == "User":
+        return Publisher.individual
+    return source.publisher
+
+
 def _item_from_repo(r: dict, source: SourceSpec) -> RawItem | None:
     full = r.get("full_name")
     pushed = r.get("pushed_at")
@@ -49,7 +60,7 @@ def _item_from_repo(r: dict, source: SourceSpec) -> RawItem | None:
         link=html_url,
         source=source.name,
         genre=source.genre,
-        publisher=source.publisher,
+        publisher=_publisher_for_owner(r, source),
         published_at=_parse_dt(pushed),
         raw_summary=r.get("description") or None,
         signals={"github_stars": stars} if stars is not None else {},

@@ -175,7 +175,7 @@
 - {name: comfyui-gh, url: "https://api.github.com/repos/comfyanonymous/ComfyUI/releases", genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 2}
 - {name: ollama-gh, url: "https://api.github.com/repos/ollama/ollama/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}  # -gh 后缀: 避开已存在的 ollama blog RSS 源同名
 - {name: vllm-gh, url: "https://api.github.com/repos/vllm-project/vllm/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}
-- {name: gh-trending-ai, url: "https://api.github.com/search/repositories?q=topic:llm+topic:artificial-intelligence+sort:stars&sort=stars&order=desc&per_page=30", genre: announcement, publisher: company, adapter: github_trending, status: working, priority: 3}
+- {name: gh-trending-ai, url: "https://api.github.com/search/repositories?q=topic:llm+topic:artificial-intelligence+sort:stars&sort=stars&order=desc&per_page=30", genre: writeup, publisher: individual, adapter: github_trending, status: working, priority: 3}
 # --- 扩源 2026-06 (探活全部确认出条目): 公司官博 + 产品 YouTube 第一方 + 聚合 newsletter ---
 # 聚合/补墙后公司(Mistral/Perplexity/ElevenLabs 等无 RSS, 靠这些二手覆盖)
 - {name: smol-ai-news, url: "https://news.smol.ai/rss.xml", genre: news, publisher: media, adapter: rss, status: working, priority: 3, max_items: 10}  # 660 条 firehose, 限流
