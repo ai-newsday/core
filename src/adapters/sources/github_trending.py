@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import httpx
 
 from src.adapters.sources._github import _auth_headers, _parse_dt
+from src.adapters.sources.hn import _kw_match
 from src.core.types import Publisher, RawItem, RunContext, SourceSpec
 
 # ponytail: canonical Trending endpoint hardcoded (an endpoint, not a tuning knob)
@@ -35,6 +36,18 @@ def _inject_created_window(url: str, now: datetime) -> str:
 def _scrape_trending(html: str) -> list[str]:
     """Extract owner/repo full names from a github.com/trending HTML page."""
     return _TRENDING_RE.findall(html)
+
+
+def _is_ai_repo(repo: dict, keywords: list[str] | None) -> bool:
+    """抓取路径 AI 闸: repo 有 topic ∈ keywords, 或 description 词边界命中 keyword → 保留。
+    keywords 空/None → 全保留(向后兼容, 不影响无 keywords 的源)。"""
+    if not keywords:
+        return True
+    kws = {k.lower() for k in keywords}
+    topics = {str(t).lower() for t in (repo.get("topics") or [])}
+    if topics & kws:
+        return True
+    return _kw_match(repo.get("description") or "", keywords)
 
 
 def _publisher_for_owner(repo: dict, source: SourceSpec) -> Publisher:
@@ -103,7 +116,11 @@ class GithubTrendingAdapter:
                     seen.add(full)
                     repo_resp = await client.get(f"https://api.github.com/repos/{full}")
                     repo_resp.raise_for_status()
-                    it = _item_from_repo(repo_resp.json() or {}, source)
+                    repo_json = repo_resp.json() or {}
+                    # 抓取路径无 topic 过滤 → 本地 AI 闸丢非 AI repo(Search 路径已服务端过滤)
+                    if not _is_ai_repo(repo_json, source.keywords):
+                        continue
+                    it = _item_from_repo(repo_json, source)
                     if it:
                         items.append(it)
             except (httpx.HTTPError, ValueError) as e:
