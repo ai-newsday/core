@@ -168,3 +168,72 @@ def test_card_message_contains_cover_body_and_tags():
     assert "88" in msg and "hf-papers" in msg
     assert "正文内容" in msg
     assert "#a #b" in msg
+
+
+def test_card_fallback_shows_badge():
+    from src.notifiers.telegram_polling import _make_card_message
+
+    card = {
+        "title_zh": "mauriceboe/TREK",
+        "title_en": "mauriceboe/TREK",
+        "source_label": "博客 / 工具",
+        "source": "gh-trending-ai",
+        "link": "https://x/1",
+        "score": 95,
+        "signals": {},
+        "body": "A self-hosted planner.",
+        "tags": [],
+        "status": "extractive_fallback",
+    }
+    msg = _make_card_message("id1", card)
+    assert msg.startswith("⚠️ [未解读] ")
+
+
+def test_card_ok_has_no_badge():
+    from src.notifiers.telegram_polling import _make_card_message
+
+    card = {
+        "title_zh": "中文标题",
+        "title_en": "Title",
+        "source_label": "论文",
+        "source": "hf-papers",
+        "link": "https://x/1",
+        "score": 88,
+        "signals": {},
+        "body": "正文",
+        "tags": [],
+        "status": "ok",
+    }
+    msg = _make_card_message("id1", card)
+    assert "未解读" not in msg
+
+
+def test_build_card_includes_interpretation_status():
+    """_build_card 透出 status 字段, renderer 用它决定徽章。"""
+    import hashlib
+    from datetime import datetime, timezone
+
+    from src.core.types import Evidence, Genre, InterpretedItem, Publisher
+    from src.pipeline.tick import _build_card
+
+    item = InterpretedItem(
+        title_en="x",
+        link="https://x/1",
+        source="s",
+        genre=Genre.writeup,
+        publisher=Publisher.individual,
+        published_at=datetime(2026, 6, 26, tzinfo=timezone.utc),
+        signals={},
+        cluster_id=hashlib.sha256(b"x").hexdigest()[:16],
+        related_links=[],
+        score=80,
+        score_breakdown={"技术价值": 80.0},
+        title="x",
+        body="b",
+        tags=["#a"],
+        evidence=[Evidence(claim="c", anchor="https://x/1")],
+        interpretation_status="extractive_fallback",
+        eligible_for_must_read=False,
+    )
+    card = _build_card(item)
+    assert card["status"] == "extractive_fallback"

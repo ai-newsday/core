@@ -57,6 +57,7 @@ def _build_card(item: InterpretedItem) -> dict:
         "signals": item.signals,
         "body": item.body,
         "tags": item.tags,
+        "status": item.interpretation_status,
     }
 
 

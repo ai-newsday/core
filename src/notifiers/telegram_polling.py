@@ -44,6 +44,9 @@ def _make_card_message(item_id: str, card: dict) -> str:
         + (f" ｜ {sig_line}" if sig_line else "")
         + f'\n<a href="{esc(link)}">{source}</a>'
     )
+    # 病2: interpret 回退卡 → 加视觉徽章, 用户立刻知道这是降级输出(非翻译模块故障)
+    if card.get("status") == "extractive_fallback":
+        cover = "⚠️ [未解读] " + cover
     return cover + "\n\n" + body + (f"\n\n{tags}" if tags else "")
 
 
