@@ -143,3 +143,112 @@ def test_trending_fetch_injects_created_when_absent():
     import asyncio
 
     asyncio.run(go())
+
+
+from src.adapters.sources.github_trending import _item_from_repo, _publisher_for_owner
+
+
+def _repo_with_owner(otype):
+    r = _repo()
+    r["owner"] = {"type": otype} if otype else {}
+    return r
+
+
+def test_publisher_from_owner_type():
+    src = _spec()  # source.publisher == Publisher.company (fallback)
+    assert _publisher_for_owner(_repo_with_owner("Organization"), src) == Publisher.company
+    assert _publisher_for_owner(_repo_with_owner("User"), src) == Publisher.individual
+    # 缺 owner / 未知 type → 回退 source.publisher
+    assert _publisher_for_owner(_repo_with_owner(None), src) == src.publisher
+    assert _publisher_for_owner({}, src) == src.publisher
+
+
+def test_item_from_repo_uses_owner_publisher():
+    src = _spec()
+    user_repo = _repo_with_owner("User")
+    it = _item_from_repo(user_repo, src)
+    assert it.publisher == Publisher.individual  # 个人 repo, 不随 source.publisher=company
+
+
+from src.adapters.sources.github_trending import _is_ai_repo
+
+_KWS = ["llm", "ai", "agent", "machine-learning"]
+
+
+def test_is_ai_repo_by_topic():
+    assert _is_ai_repo({"topics": ["llm", "python"], "description": "x"}, _KWS) is True
+
+
+def test_is_ai_repo_non_ai_dropped():
+    # apple/container 类: topics 无 AI, desc 无 AI 词
+    assert (
+        _is_ai_repo(
+            {"topics": ["swift", "macos"], "description": "Linux containers on macOS"}, _KWS
+        )
+        is False
+    )
+
+
+def test_is_ai_repo_by_description_word_boundary():
+    # 无 AI topic 但 desc 词边界命中 "agent"
+    assert _is_ai_repo({"topics": [], "description": "An LLM agent toolkit"}, _KWS) is True
+    # 子串不算: "chair" 不该被 "ai" 命中
+    assert _is_ai_repo({"topics": [], "description": "ergonomic chair design"}, _KWS) is False
+
+
+def test_is_ai_repo_empty_keywords_keeps_all():
+    assert _is_ai_repo({"topics": ["swift"], "description": "x"}, None) is True
+    assert _is_ai_repo({"topics": ["swift"], "description": "x"}, []) is True
+
+
+@respx.mock
+async def test_scrape_filters_non_ai_repos():
+    # search 返回空; 全靠抓取路径
+    respx.get(url__regex=r"https://api\.github\.com/search/repositories.*").mock(
+        return_value=httpx.Response(200, json={"items": []})
+    )
+    html = (
+        '<h2 class="h3 lh-condensed"><a href="/openai/whisper">w</a></h2>'
+        '<h2 class="h3 lh-condensed"><a href="/apple/container">c</a></h2>'
+    )
+    respx.get("https://github.com/trending").mock(return_value=httpx.Response(200, text=html))
+    respx.get("https://api.github.com/repos/openai/whisper").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "full_name": "openai/whisper",
+                "html_url": "https://github.com/openai/whisper",
+                "description": "ASR",
+                "pushed_at": "2026-06-23T01:00:00Z",
+                "stargazers_count": 9,
+                "topics": ["llm", "speech"],
+                "owner": {"type": "Organization"},
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/apple/container").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "full_name": "apple/container",
+                "html_url": "https://github.com/apple/container",
+                "description": "Linux containers on macOS",
+                "pushed_at": "2026-06-23T01:00:00Z",
+                "stargazers_count": 9,
+                "topics": ["swift", "macos"],
+                "owner": {"type": "Organization"},
+            },
+        )
+    )
+    spec = SourceSpec(
+        name="gh-trending-ai",
+        url="https://api.github.com/search/repositories?q=topic:llm&per_page=30",
+        genre=Genre.writeup,
+        publisher=Publisher.individual,
+        adapter="github_trending",
+        keywords=["llm", "ai", "agent"],
+    )
+    items = await GithubTrendingAdapter().fetch(spec, _ctx(), timeout_s=15)
+    links = [it.link for it in items]
+    assert "https://github.com/openai/whisper" in links  # AI topic → 留
+    assert "https://github.com/apple/container" not in links  # 非 AI → 丢
