@@ -1,0 +1,15 @@
+# 社区/论坛源 — Reddit `.rss` 端点(免 OAuth, 无 upvotes 信号)。
+# 出 prod 黑名单的是 old.reddit HTML + .json; .rss 路径未列入。竞品 ai-news-daily 全用 .rss。
+# genre=writeup, publisher=individual: 论坛帖按"个人写作"类归档,与现有 hn 一致。
+# 不带热度信号,靠 recency boost + publisher 权重在放宽的 card_pool(=25)里争位。
+- {name: reddit-localllama,    url: "https://www.reddit.com/r/LocalLLaMA/.rss",      genre: writeup, publisher: individual, adapter: rss, status: working, priority: 2, max_items: 10}
+- {name: reddit-machinelearning, url: "https://www.reddit.com/r/MachineLearning/.rss", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 2, max_items: 10}
+- {name: reddit-artificial,    url: "https://www.reddit.com/r/artificial/.rss",       genre: writeup, publisher: individual, adapter: rss, status: working, priority: 2, max_items: 10}
+- {name: reddit-openai,        url: "https://www.reddit.com/r/OpenAI/.rss",           genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3, max_items: 8}
+- {name: reddit-claudeai,      url: "https://www.reddit.com/r/ClaudeAI/.rss",         genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3, max_items: 8}
+- {name: reddit-singularity,   url: "https://www.reddit.com/r/singularity/.rss",      genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3, max_items: 8}
+- {name: reddit-stablediffusion, url: "https://www.reddit.com/r/StableDiffusion/.rss", genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3, max_items: 8}
+- {name: reddit-chatgpt,       url: "https://www.reddit.com/r/ChatGPT/.rss",          genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3, max_items: 8}
+- {name: reddit-comfyui,       url: "https://www.reddit.com/r/comfyui/.rss",          genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3, max_items: 8}
+- {name: reddit-midjourney,    url: "https://www.reddit.com/r/midjourney/.rss",       genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3, max_items: 8}
+- {name: reddit-geminiai,      url: "https://www.reddit.com/r/GeminiAI/.rss",         genre: writeup, publisher: individual, adapter: rss, status: working, priority: 3, max_items: 8}

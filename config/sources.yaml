@@ -159,18 +159,10 @@
 - {name: hn-mjg59-dreamwidth-org, url: "https://mjg59.dreamwidth.org/data/rss", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
 - {name: hn-computer-rip, url: "https://computer.rip/rss.xml", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
 - {name: hn-tedunangst-com, url: "https://www.tedunangst.com/flak/rss", genre: writeup, publisher: individual, adapter: rss, status: manual, priority: 5}
-# --- aggregators (人群信号源: HN points / Reddit upvotes) ---
-# Reddit 走 old.reddit.com HTML 抓取(data-score=upvotes): 公开 .json 已 403 鉴权封锁、
-# 自助 OAuth app 也已关闭; old.reddit HTML 免鉴权可拿分数。best-effort, 低频 + 描述性 UA。
+# --- aggregators (人群信号源: HN points) ---
+# Reddit 已迁移到 sources.d/community.yaml(走 .rss 通路, 数据中心 IP 不被封, 但无 upvotes)。
+# old.reddit HTML / .json 在 prod 一律 403, RedditAdapter 已删。
 - {name: hackernews, url: "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=50", genre: writeup, publisher: individual, adapter: hn, status: working, priority: 2, min_score: 100, max_items: 15, keywords: [AI, LLM, GPT, model, agent, diffusion, neural, transformer, "machine learning", inference, RAG, multimodal, "open source", openai, anthropic, gemini, llama]}
-- {name: reddit-localllama, url: "https://old.reddit.com/r/LocalLLaMA/top/?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-machinelearning, url: "https://old.reddit.com/r/MachineLearning/top/?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-openai, url: "https://old.reddit.com/r/OpenAI/top/?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-claudeai, url: "https://old.reddit.com/r/ClaudeAI/top/?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-stablediffusion, url: "https://old.reddit.com/r/StableDiffusion/top/?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-geminiai, url: "https://old.reddit.com/r/GeminiAI/top/?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-midjourney, url: "https://old.reddit.com/r/midjourney/top/?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 50, max_items: 10}
-- {name: reddit-comfyui, url: "https://old.reddit.com/r/comfyui/top/?t=day&limit=25", genre: writeup, publisher: individual, adapter: reddit, status: working, priority: 3, min_score: 30, max_items: 10}
 # --- github (releases watch + trending discovery) ---  ADR 0003 一致: release/repo 归 announcement, star 当 github_stars 信号
 - {name: comfyui-gh, url: "https://api.github.com/repos/comfyanonymous/ComfyUI/releases", genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 2}
 - {name: ollama-gh, url: "https://api.github.com/repos/ollama/ollama/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}  # -gh 后缀: 避开已存在的 ollama blog RSS 源同名
