@@ -80,13 +80,13 @@
 新文件 `config/sources.d/x.yaml` (registry loader 已支持 sources.d/ overlay, 见 [[sources.d-overlay]]):
 
 ```yaml
-- {name: x-ai-lab,    list_id: "TBD",  publisher: lab,        genre: announcement, adapter: x_list, status: working, priority: 1}
-- {name: x-ai-kol-en, list_id: "TBD",  publisher: individual, genre: writeup,      adapter: x_list, status: working, priority: 2}
-- {name: x-ai-kol-zh, list_id: "TBD",  publisher: individual, genre: writeup,      adapter: x_list, status: working, priority: 2}
-- {name: x-ai-news,   list_id: "TBD",  publisher: media,      genre: news,         adapter: x_list, status: working, priority: 2}
+- {name: x-ai-lab,    url: "xlist:TBD", publisher: lab,        genre: announcement, adapter: x_list, status: manual, priority: 1}
+- {name: x-ai-kol-en, url: "xlist:TBD", publisher: individual, genre: writeup,      adapter: x_list, status: manual, priority: 2}
+- {name: x-ai-kol-zh, url: "xlist:TBD", publisher: individual, genre: writeup,      adapter: x_list, status: manual, priority: 2}
+- {name: x-ai-news,   url: "xlist:TBD", publisher: media,      genre: news,         adapter: x_list, status: manual, priority: 2}
 ```
 
-`list_id` 填 "TBD" 占位, 用户在 PR-3 落地后建 X list 取 ID 填回 (一行 yaml 改, 不影响 spec 本体)。
+`url` 字段用 sentinel `xlist:<list_id>` 编码 list_id (SourceSpec.url 必填, 复用此字段而非加新 schema)。`list_id` 占位 "TBD", PR-3 落地后建 X list 取 ID 填回 + `status: working`。
 
 ### `x_list` adapter 契约
 
@@ -98,8 +98,8 @@ tweet_id     → external_id = "x:" + tweet_id
 text         → title = _tweet_title(text, 140); body = "@" + author_handle + ":\n" + text + ("\n\n> 引用 @" + quoted_author_handle + ": " + quoted_text if quoted_text)
 created_at    → published_at
 permalink     → url
-list_id       → 反查 yaml: list_id → source.name (没匹配 → 丢, log warning)
-favorite/rt/quote/reply → metadata["x_metrics"] (JSON, 暂不进 score)
+list_id       → 反查 yaml: source.url == "xlist:{list_id}" → source.name (没匹配 → 丢, log warning)
+favorite/rt/quote/reply → signals = {"x_favorite", "x_retweet", "x_quote", "x_reply"} (flat key 风格对齐 hn_points; 暂不进 score 由 popularity_weights 为空兜住)
 ```
 
 `_tweet_title(text, n)` 规则 (对齐 `interpret._trim_to_sentence` 模式, 增加 "推文第一行常是结论" 的偏好):
@@ -124,14 +124,17 @@ source name (e.g. `x-ai-lab`) 用于 publisher 分层打分。
 
 yaml: `x-ai-lab` 的 `list_id: L1`。
 
-输出 ContentItem:
+输出 RawItem:
 - `source = "x-ai-lab"`
-- `external_id = "x:123"`
-- `title = "GPT-5 is..."` (`_tweet_title` 取第一行, ≤140 char, 句末/词界切)
-- `body = "@sama:\nGPT-5 is..."`
-- `url = "https://x.com/sama/status/123"`
-- `published_at = 2026-06-30T14:23:01Z`
-- `metadata = {"x_metrics": {"favorite": 1000, ...}}`
+- `title_en = "GPT-5 is..."` (`_tweet_title` 取第一行, ≤140 char, 句末/词界切)
+- `link = "https://x.com/sama/status/123"`
+- `raw_summary = "@sama:\nGPT-5 is..."`
+- `genre = announcement`, `publisher = lab` (从 SourceSpec 复制)
+- `published_at = 2026-06-30T14:23:01+00:00`
+- `signals = {"x_favorite": 1000, "x_retweet": 50, "x_quote": 3, "x_reply": 7}`
+- `fetched_via = "native"`
+
+(注: x_list 不输出 `external_id` —— RawItem 没这字段; 去重靠 `link` 唯一性)
 
 边界测试 (PR-1 fixture 至少覆盖):
 - `"GPT-5 is here."` → title = `"GPT-5 is here."`
