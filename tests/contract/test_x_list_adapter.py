@@ -167,3 +167,57 @@ async def test_x_list_different_spec_routes_different_rows(tmp_path):
     assert items[0].link.endswith("1004")
     assert items[0].source == "x-ai-kol-en"
     assert items[0].publisher == Publisher.individual
+
+
+async def test_x_list_missing_today_uses_yesterday_only(tmp_path):
+    _seed_data(tmp_path, date_str="2026-06-29")  # 只放 yesterday-UTC
+    adapter = XListAdapter(data_dir=tmp_path)
+    items = await adapter.fetch(_spec(list_id="L1"), _ctx(), timeout_s=15)
+    assert len(items) == 3  # L1 三条仍读到
+
+
+async def test_x_list_malformed_ndjson_line_skipped(tmp_path, caplog):
+    p = tmp_path / "2026-06-30.ndjson"
+    p.write_text(
+        '{"tweet_id":"a","list_id":"L1","text":"good","permalink":"https://x.com/a/status/a","created_at":"2026-06-30T00:00:00Z","author_handle":"a","favorite_count":0,"retweet_count":0,"quote_count":0,"reply_count":0}\n'
+        "this is not json\n"
+        '{"tweet_id":"b","list_id":"L1","text":"good 2","permalink":"https://x.com/b/status/b","created_at":"2026-06-30T00:00:00Z","author_handle":"b","favorite_count":0,"retweet_count":0,"quote_count":0,"reply_count":0}\n',
+        encoding="utf-8",
+    )
+    adapter = XListAdapter(data_dir=tmp_path)
+    with caplog.at_level("WARNING"):
+        items = await adapter.fetch(_spec(list_id="L1"), _ctx(), timeout_s=15)
+    assert len(items) == 2  # 第 1 / 第 3 行通过
+    assert any("malformed ndjson" in r.message for r in caplog.records)
+
+
+async def test_x_list_row_missing_required_key_skipped(tmp_path):
+    p = tmp_path / "2026-06-30.ndjson"
+    p.write_text(
+        '{"tweet_id":"x","list_id":"L1"}\n',  # 缺 text/permalink/created_at
+        encoding="utf-8",
+    )
+    adapter = XListAdapter(data_dir=tmp_path)
+    items = await adapter.fetch(_spec(list_id="L1"), _ctx(), timeout_s=15)
+    assert items == []
+
+
+async def test_x_list_invalid_url_returns_empty(tmp_path):
+    _seed_data(tmp_path)
+    adapter = XListAdapter(data_dir=tmp_path)
+    spec = SourceSpec(
+        name="bad",
+        url="not-xlist-prefix",
+        genre=Genre.announcement,
+        publisher=Publisher.lab,
+        adapter="x_list",
+        status="manual",
+    )
+    items = await adapter.fetch(spec, _ctx(), timeout_s=15)
+    assert items == []
+
+
+async def test_x_list_no_data_dir_returns_empty_silently(tmp_path):
+    adapter = XListAdapter(data_dir=tmp_path / "does-not-exist")
+    items = await adapter.fetch(_spec(list_id="L1"), _ctx(), timeout_s=15)
+    assert items == []
