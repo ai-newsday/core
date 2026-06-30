@@ -59,7 +59,7 @@ class SourceSpec(BaseModel):
     url: str
     genre: Genre
     publisher: Publisher
-    adapter: Literal["rss", "hf_papers", "hf_models", "hn", "github_releases", "github_trending"]
+    adapter: Literal["rss", "hf_papers", "hf_models", "hn", "github_releases", "github_trending", "x_list"]
     status: Literal["working", "manual", "failed"] = "working"
     priority: int = 3
     needs_firecrawl: bool = False
