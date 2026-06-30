@@ -164,10 +164,47 @@
 # old.reddit HTML / .json 在 prod 一律 403, RedditAdapter 已删。
 - {name: hackernews, url: "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=50", genre: writeup, publisher: individual, adapter: hn, status: working, priority: 2, min_score: 100, max_items: 15, keywords: [AI, LLM, GPT, model, agent, diffusion, neural, transformer, "machine learning", inference, RAG, multimodal, "open source", openai, anthropic, gemini, llama]}
 # --- github (releases watch + trending discovery) ---  ADR 0003 一致: release/repo 归 announcement, star 当 github_stars 信号
+# 现有 5 个高优 OSS 推理/微调引擎 (P1 优先): vllm/sglang/ollama/comfyui/unsloth
 - {name: comfyui-gh, url: "https://api.github.com/repos/comfyanonymous/ComfyUI/releases", genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 2}
 - {name: ollama-gh, url: "https://api.github.com/repos/ollama/ollama/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}  # -gh 后缀: 避开已存在的 ollama blog RSS 源同名
 - {name: vllm-gh, url: "https://api.github.com/repos/vllm-project/vllm/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}
 - {name: gh-trending-ai, url: "https://api.github.com/search/repositories?q=topic:llm+topic:artificial-intelligence+sort:stars&sort=stars&order=desc&per_page=30", genre: writeup, publisher: individual, adapter: github_trending, status: working, priority: 3, keywords: [llm, llms, ai, artificial-intelligence, machine-learning, deep-learning, agent, agents, agentic, rag, generative-ai, transformer, diffusion, multimodal, nlp, computer-vision]}
+# --- 扩源 2026-06-29: 30 个 awesome AI 仓 releases (4 轮筛选: 人工挑 + gitstar-ranking top + 探活)
+# priority 2 = 高信号 OSS 顶流(发版即新闻); 3 = 常规; 4 = 高频 alpha 刷屏(openai/codex)
+# R1 — 推理/扩散/训练/agent 框架/编码 agent/RAG/图像/语音 (12)
+- {name: diffusers-gh,     url: "https://api.github.com/repos/huggingface/diffusers/releases",      genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: llama-factory-gh, url: "https://api.github.com/repos/hiyouga/LLaMA-Factory/releases",      genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3}
+- {name: peft-gh,          url: "https://api.github.com/repos/huggingface/peft/releases",           genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: langchain-gh,     url: "https://api.github.com/repos/langchain-ai/langchain/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: langgraph-gh,     url: "https://api.github.com/repos/langchain-ai/langgraph/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: openhands-gh,     url: "https://api.github.com/repos/All-Hands-AI/OpenHands/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: cline-gh,         url: "https://api.github.com/repos/cline/cline/releases",                genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: dify-gh,          url: "https://api.github.com/repos/langgenius/dify/releases",            genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: ragflow-gh,       url: "https://api.github.com/repos/infiniflow/ragflow/releases",         genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: flux-gh,          url: "https://api.github.com/repos/black-forest-labs/flux/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: fish-speech-gh,   url: "https://api.github.com/repos/fishaudio/fish-speech/releases",      genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3}
+- {name: openvoice-gh,     url: "https://api.github.com/repos/myshell-ai/OpenVoice/releases",       genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+# R2 — UI / 浏览器 Agent / 多模态 / 苹果生态 / 机器人 (9)
+- {name: open-webui-gh,    url: "https://api.github.com/repos/open-webui/open-webui/releases",      genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 2}
+- {name: lobe-chat-gh,     url: "https://api.github.com/repos/lobehub/lobe-chat/releases",          genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: litellm-gh,       url: "https://api.github.com/repos/BerriAI/litellm/releases",            genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: browser-use-gh,   url: "https://api.github.com/repos/browser-use/browser-use/releases",    genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: skyvern-gh,       url: "https://api.github.com/repos/Skyvern-AI/skyvern/releases",         genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: mlx-gh,           url: "https://api.github.com/repos/ml-explore/mlx/releases",             genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: ms-swift-gh,      url: "https://api.github.com/repos/modelscope/ms-swift/releases",        genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: lerobot-gh,       url: "https://api.github.com/repos/huggingface/lerobot/releases",        genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: minicpm-v-gh,     url: "https://api.github.com/repos/OpenBMB/MiniCPM-V/releases",          genre: announcement, publisher: lab,        adapter: github_releases, status: working, priority: 3}
+# R3 — 用户直点 (Hermes 周更, openai/codex 每天 alpha 刷屏 → priority 4 降权)
+- {name: hermes-agent-gh,  url: "https://api.github.com/repos/NousResearch/hermes-agent/releases",  genre: announcement, publisher: lab,        adapter: github_releases, status: working, priority: 2}
+- {name: codex-gh,         url: "https://api.github.com/repos/openai/codex/releases",               genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 4, max_items: 3}
+# R4 — gitstar-ranking 顶流探活通过 (7)
+- {name: crawl4ai-gh,      url: "https://api.github.com/repos/unclecode/crawl4ai/releases",         genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 2}
+- {name: claude-mem-gh,    url: "https://api.github.com/repos/thedotmack/claude-mem/releases",      genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3, max_items: 3}
+- {name: ruflo-gh,         url: "https://api.github.com/repos/ruvnet/ruflo/releases",               genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3, max_items: 3}
+- {name: ultralytics-gh,   url: "https://api.github.com/repos/ultralytics/ultralytics/releases",    genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2, max_items: 3}
+- {name: paddleocr-gh,     url: "https://api.github.com/repos/PaddlePaddle/PaddleOCR/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: cowagent-gh,      url: "https://api.github.com/repos/zhayujie/CowAgent/releases",          genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3}
+- {name: nanobot-gh,       url: "https://api.github.com/repos/HKUDS/nanobot/releases",              genre: announcement, publisher: lab,        adapter: github_releases, status: working, priority: 3}
 # --- 扩源 2026-06 (探活全部确认出条目): 公司官博 + 产品 YouTube 第一方 + 聚合 newsletter ---
 # 聚合/补墙后公司(Mistral/Perplexity/ElevenLabs 等无 RSS, 靠这些二手覆盖)
 - {name: smol-ai-news, url: "https://news.smol.ai/rss.xml", genre: news, publisher: media, adapter: rss, status: working, priority: 3, max_items: 10}  # 660 条 firehose, 限流
