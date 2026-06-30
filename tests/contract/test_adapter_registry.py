@@ -5,6 +5,7 @@ from src.adapters.sources.hf_models import HFModelsAdapter
 from src.adapters.sources.hf_papers import HFPapersAdapter
 from src.adapters.sources.hn import HNAdapter
 from src.adapters.sources.rss import RSSAdapter
+from src.adapters.sources.x_list import XListAdapter
 
 
 def test_adapters_map_covers_all_adapter_keys():
@@ -15,6 +16,7 @@ def test_adapters_map_covers_all_adapter_keys():
         "hn",
         "github_releases",
         "github_trending",
+        "x_list",
     }
     assert isinstance(ADAPTERS["rss"], RSSAdapter)
     assert isinstance(ADAPTERS["hf_papers"], HFPapersAdapter)
@@ -22,3 +24,4 @@ def test_adapters_map_covers_all_adapter_keys():
     assert isinstance(ADAPTERS["hn"], HNAdapter)
     assert isinstance(ADAPTERS["github_releases"], GithubReleasesAdapter)
     assert isinstance(ADAPTERS["github_trending"], GithubTrendingAdapter)
+    assert isinstance(ADAPTERS["x_list"], XListAdapter)
