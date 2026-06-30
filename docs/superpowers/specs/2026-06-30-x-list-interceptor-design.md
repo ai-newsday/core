@@ -95,13 +95,23 @@
 转换:
 ```
 tweet_id     → external_id = "x:" + tweet_id
-text         → title = text[:80].strip(); body = text + ("\n\n> " + quoted_text if quoted_text)
-author_handle → 拼进 body 头: "@" + author_handle + ":\n"
+text         → title = _tweet_title(text, 140); body = "@" + author_handle + ":\n" + text + ("\n\n> 引用 @" + quoted_author_handle + ": " + quoted_text if quoted_text)
 created_at    → published_at
 permalink     → url
 list_id       → 反查 yaml: list_id → source.name (没匹配 → 丢, log warning)
 favorite/rt/quote/reply → metadata["x_metrics"] (JSON, 暂不进 score)
 ```
+
+`_tweet_title(text, n)` 规则 (对齐 `interpret._trim_to_sentence` 模式, 增加 "推文第一行常是结论" 的偏好):
+
+1. 取 `text.split("\n", 1)[0].strip()` 作为第一行候选。
+2. 长度 ≤ `n` → 直接用。
+3. 超长 → 在前 n 字符窗口里:
+   - 优先按句末标点切 (`。！？!?.`, 复用 `_SENT_ENDS` 常量)
+   - 无句末 → 按最后空格切 (英文场景), 切点 > n/2 才接受
+   - 都没有 → 硬切 + `…`
+
+n 默认 140 (≈推文上限的一半, 给 LLM 后续翻译/精炼留足语义), **大于** interpret 层 `title_max_chars=64` —— 这是因为本字段是 `title_en` (原文), 给 LLM 输入用; 最终发布的中文 `title` 仍受 interpret/review 层 64 字夹紧, 自然二次收敛。
 
 source name (e.g. `x-ai-lab`) 用于 publisher 分层打分。
 
@@ -117,11 +127,18 @@ yaml: `x-ai-lab` 的 `list_id: L1`。
 输出 ContentItem:
 - `source = "x-ai-lab"`
 - `external_id = "x:123"`
-- `title = "GPT-5 is..."` (前 80 char)
+- `title = "GPT-5 is..."` (`_tweet_title` 取第一行, ≤140 char, 句末/词界切)
 - `body = "@sama:\nGPT-5 is..."`
 - `url = "https://x.com/sama/status/123"`
 - `published_at = 2026-06-30T14:23:01Z`
 - `metadata = {"x_metrics": {"favorite": 1000, ...}}`
+
+边界测试 (PR-1 fixture 至少覆盖):
+- `"GPT-5 is here."` → title = `"GPT-5 is here."`
+- `"GPT-5 is here.\nDetails below."` → title = `"GPT-5 is here."`  (取第一行)
+- 200 字符无句末英文长句 → 在 ≤140 词界处切 + `…`
+- 200 字符纯中文无句号 (推特罕见) → 硬切 + `…`
+- 含 emoji + URL 的推文 → emoji 字节长度按 Python len 计, URL 不裁开
 
 ### Extension 模块
 
