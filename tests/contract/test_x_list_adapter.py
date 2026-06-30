@@ -30,7 +30,7 @@ def test_x_list_is_registered_in_adapters():
     assert isinstance(ADAPTERS["x_list"], XListAdapter)
 
 
-async def test_x_list_empty_when_no_data_dir(tmp_path):
+async def test_x_list_empty_when_data_dir_has_no_files(tmp_path):
     adapter = XListAdapter(data_dir=tmp_path)
     items = await adapter.fetch(_spec(), _ctx(), timeout_s=15)
     assert items == []
