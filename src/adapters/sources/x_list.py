@@ -66,6 +66,11 @@ def _parse_list_id(url: str) -> str | None:
     if not url.startswith("xlist:"):
         return None
     lid = url[len("xlist:") :].strip()
+    # "TBD" is the PR-1 placeholder; treat as invalid so a yaml left half-configured
+    # in PR-2 (status flipped to working but list_id not yet filled) fails loud via
+    # the warning at fetch() rather than silently routing against real list_ids.
+    if lid == "TBD":
+        return None
     return lid or None
 
 

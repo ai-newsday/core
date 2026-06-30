@@ -221,3 +221,17 @@ async def test_x_list_no_data_dir_returns_empty_silently(tmp_path):
     adapter = XListAdapter(data_dir=tmp_path / "does-not-exist")
     items = await adapter.fetch(_spec(list_id="L1"), _ctx(), timeout_s=15)
     assert items == []
+
+
+async def test_x_list_tbd_placeholder_logged_as_invalid(tmp_path, caplog):
+    """Guard: PR-1 ships yaml with url='xlist:TBD' placeholders. If PR-2 flips
+    status to working without filling real list_id values, the adapter must
+    fail loud (warning log) rather than silently routing against real list_ids
+    that no row will match — the source_report would otherwise just say
+    status='empty' forever with no clue why."""
+    _seed_data(tmp_path)
+    adapter = XListAdapter(data_dir=tmp_path)
+    with caplog.at_level("WARNING"):
+        items = await adapter.fetch(_spec(list_id="TBD", name="x-tbd"), _ctx(), timeout_s=15)
+    assert items == []
+    assert any("invalid url" in r.message for r in caplog.records)
