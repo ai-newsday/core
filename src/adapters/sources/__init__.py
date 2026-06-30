@@ -5,6 +5,7 @@ from src.adapters.sources.hf_models import HFModelsAdapter
 from src.adapters.sources.hf_papers import HFPapersAdapter
 from src.adapters.sources.hn import HNAdapter
 from src.adapters.sources.rss import RSSAdapter
+from src.adapters.sources.x_list import XListAdapter
 
 ADAPTERS: dict[str, SourceAdapter] = {
     "rss": RSSAdapter(),
@@ -13,4 +14,5 @@ ADAPTERS: dict[str, SourceAdapter] = {
     "hn": HNAdapter(),
     "github_releases": GithubReleasesAdapter(),
     "github_trending": GithubTrendingAdapter(),
+    "x_list": XListAdapter(),
 }
