@@ -13,6 +13,7 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       MODELSCOPE_API_KEY: ${{ secrets.MODELSCOPE_API_KEY }}
+      X_LIST_DATA_DIR: .cache/x-signals
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
@@ -27,6 +28,13 @@ jobs:
           path: data/state.db
           key: state-db-${{ github.run_id }}
           restore-keys: state-db-
+
+      # x-signals contains X (Twitter) list-timeline tweets pushed by the browser extension
+      # (ai-newsday/x-extension). x_list adapter reads .cache/x-signals/<UTC-date>.ndjson.
+      # Clone failure is non-fatal — adapter yields 0 items, pipeline continues.
+      - name: Fetch x-signals repo
+        run: |
+          git clone --depth 1 https://x-access-token:${{ secrets.X_SIGNALS_PAT }}@github.com/ai-newsday/x-signals.git .cache/x-signals || echo "x-signals clone failed; x_list will yield 0"
 
       - name: Run collect tick
         run: uv run python -m src.cli --tick collect
