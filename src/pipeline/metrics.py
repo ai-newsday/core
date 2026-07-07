@@ -7,6 +7,8 @@ Ships zero-safe: missing files → 0 counts; division by zero → 0.0 rates.
 from __future__ import annotations
 
 import json
+from collections import Counter
+from datetime import date, timedelta
 from pathlib import Path
 
 
@@ -73,3 +75,115 @@ def compute_rates(funnel: dict[str, int]) -> dict[str, float]:
         "interpret_fail_rate": _safe_ratio(funnel["interpreted_fallback"], interpreted_total),
         "keep_rate": _safe_ratio(funnel["posted"], funnel["review_eligible"]),
     }
+
+
+def _iter_rows(path: Path):
+    if not path.is_file():
+        return
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+
+def compute_per_genre(run_dir: Path) -> dict[str, dict[str, int | float]]:
+    """Group candidates + posted counts by genre; compute noise_ratio = 1 - posted/candidates."""
+    collected = Counter(
+        row.get("genre", "unknown") for row in _iter_rows(run_dir / "01_collected.jsonl")
+    )
+    posted = Counter(
+        row.get("genre", "unknown")
+        for row in _iter_rows(run_dir / "05_reviewed.jsonl")
+        if row.get("review_action") == "keep"
+    )
+    out: dict[str, dict[str, int | float]] = {}
+    for genre, cand in collected.items():
+        p = posted.get(genre, 0)
+        out[genre] = {
+            "candidates": cand,
+            "posted": p,
+            "noise_ratio": 1.0 - (p / cand) if cand else 0.0,
+        }
+    return out
+
+
+def compute_per_source_top10(run_dir: Path) -> list[dict]:
+    """Top 10 sources by yield (from source_reports), with kept count from reviewed."""
+    source_yield: dict[str, int] = {}
+    for row in _iter_rows(run_dir / "01_source_reports.jsonl"):
+        name = row.get("name")
+        if name:
+            source_yield[name] = int(row.get("item_count", 0))
+
+    kept = Counter(
+        row.get("source")
+        for row in _iter_rows(run_dir / "05_reviewed.jsonl")
+        if row.get("review_action") == "keep"
+    )
+
+    rows = []
+    for name, y in source_yield.items():
+        k = int(kept.get(name, 0))
+        rows.append(
+            {
+                "name": name,
+                "yield": y,
+                "kept": k,
+                "noise_ratio": 1.0 - (k / y) if y else 0.0,
+            }
+        )
+    rows.sort(key=lambda r: r["yield"], reverse=True)
+    return rows[:10]
+
+
+def load_fallback_titles(run_dir: Path, limit: int = 3) -> list[str]:
+    """Titles from interpret rows where interpretation_status == 'extractive_fallback'."""
+    if limit <= 0:
+        return []
+    titles: list[str] = []
+    for row in _iter_rows(run_dir / "04_interpreted.jsonl"):
+        if row.get("interpretation_status") == "extractive_fallback":
+            title = row.get("title_en") or row.get("title") or ""
+            if title:
+                titles.append(title)
+            if len(titles) >= limit:
+                break
+    return titles
+
+
+def load_trend_7d(metrics_dir: Path, today: str) -> dict:
+    """Return per-day fallback_rate + eligible_rate for the 7 days ending at today (YYYY-MM-DD).
+
+    Missing days → None. eligible_rate = posted / candidates.
+    """
+    today_d = date.fromisoformat(today)
+    dates = [(today_d - timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
+
+    fallback_rate: list[float | None] = []
+    eligible_rate: list[float | None] = []
+
+    for d in dates:
+        p = metrics_dir / f"{d}.json"
+        if not p.is_file():
+            fallback_rate.append(None)
+            eligible_rate.append(None)
+            continue
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            fallback_rate.append(None)
+            eligible_rate.append(None)
+            continue
+        rates = data.get("rates") or {}
+        funnel = data.get("funnel") or {}
+        fallback_rate.append(rates.get("fallback_rate"))
+        candidates = funnel.get("candidates") or 0
+        posted = funnel.get("posted") or 0
+        eligible_rate.append((posted / candidates) if candidates else None)
+
+    return {"dates": dates, "fallback_rate": fallback_rate, "eligible_rate": eligible_rate}
