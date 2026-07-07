@@ -101,13 +101,14 @@ def compute_per_genre(run_dir: Path) -> dict[str, dict[str, int | float]]:
         for row in _iter_rows(run_dir / "05_reviewed.jsonl")
         if row.get("review_action") == "keep"
     )
-    out: dict[str, dict[str, int | float]] = {}
+    out: dict[str, dict[str, int | float | None]] = {}
     for genre, cand in collected.items():
         p = posted.get(genre, 0)
         out[genre] = {
             "candidates": cand,
             "posted": p,
-            "noise_ratio": 1.0 - (p / cand) if cand else 0.0,
+            # 0 candidates → None (undefined ratio), matches load_trend_7d.eligible_rate semantics
+            "noise_ratio": (1.0 - (p / cand)) if cand else None,
         }
     return out
 
@@ -134,7 +135,8 @@ def compute_per_source_top10(run_dir: Path) -> list[dict]:
                 "name": name,
                 "yield": y,
                 "kept": k,
-                "noise_ratio": 1.0 - (k / y) if y else 0.0,
+                # 0 yield → None (undefined ratio), matches load_trend_7d.eligible_rate semantics
+                "noise_ratio": (1.0 - (k / y)) if y else None,
             }
         )
     rows.sort(key=lambda r: r["yield"], reverse=True)
