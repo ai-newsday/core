@@ -39,6 +39,15 @@ from src.pipeline.dedup import dedup
 from src.pipeline.enrich import enrich_with_hn
 from src.pipeline.feedback import derive_events, feedback
 from src.pipeline.interpret import interpret
+from src.pipeline.metrics import (
+    compute_funnel,
+    compute_per_genre,
+    compute_per_source_top10,
+    compute_rates,
+    load_fallback_titles,
+    load_trend_7d,
+)
+from src.pipeline.metrics_render import render_caption, render_md, render_png
 from src.pipeline.publish import publish
 from src.pipeline.review import review
 from src.pipeline.score import score
@@ -451,6 +460,97 @@ def run_tick(
         raise ValueError(f"Unknown tick: {tick!r}. Use 'collect' or 'finalize'.")
 
 
+def _latest_run_dir(base=None):
+    from pathlib import Path
+
+    base = base or Path("data/runs")
+    if not base.is_dir():
+        return None
+    runs = [p for p in base.iterdir() if p.is_dir()]
+    if not runs:
+        return None
+    return max(runs, key=lambda p: p.stat().st_mtime)
+
+
+def _beijing_date_today() -> str:
+    from zoneinfo import ZoneInfo
+
+    return datetime.now(ZoneInfo("Asia/Shanghai")).date().isoformat()
+
+
+def run_metrics(*, dry_run: bool = False, out_dir=None) -> int:
+    """Compute + render + (optionally) TG-send today's metrics. Returns exit code."""
+    from pathlib import Path
+
+    logger = logging.getLogger("metrics")
+    latest = _latest_run_dir()
+    if latest is None:
+        logger.warning("no data/runs/<uuid>/ found; skipping metrics")
+        return 0
+
+    out_dir = out_dir or Path("content/metrics")
+    date_str = _beijing_date_today()
+    funnel = compute_funnel(latest)
+    rates = compute_rates(funnel)
+    per_genre = compute_per_genre(latest)
+    per_source_top10 = compute_per_source_top10(latest)
+    samples = {"fallback_titles": load_fallback_titles(latest, limit=3)}
+    trend_7d = load_trend_7d(out_dir, date_str)
+
+    data = {
+        "date": date_str,
+        "run_id": latest.name,
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "funnel": funnel,
+        "rates": rates,
+        "per_genre": per_genre,
+        "per_source_top10": per_source_top10,
+        "samples": samples,
+        "trend_7d": trend_7d,
+    }
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    json_path = out_dir / f"{date_str}.json"
+    png_path = out_dir / f"{date_str}.png"
+    md_path = out_dir / f"{date_str}.md"
+
+    json_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    try:
+        render_png(data, png_path)
+    except Exception as e:  # noqa: BLE001
+        logger.error("render_png failed: %s", e)
+
+    md_path.write_text(render_md(data), encoding="utf-8")
+
+    if dry_run:
+        logger.info("metrics dry-run: files written; skipping TG send")
+        return 0
+
+    if not os.environ.get("TELEGRAM_BOT_TOKEN"):
+        logger.warning("TELEGRAM_BOT_TOKEN not set; skipping TG send")
+        return 0
+    if not png_path.is_file():
+        logger.warning("png missing; skipping TG send")
+        return 0
+
+    from src.core.types import TelegramConfig
+
+    async def _send():
+        cfg = TelegramConfig(
+            bot_token=os.environ["TELEGRAM_BOT_TOKEN"],
+            chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
+        )
+        notifier = TelegramPollingNotifier(cfg)
+        await notifier.send_photo(png_path, render_caption(data))
+
+    try:
+        asyncio.run(_send())
+    except Exception as e:  # noqa: BLE001
+        logger.error("TG send_photo failed: %s", e)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="ai-newsday-collect")
     p.add_argument("--registry", default="config/sources.yaml")
@@ -494,11 +594,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument(
         "--tick",
-        choices=["collect", "finalize"],
-        help="run collect or finalize tick (HITL pipeline)",
+        choices=["collect", "finalize", "metrics"],
+        help="run collect / finalize / metrics tick (HITL pipeline)",
     )
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
+    if args.tick == "metrics":
+        return run_metrics(dry_run=args.dry_run)
     if args.tick:
         out = run_tick(tick=args.tick, registry_path=args.registry)
         print(json.dumps(out, ensure_ascii=False, indent=2))
