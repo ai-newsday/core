@@ -2,7 +2,7 @@
 
 > 唯一任务看板 + 进度表（合并自旧 `ROADMAP.md`）。源头意图见 `docs/intent/`，每层契约见 `docs/specs/`。
 > 约定:一次一个子项目、小 PR、issue-per-PR、从真实 `origin/master` 起有意义分支名。
-> 最后更新:2026-06-23。
+> 最后更新:2026-07-01。
 
 ---
 
@@ -40,10 +40,16 @@
 | ✓ | 优先 | 任务 | 详情 |
 |---|---|---|---|
 | ☐ | **P0** | **放宽发卡池(解耦 可审候选 vs 发布 top-N)** | **根因**:`--tick collect` 在发卡前就 `score→quota` 砍到 top-11(`interpret(sres.selected_items)`),Telegram 只发这 11 条 → 低信号但重要的发布(如 **Krea-2**,来自 comfy priority-3 writeup 零信号)**到不了人眼前,无从 keep**。修:发卡阶段放宽(发 relevant 的 top-N 更大,或不在发卡前砍配额),最终刊物仍由 `total_limit` 控。**最高优先,直接解"只发 11 条没得选"。** |
+| ☐ | **P0** | **翻译失效根治** | 用户直接痛点: post 出来仍有条目全英文 = `extractive_fallback` 触发但无治根。现状: PR #54 只贴 ⚠️ 徽章, 无 fallback_rate 遥测, 无 prompt 迭代, 无 retry。要做: (1) 落 fallback_rate 到 metrics; (2) 抓 fallback 样本, 定位是 LLM (Haiku) 拒答/超时/解 JSON 失败哪种; (3) 对症: 换 Sonnet 备胎/加 1 次 retry/收紧 prompt。**用户投诉集中来源之一。** |
+| ☐ | **P0** | **主动降噪·Paper + GitHub Releases 重要性** | 用户明说主噪声源 = **Paper + Releases**。Paper 已用 hf-papers upvotes 筛仍嫌多; **Releases 大部分是 bugfix/依赖升级不值得发**。要做: (a) Paper: 提高 upvotes 门槛 或加话题相关性打分; (b) Releases: LLM 判定"是否重要更新" (major.minor.patch 差 + release note 长度 + 关键词 "breaking/new model/benchmark"); 跨源同事件重述去重 (原 P1 故事线合并的 Paper/Releases 部分上升 P0)。 |
 | ☐ | **P0** | **Reddit 换 PRAW 官方 OAuth** | 现 old.reddit HTML 抓取在 prod 403、yield=0。竞品 `reddit-ai-trends` 用 `praw`(client_id/secret)走官方 API**不吃 403**。换之,拿回 Reddit 信号。**现成解。**(替代旧 §2 的"代理/换源/砍"三选一。) |
-| ☐ | **P1** | **评估 Folo cookie 读 X(首发信道)** | 我们零 X 覆盖=最大缺口(Krea-2 等先发 X)。竞品 `CloudFlare-AI-Insight` 用 Folo cookie 读 X。**Folo RSS 阅读免费+开源(AGPL)**,只 AI 功能付费 → 免费层可跑。备:tuber0613 那份 AI 大佬 X handle 清单可复用。**不碰付费 X API;不自托管 RSSHub-X(脆+封号)。** |
-| ☐ | **P1** | 故事线合并(同事件跨源聚合) | 竞品 `ai-news-radar` 把同一事件多源报道聚成时间线;我们仅按 genre 分类。 |
-| ☐ | **P2** | 多频率 + 差异化输出 | 4H/周/月(clawfeed)、播客 TTS(CloudFlare-AI)、社媒卡图(ai-daily-skill)。多渠道发布(RSS/公众号/JSON)归此。 |
+| ☐ | **P0** | **产品质量 metrics dashboard (元任务)** | 上面 3 条 P0 治了没治好, 现在**没数据说话**, 只能靠肉眼看 keep/drop。落每日: 候选数 / 合格数 / fallback_rate / dedup 撞击率 / keep-drop 比 / 各 source yield。**必须先落**才能量化其他 P0 的效果。轻量,复用现有 `source_reports` + `0X_*.jsonl` + `quota_applied`。 |
+| ☐ | **P1** | **扩源探活 + 死源 legacy 化** | 用户明说加源**必须先测过稳定提供 AI News**。做: (a) 探活脚本 = 该源近 30d yield 是否 >0 且 AI 相关性 > 阈值; (b) 加源门槛: 探活通过才 status=working, 否则 manual; (c) 长期 403 / manual 未维护的自动挂 legacy (从 registry 隐藏但保留历史)。**当前 22 死源 (gwern/garymarcus 等 substack 403) 手动挂 manual, 应自动化。** 自动发现新 KOL/repo/subreddit 延后到 P2 (等 metrics 上线才能量化"有用"vs"噪声")。 |
+| ☐ | **P1** | 故事线合并(其余部分) | 相同事件多源聚合成时间线; Paper/Releases 部分已上升 P0, 剩余"多家媒体报同一新闻不同措辞"归此。竞品 `ai-news-radar` 参考。 |
+| ⚠ | ~~P1~~ | ~~评估 Folo cookie 读 X(首发信道)~~ | **改走浏览器 extension 路径** ([#57](https://github.com/ai-newsday/core/pull/57) 合并 + [#58](https://github.com/ai-newsday/core/pull/58) 待合 + [ai-newsday/x-extension](https://github.com/ai-newsday/x-extension) 已 ship + `ai-newsday/x-signals` 私仓已建). Folo 方案未采用. 手动 smoke pending (用户装 extension + 配 PAT + 建 4 个 X list). |
+| ☐ | **P2** | 社媒 first-class 输出 (**需对齐平台**) | 每日 top-3 出可发 Twitter / 微博 / 小红书的短卡 (140 字 + 图), 独立于长报。**用户明确要求先跟他对齐各平台字数/图片/风格差异, 不动**。用户 request 时再启动。 |
+| ☐ | **P2** | 多频率输出 (4H / 周 / 月) | 拆自旧 "多频率 + 差异化输出", 社媒已独立。频率变化门槛: 源稳定率达标 (metrics 到位)。 |
+| ☐ | **P2** | 自动扩源发现 (KOL/repo/subreddit) | 从已抓 items 挖被多次提及的 handle/repo/subreddit → PR-bot 半自动加源。**门槛: metrics dashboard 上线 (才能量化"发现的源是不是噪声")**。 |
 | ☐ | **P2** | 可选:per-genre 质量地板 | 仅当 flat-60 `min_display_score` floor 误判某 genre 时再做。 |
 
 > 文风/版式/配额规范见 **`references/editorial-and-format-sop.md`**(v0.2,已锁定);标杆=TLDR AI / The Rundown / Ben's Bites / Import AI(SOP §7)。
