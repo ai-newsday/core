@@ -472,10 +472,13 @@ def _latest_run_dir(base=None):
     return max(runs, key=lambda p: p.stat().st_mtime)
 
 
-def _beijing_date_today() -> str:
+def _beijing_report_date() -> str:
+    """Report date = Beijing 'yesterday'. finalize.yml publishes content/posts/<yesterday>.md
+    because the morning post summarizes yesterday's complete day (M2 #33). Metrics must
+    align with that same date so /metrics/YYYY-MM-DD pairs with /posts/YYYY-MM-DD."""
     from zoneinfo import ZoneInfo
 
-    return datetime.now(ZoneInfo("Asia/Shanghai")).date().isoformat()
+    return (datetime.now(ZoneInfo("Asia/Shanghai")).date() - timedelta(days=1)).isoformat()
 
 
 def run_metrics(*, dry_run: bool = False, out_dir=None) -> int:
@@ -489,7 +492,7 @@ def run_metrics(*, dry_run: bool = False, out_dir=None) -> int:
         return 0
 
     out_dir = out_dir or Path("content/metrics")
-    date_str = _beijing_date_today()
+    date_str = _beijing_report_date()
     funnel = compute_funnel(latest)
     rates = compute_rates(funnel)
     per_genre = compute_per_genre(latest)
@@ -529,6 +532,9 @@ def run_metrics(*, dry_run: bool = False, out_dir=None) -> int:
 
     if not os.environ.get("TELEGRAM_BOT_TOKEN"):
         logger.warning("TELEGRAM_BOT_TOKEN not set; skipping TG send")
+        return 0
+    if not os.environ.get("TELEGRAM_CHAT_ID"):
+        logger.warning("TELEGRAM_CHAT_ID not set; skipping TG send")
         return 0
     if not png_path.is_file():
         logger.warning("png missing; skipping TG send")

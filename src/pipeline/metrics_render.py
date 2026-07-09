@@ -10,13 +10,15 @@ import matplotlib
 matplotlib.use("Agg")  # headless
 import matplotlib.pyplot as plt  # noqa: E402
 
+# English labels: matplotlib's default DejaVu Sans lacks CJK glyphs and would
+# render Chinese labels as tofu boxes. Trend subplot title is already English.
 _FUNNEL_STAGES: list[tuple[str, str]] = [
-    ("candidates", "候选"),
-    ("after_dedup", "去重后"),
-    ("after_score_quota", "配额后"),
-    ("interpreted_ok", "解读OK"),
-    ("review_eligible", "审校后"),
-    ("posted", "已发布"),
+    ("candidates", "candidates"),
+    ("after_dedup", "dedup"),
+    ("after_score_quota", "quota"),
+    ("interpreted_ok", "interp_ok"),
+    ("review_eligible", "review"),
+    ("posted", "posted"),
 ]
 
 
@@ -43,7 +45,8 @@ def _plot_trend(ax: Any, trend: dict) -> None:
     ax.set_ylim(0, 1)
     ax.set_ylabel("rate")
     ax.set_title("7d trend (fallback + eligible)")
-    ax.legend(loc="upper right", fontsize=8)
+    if fb_pts or el_pts:
+        ax.legend(loc="upper right", fontsize=8)
     ax.grid(True, alpha=0.3)
 
 
