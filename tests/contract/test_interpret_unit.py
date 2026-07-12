@@ -161,6 +161,18 @@ def test_extractive_fallback_truncates_body_and_handles_none():
     assert extractive_fallback(it2, InterpretConfig()).body == ""
 
 
+def test_extractive_fallback_records_reason():
+    it = _scored()
+    out = extractive_fallback(it, InterpretConfig(), fallback_reason="ValueError")
+    assert out.fallback_reason == "ValueError"
+
+
+def test_extractive_fallback_reason_defaults_to_none():
+    it = _scored()
+    out = extractive_fallback(it, InterpretConfig())
+    assert out.fallback_reason is None
+
+
 from src.core.prompts import load_prompt
 from src.pipeline.interpret import build_daily_prompt, generate_daily_take, interpret_item
 from tests.fakes import FailingLLMProvider, FakeLLMProvider
@@ -189,6 +201,7 @@ def test_interpret_item_llm_failure_falls_back():
     out = interpret_item(it, tpl, InterpretConfig(), FailingLLMProvider())
     assert out.interpretation_status == "extractive_fallback"
     assert out.title == "GLM-5 released"
+    assert out.fallback_reason == "RuntimeError"
 
 
 def test_interpret_item_bad_json_falls_back():
@@ -197,6 +210,7 @@ def test_interpret_item_bad_json_falls_back():
     llm = FakeLLMProvider({"https://hf.co/glm5": "not json"})
     out = interpret_item(it, tpl, InterpretConfig(), llm)
     assert out.interpretation_status == "extractive_fallback"
+    assert out.fallback_reason == "ValueError"
 
 
 def test_build_daily_prompt_uses_titles():

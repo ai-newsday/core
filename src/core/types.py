@@ -212,6 +212,7 @@ class InterpretedItem(ScoredItem):  # ScoredItem 的下游演进; 本圈加解�
     interpretation_status: str
     eligible_for_must_read: bool
     quality_flags: list[QualityFlag] = Field(default_factory=list)
+    fallback_reason: str | None = None  # exception type name when extractive_fallback ran
 
 
 @dataclass

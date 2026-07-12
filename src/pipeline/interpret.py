@@ -93,7 +93,9 @@ def build_ok_item(parsed: dict, item: ScoredItem, config: InterpretConfig) -> In
     )
 
 
-def extractive_fallback(item: ScoredItem, config: InterpretConfig) -> InterpretedItem:
+def extractive_fallback(
+    item: ScoredItem, config: InterpretConfig, *, fallback_reason: str | None = None
+) -> InterpretedItem:
     """No-fabrication fallback (spec §5.3): keep title_en, truncate raw_summary,
     leave generated fields empty, mark ineligible for must-read."""
     return InterpretedItem(
@@ -105,6 +107,7 @@ def extractive_fallback(item: ScoredItem, config: InterpretConfig) -> Interprete
         interpretation_status="extractive_fallback",
         eligible_for_must_read=False,
         relevant=True,
+        fallback_reason=fallback_reason,
     )
 
 
@@ -140,7 +143,7 @@ def interpret_item(
                 error_type=type(e).__name__,
                 error=str(e)[:200],
             )
-        return extractive_fallback(item, config)
+        return extractive_fallback(item, config, fallback_reason=type(e).__name__)
 
 
 def build_daily_prompt(items: list[InterpretedItem], template: str) -> str:
