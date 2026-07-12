@@ -1,28 +1,34 @@
 # 解读生成层配置 (Circle 4). 模型参数/字段约束全部可调, 不写死.
-# 主模型链: 按顺序尝试, 第一个成功的生效
+
+# Provider registry: keys are provider name prefixes used in model refs below.
+providers:
+  modelscope:
+    base_url: "https://api-inference.modelscope.cn/v1/chat/completions"
+    api_key_env: "MODELSCOPE_API_KEY"
+  agnes:
+    base_url: "https://apihub.agnes-ai.com/v1/chat/completions"
+    api_key_env: "AGNES_API_KEY"
+
+# 主模型链 (2026-07-11 探活证实 alive)
 models:
-  - "MiniMax/MiniMax-M2.7"
-  - "deepseek-ai/DeepSeek-V4-Pro"
-  - "inclusionAI/Ring-2.6-1T"
-  - "deepseek-ai/DeepSeek-V4-Flash"
-  - "ZhipuAI/GLM-5.1"
-# 备用模型链: 主模型全挂时 fallback
+  - "modelscope:deepseek-ai/DeepSeek-V4-Pro"
+  - "modelscope:inclusionAI/Ring-2.6-1T"
+  - "modelscope:deepseek-ai/DeepSeek-V4-Flash"
+  - "modelscope:inclusionAI/Ling-2.6-1T"
+
+# 备用模型链 (前 3 家 2026-07-11 未探活, 生产表现见分晓; agnes 是付费保险丝)
 fallback_models:
-  - "MiniMax/MiniMax-M2.5"
-  - "ZhipuAI/GLM-5"
-  - "inclusionAI/Ling-2.6-1T"
-  - "stepfun-ai/Step-3.7-Flash"
-  - "moonshotai/Kimi-K2.6"
-  - "moonshotai/Kimi-K2.5"
-  - "Qwen/Qwen3.5-397B-A17B"
-  - "Shanghai_AI_Laboratory/Intern-S1-Pro"
-  - "Shanghai_AI_Laboratory/Intern-S2-Preview"
+  - "modelscope:moonshotai/Kimi-K2.6"
+  - "modelscope:moonshotai/Kimi-K2.5"
+  - "modelscope:Qwen/Qwen3.5-397B-A17B"
+  - "agnes:agnes-2.0-flash"
+
 temperature: 0.3
-max_tokens: 800
+max_tokens: 1500                     # 从 800 上调, 治 DeepSeek verbose 截断
 timeout_s: 60
-title_max_chars: 64                  # PRD §5.5 中文标题 ≤64
-body_max_chars: 240                  # 顺读正文上限(clamp 安全网; prompt 目标 ≤180)
-tags_count: 3                        # PRD §5.5 恰好 3 个
-min_evidence: 1                      # 必读门: 至少 1 条证据
+title_max_chars: 64
+body_max_chars: 240
+tags_count: 3
+min_evidence: 1
 item_prompt_path: "src/prompts/interpret_item.md"
 daily_prompt_path: "src/prompts/daily_take.md"

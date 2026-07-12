@@ -15,6 +15,7 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       MODELSCOPE_API_KEY: ${{ secrets.MODELSCOPE_API_KEY }}
+      AGNES_API_KEY: ${{ secrets.AGNES_API_KEY }}
       DECISIONS_API_SECRET: ${{ secrets.DECISIONS_API_SECRET }}
     steps:
       # 用 PAT checkout: 使后续 content push 触发 pages.yml(默认 GITHUB_TOKEN 防递归不触发)
