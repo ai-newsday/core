@@ -94,3 +94,44 @@ def test_bare_model_id_defaults_to_modelscope(monkeypatch):
     llm = OpenAICompatLLM(providers=PROVIDERS, model="deepseek-ai/DeepSeek-V4-Pro", timeout_s=10)
     llm.complete_json("hi", temperature=0.3, max_tokens=100)
     assert route.called
+
+
+@respx.mock
+def test_validator_failure_counts_as_model_failure(monkeypatch):
+    """When primary returns 200 but validator raises, chain moves to next model."""
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "ms-key")
+    monkeypatch.setenv("AGNES_API_KEY", "ag-key")
+    # Primary returns truncated JSON (invalid), fallback returns valid
+    respx.post("https://api-inference.modelscope.cn/v1/chat/completions").mock(
+        return_value=_ok('{"title": "trunc')  # broken JSON
+    )
+    agnes_route = respx.post("https://apihub.agnes-ai.com/v1/chat/completions").mock(
+        return_value=_ok('{"title": "good", "body": "b"}')
+    )
+    llm = OpenAICompatLLM(
+        providers=PROVIDERS,
+        model="modelscope:deepseek-ai/DeepSeek-V4-Pro",
+        timeout_s=10,
+        fallback_models=["agnes:agnes-2.0-flash"],
+    )
+
+    import json as _json
+
+    def validator(raw: str):
+        _json.loads(raw)  # raises on truncated
+
+    result = llm.complete_json("hi", temperature=0.3, max_tokens=100, validator=validator)
+    assert result == '{"title": "good", "body": "b"}'
+    assert agnes_route.called
+
+
+@respx.mock
+def test_no_validator_keeps_current_behavior(monkeypatch):
+    """Validator None → any 200 response is returned even if it wouldn't parse."""
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "ms-key")
+    respx.post("https://api-inference.modelscope.cn/v1/chat/completions").mock(
+        return_value=_ok("not-json")
+    )
+    llm = OpenAICompatLLM(providers=PROVIDERS, model="modelscope:foo", timeout_s=10)
+    result = llm.complete_json("hi", temperature=0.3, max_tokens=100)
+    assert result == "not-json"

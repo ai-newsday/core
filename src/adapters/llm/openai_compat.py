@@ -63,7 +63,17 @@ class OpenAICompatLLM:
                 raise ValueError(f"model {model_ref} returned empty content")
             return content
 
-    def complete_json(self, prompt: str, *, temperature: float, max_tokens: int) -> str:
+    def complete_json(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        max_tokens: int,
+        validator=None,
+    ) -> str:
+        """Try each model in [primary, *fallback]. On success (HTTP + optional
+        validator both pass), return content. On any failure — HTTP error,
+        empty content, or validator raising — log warning and continue chain."""
         models = [self._model] + self._fallback_models
         last_err: Exception | None = None
         for model_ref in models:
@@ -71,6 +81,8 @@ class OpenAICompatLLM:
                 result = self._call(
                     model_ref, prompt, temperature=temperature, max_tokens=max_tokens
                 )
+                if validator is not None:
+                    validator(result)  # raises → treat as model failure
                 if model_ref != self._model:
                     logger.info(
                         "LLM fallback: %s succeeded (primary %s failed)",

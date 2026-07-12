@@ -111,16 +111,25 @@ def extractive_fallback(item: ScoredItem, config: InterpretConfig) -> Interprete
 def interpret_item(
     item: ScoredItem, item_template: str, config: InterpretConfig, llm, logger=None
 ) -> InterpretedItem:
-    """One item: prompt -> LLM -> parse -> enforce. Any failure -> extractive
-    fallback (spec §5.2/§5.3). Pure except for the injected llm call.
-    Optional `logger` enables an `interpret_error` emit before fallback —
-    fallback semantics unchanged, only adds observability."""
+    """One item: prompt -> LLM chain (each with parse validation) -> enforce.
+
+    Uses ``complete_json`` with a validator so parse failure counts as that
+    model failing, letting the remaining models try. Any final failure -> extractive fallback (spec §5.2/§5.3).
+    Optional `logger` enables an `interpret_error` emit before fallback."""
+    parsed_holder: dict = {}
+
+    def _validate(raw: str) -> None:
+        parsed_holder["parsed"] = parse_and_validate(raw)
+
     try:
         prompt = build_item_prompt(item, item_template)
-        raw = llm.complete_json(
-            prompt, temperature=config.temperature, max_tokens=config.max_tokens
+        llm.complete_json(
+            prompt,
+            temperature=config.temperature,
+            max_tokens=config.max_tokens,
+            validator=_validate,
         )
-        parsed = parse_and_validate(raw)
+        parsed = parsed_holder["parsed"]
         return build_ok_item(parsed, item, config)
     except Exception as e:
         if logger is not None:
