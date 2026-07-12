@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html as html_lib
+from pathlib import Path
 
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -95,3 +96,13 @@ class TelegramPollingNotifier:
             parse_mode="HTML",
             disable_web_page_preview=True,
         )
+
+    async def send_photo(self, photo_path: Path, caption: str) -> None:
+        """Send a photo file to the same chat as send_message uses. HTML parse mode."""
+        with photo_path.open("rb") as f:
+            await self._bot.send_photo(
+                chat_id=self._cfg.chat_id,
+                photo=f,
+                caption=caption,
+                parse_mode="HTML",
+            )

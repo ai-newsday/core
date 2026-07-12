@@ -1,0 +1,4 @@
+{"source":"hf-papers","title_en":"Paper A","link":"https://x/a","genre":"paper","publisher":"company","published_at":"2026-07-01T00:00:00+00:00","raw_summary":"a","signals":{},"fetched_via":"native"}
+{"source":"hf-papers","title_en":"Paper B","link":"https://x/b","genre":"paper","publisher":"company","published_at":"2026-07-01T00:00:00+00:00","raw_summary":"b","signals":{},"fetched_via":"native"}
+{"source":"the-decoder","title_en":"News X","link":"https://x/nx","genre":"news","publisher":"media","published_at":"2026-07-01T00:00:00+00:00","raw_summary":"nx","signals":{},"fetched_via":"native"}
+{"source":"github-releases","title_en":"Release R","link":"https://x/r","genre":"release","publisher":"company","published_at":"2026-07-01T00:00:00+00:00","raw_summary":"r","signals":{},"fetched_via":"native"}
