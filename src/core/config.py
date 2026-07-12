@@ -73,12 +73,23 @@ def load_scoring_config(path: str) -> ScoringConfig:
 
 def load_interpret_config(path: str) -> InterpretConfig:
     """Load interpret model params/field limits from YAML; missing file -> defaults."""
+    from src.core.types import ProviderSpec  # local import to avoid cycles
+
     data = _read_yaml(path)
     d = InterpretConfig()
+    raw_providers = data.get("providers")
+    if raw_providers:
+        providers = {
+            name: ProviderSpec(base_url=spec["base_url"], api_key_env=spec["api_key_env"])
+            for name, spec in raw_providers.items()
+        }
+    else:
+        providers = d.providers
     return InterpretConfig(
         model=data.get("model", d.model),
         models=data.get("models", d.models),
         fallback_models=data.get("fallback_models", d.fallback_models),
+        providers=providers,
         temperature=data.get("temperature", d.temperature),
         max_tokens=data.get("max_tokens", d.max_tokens),
         timeout_s=data.get("timeout_s", d.timeout_s),

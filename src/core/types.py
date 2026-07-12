@@ -215,10 +215,25 @@ class InterpretedItem(ScoredItem):  # ScoredItem 的下游演进; 本圈加解�
 
 
 @dataclass
+class ProviderSpec:
+    base_url: str
+    api_key_env: str
+
+
+_DEFAULT_MODELSCOPE = ProviderSpec(
+    base_url="https://api-inference.modelscope.cn/v1/chat/completions",
+    api_key_env="MODELSCOPE_API_KEY",
+)
+
+
+@dataclass
 class InterpretConfig:
     model: str = "Qwen/Qwen2.5-72B-Instruct"
     models: list[str] = field(default_factory=list)
     fallback_models: list[str] = field(default_factory=list)
+    providers: dict[str, ProviderSpec] = field(
+        default_factory=lambda: {"modelscope": _DEFAULT_MODELSCOPE}
+    )
     temperature: float = 0.3
     max_tokens: int = 800
     timeout_s: int = 60
