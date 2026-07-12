@@ -189,3 +189,15 @@ def load_trend_7d(metrics_dir: Path, today: str) -> dict:
         eligible_rate.append((posted / candidates) if candidates else None)
 
     return {"dates": dates, "fallback_rate": fallback_rate, "eligible_rate": eligible_rate}
+
+
+def compute_fallback_breakdown(run_dir: Path) -> dict[str, int]:
+    """Count extractive_fallback rows in 04_interpreted.jsonl grouped by
+    fallback_reason (or 'unknown' when the field is missing/None). Returns e.g.
+    {'ValueError': 10, 'HTTPStatusError': 5, 'unknown': 2}."""
+    counter: Counter[str] = Counter()
+    for row in _iter_rows(run_dir / "04_interpreted.jsonl"):
+        if row.get("interpretation_status") == "extractive_fallback":
+            reason = row.get("fallback_reason") or "unknown"
+            counter[reason] += 1
+    return dict(counter)

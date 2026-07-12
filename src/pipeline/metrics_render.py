@@ -142,6 +142,12 @@ def render_md(data: dict) -> str:
             f"| {genre} | {stats.get('candidates', 0)} | {stats.get('posted', 0)} | {100.0 * noise:.1f}% |"
         )
 
+    breakdown = data.get("fallback_breakdown") or {}
+    if breakdown:
+        lines += ["", "## fallback 分类", "", "| reason | 次数 |", "|---|---|"]
+        for reason, n in sorted(breakdown.items(), key=lambda kv: kv[1], reverse=True):
+            lines.append(f"| {reason} | {n} |")
+
     lines += ["", "## fallback 样本 (翻译失效的 title)", ""]
     for t in samples.get("fallback_titles") or []:
         lines.append(f"- {t}")
@@ -169,13 +175,21 @@ def render_caption(data: dict, site_base_url: str = "https://ai-newsday.github.i
         noise_pct = 100.0 * (top.get("noise_ratio") or 0.0)
         top_source_line = f"top 噪源 {top['name']}: {top['yield']}→{top['kept']} ({noise_pct:.1f}%)"
 
+    top_fail_line = ""
+    breakdown = data.get("fallback_breakdown") or {}
+    if breakdown:
+        top_reason, top_n = max(breakdown.items(), key=lambda kv: kv[1])
+        top_fail_line = f"top fail: {top_reason} × {top_n}"
+
     lines = [
         f"📊 metrics {date_str}",
         "",
         f"候选 {candidates} → 合格 {posted} ({eligible_rate:.1f}%)",
         f"fallback {fallback_count} ({fallback_pct:.1f}%)  ← 翻译 KPI",
-        f"最大损失: {largest}",
     ]
+    if top_fail_line:
+        lines.append(top_fail_line)
+    lines.append(f"最大损失: {largest}")
     if top_source_line:
         lines.append(top_source_line)
 

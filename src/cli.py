@@ -40,6 +40,7 @@ from src.pipeline.enrich import enrich_with_hn
 from src.pipeline.feedback import derive_events, feedback
 from src.pipeline.interpret import interpret
 from src.pipeline.metrics import (
+    compute_fallback_breakdown,
     compute_funnel,
     compute_per_genre,
     compute_per_source_top10,
@@ -507,6 +508,7 @@ def run_metrics(*, dry_run: bool = False, out_dir=None) -> int:
     per_source_top10 = compute_per_source_top10(latest)
     samples = {"fallback_titles": load_fallback_titles(latest, limit=3)}
     trend_7d = load_trend_7d(out_dir, date_str)
+    fallback_breakdown = compute_fallback_breakdown(latest)
 
     data = {
         "date": date_str,
@@ -518,6 +520,7 @@ def run_metrics(*, dry_run: bool = False, out_dir=None) -> int:
         "per_source_top10": per_source_top10,
         "samples": samples,
         "trend_7d": trend_7d,
+        "fallback_breakdown": fallback_breakdown,
     }
 
     out_dir.mkdir(parents=True, exist_ok=True)

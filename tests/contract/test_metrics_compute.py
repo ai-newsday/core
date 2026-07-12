@@ -127,3 +127,43 @@ def test_load_trend_7d_fills_missing_with_none():
     assert trend["eligible_rate"][4] == 13 / 90
     assert trend["eligible_rate"][6] == 12 / 87
     assert trend["eligible_rate"][0] is None
+
+
+def test_compute_fallback_breakdown_from_fixture():
+    from src.pipeline.metrics import compute_fallback_breakdown, compute_funnel
+
+    br = compute_fallback_breakdown(FIXTURE)
+    assert isinstance(br, dict)
+    f = compute_funnel(FIXTURE)
+    assert sum(br.values()) == f["interpreted_fallback"]
+
+
+def test_compute_fallback_breakdown_missing_reason_counts_as_unknown(tmp_path):
+    import json as _json
+
+    from src.pipeline.metrics import compute_fallback_breakdown
+
+    p = tmp_path / "04_interpreted.jsonl"
+    p.write_text(
+        "\n".join(
+            [
+                _json.dumps({"interpretation_status": "ok"}),
+                _json.dumps({"interpretation_status": "extractive_fallback"}),
+                _json.dumps(
+                    {
+                        "interpretation_status": "extractive_fallback",
+                        "fallback_reason": "ValueError",
+                    }
+                ),
+                _json.dumps(
+                    {
+                        "interpretation_status": "extractive_fallback",
+                        "fallback_reason": "ValueError",
+                    }
+                ),
+            ]
+        )
+        + "\n"
+    )
+    br = compute_fallback_breakdown(tmp_path)
+    assert br == {"unknown": 1, "ValueError": 2}

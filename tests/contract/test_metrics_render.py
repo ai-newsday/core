@@ -97,3 +97,31 @@ def test_render_caption_single_emoji_and_html_link():
     assert 'href="https://ai-newsday.github.io/core/metrics/2026-07-01/"' in cap
     for banned in ("⚠️", "🔊", "❌", "✅"):
         assert banned not in cap
+
+
+def test_render_md_shows_fallback_breakdown():
+    from src.pipeline.metrics_render import render_md
+
+    data = {**SAMPLE_DATA_FULL, "fallback_breakdown": {"ValueError": 10, "HTTPStatusError": 5}}
+    md = render_md(data)
+    assert "## fallback 分类" in md
+    assert "ValueError" in md
+    assert "10" in md
+    assert "HTTPStatusError" in md
+    assert "5" in md
+
+
+def test_render_caption_shows_top_fail_when_breakdown_nonempty():
+    from src.pipeline.metrics_render import render_caption
+
+    data = {**SAMPLE_DATA_FULL, "fallback_breakdown": {"ValueError": 10, "HTTPStatusError": 5}}
+    cap = render_caption(data)
+    assert "top fail: ValueError × 10" in cap
+
+
+def test_render_caption_hides_top_fail_when_breakdown_empty():
+    from src.pipeline.metrics_render import render_caption
+
+    data = {**SAMPLE_DATA_FULL, "fallback_breakdown": {}}
+    cap = render_caption(data)
+    assert "top fail" not in cap
