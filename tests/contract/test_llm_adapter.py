@@ -3,27 +3,33 @@ import pytest
 import respx
 
 from src.adapters.llm.openai_compat import OpenAICompatLLM
+from src.core.types import ProviderSpec
 from tests.fakes import FailingLLMProvider, FakeLLMProvider
 
 URL = "https://api-inference.modelscope.cn/v1/chat/completions"
+PROVIDERS = {
+    "modelscope": ProviderSpec(base_url=URL, api_key_env="MODELSCOPE_API_KEY"),
+}
 
 
 @respx.mock
-def test_openai_compat_returns_message_content():
+def test_openai_compat_returns_message_content(monkeypatch):
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
     respx.post(URL).mock(
         return_value=httpx.Response(
             200, json={"choices": [{"message": {"content": '{"title": "ok"}'}}]}
         )
     )
-    llm = OpenAICompatLLM(api_key="k", model="m")
+    llm = OpenAICompatLLM(providers=PROVIDERS, model="m")
     out = llm.complete_json("hi", temperature=0.3, max_tokens=100)
     assert out == '{"title": "ok"}'
 
 
 @respx.mock
-def test_openai_compat_raises_on_http_error():
+def test_openai_compat_raises_on_http_error(monkeypatch):
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
     respx.post(URL).mock(return_value=httpx.Response(500))
-    llm = OpenAICompatLLM(api_key="k", model="m")
+    llm = OpenAICompatLLM(providers=PROVIDERS, model="m")
     with pytest.raises(httpx.HTTPStatusError):
         llm.complete_json("hi", temperature=0.3, max_tokens=100)
 
