@@ -29,7 +29,7 @@ from src.core.config import (
     load_scoring_config,
     load_selfcheck_config,
 )
-from src.core.types import CollectionConfig, InterpretConfig, RunContext
+from src.core.types import CollectionConfig, InterpretConfig, ProviderSpec, RunContext
 from src.notifiers import FakeNotifier
 from src.notifiers.telegram_polling import TelegramPollingNotifier
 from src.notifiers.website import WebsiteNotifier
@@ -55,7 +55,7 @@ def _make_llm(icfg: InterpretConfig) -> OpenAICompatLLM:
         primary = icfg.model
         fallbacks = icfg.fallback_models
     return OpenAICompatLLM(
-        api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
+        providers=icfg.providers,
         model=primary,
         timeout_s=icfg.timeout_s,
         fallback_models=fallbacks,
@@ -210,8 +210,16 @@ def run_dry_selfcheck(
 
     sccfg = load_selfcheck_config("config/selfcheck.yaml")
     # critic runs on its own (cheaper) model per config; not the interpret LLM
+    # SelfCheckConfig has no `providers` field yet — bridge with a modelscope-only dict
+    # (temporary; SelfCheck can migrate to full providers config later).
+    _selfcheck_providers = {
+        "modelscope": ProviderSpec(
+            base_url="https://api-inference.modelscope.cn/v1/chat/completions",
+            api_key_env="MODELSCOPE_API_KEY",
+        )
+    }
     critic_llm = OpenAICompatLLM(
-        api_key=os.environ.get("MODELSCOPE_API_KEY", ""),
+        providers=_selfcheck_providers,
         model=sccfg.model,
         timeout_s=sccfg.timeout_s,
         fallback_models=sccfg.fallback_models,
