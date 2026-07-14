@@ -3,6 +3,7 @@
 > 方法：13 个仓库逐个 `git clone --depth 1` 下来**实读源码**（README + 入口 + 取源/总结/发布模块），不依赖 DeepWiki 摘要（代码是 ground truth）。
 > 日期：2026-06-24。所有结论标注了代码依据；无法从代码确定的标了"据 README/docs"。
 > **`imjuya/juya-ai-daily` 无法访问（GitHub API 返回 404，仓库不存在/已删/改名）——本文不含该项。** 其余 12 个全部分析。
+> **2026-07-14 补充**：`alphasignal.ai` 是闭源商业产品，无法 clone，第 13 项标注为「网站观察」而非代码依据，见 §12b。
 
 ---
 
@@ -22,6 +23,7 @@
 | 10 | kevinho/clawfeed | SaaS 化多频率简报（4H/日/周/月） | 多源 | Node/TS |
 | 11 | LearnPrompt/ai-news-radar | 源策略优先 + 健康度 + 故事线合并 | 多源 | Python+Agent Skill |
 | 12 | The-Swarm/NewsAgent | swarms 多智能体 over NewsAPI（通用新闻） | 单源(NewsAPI) | Python/swarms |
+| 13 | alphasignal.ai | 闭源商业日报，编辑精选+一句话强总结+互动量排序 | 多源(编辑) | 闭源(网站观察) |
 
 ---
 
@@ -290,6 +292,17 @@ flowchart LR
 
 ---
 
+## 12b. alphasignal.ai（闭源，商业产品，仅网站观察）
+
+**无公开源码，不可 clone 实读**——以下基于 2026-07-14 网站实访（[alphasignal.ai](https://alphasignal.ai)）观察，非代码依据。
+
+- **格式**：每条 = 一句话强总结标题（"Anthropic's Claude for Teachers Brings Free AI to 3.5M US Classrooms"——**事实+数字+影响，一句话讲完**，不留原文摘录）+ 来源标签（PERPLEXITY/ANTHROPIC 等）+ 分类 tag（DEVELOPMENT/POST_TRAINING/BUSINESS…）+ 相对时间 + 互动量数字（阅读/点赞类，14,504 到几百不等，疑似排序/热度信号）。
+- **产品思路**：编辑精选日报站 + 社区排行榜(Leaderboard) + Editorial 专栏，付费订阅制邮件为主，网站是免费预览层。
+- **和我们的关系（这次为什么值得看）**：**它的标题格式正是我们当前的痛点对照组**——我们 `github_releases` 条目退化到原始英文 markdown 被截断时，AlphaSignal 展示的是"人工/LLM 精炼过的单句事实型标题"，零截断、零原文残留。**验证了"发布类噪声要靠摘要质量而非只靠打分/去重"这个方向是对的**，可作为 Paper+Releases 降噪任务的标题风格参照物。
+- **不可借鉴**：闭源看不到去重/排序具体实现；互动量可能来自专属付费社区，无法复现。
+
+---
+
 ## 13. 总对比表
 
 | 项目 | 核心逻辑 | 底层框架 | 产品思路 | 设计模式 | 独特优势 | 要避免的缺点 |
@@ -306,6 +319,7 @@ flowchart LR
 | clawfeed | 多源(含本人Twitter)→多频简报 | Node/TS SaaS | SaaS+源包生态 | 源插件+多频+深挖 | **4H高频/本人Twitter会话/SourcePacks** | 不可托管/闭源 |
 | ai-news-radar | OPML→相关性审计→故事线 | Python+Agent Skill | **源策略优先(理念最近)** | 相关性/健康/故事线合并 | **源健康+故事线合并** | 回避原始X(二手) |
 | NewsAgent | NewsAPI→swarms 多智能体 | Python/swarms | 企业新闻Agent框架 | 多智能体+工具 | 多智能体可扩展 | 非AI垂直/付费API |
+| alphasignal.ai | 编辑精选+一句话强总结（网站观察，非代码） | 闭源 | 付费编辑日报+社区 | 单句事实标题+互动量排序 | **零截断/零原文残留的标题风格** | 闭源不可复现去重/排序 |
 
 ---
 
