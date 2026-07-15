@@ -15,13 +15,17 @@
 
 **D. `hf-papers` 没有硬下限。** `SourceSpec.min_score` 字段已存在且 `hn.py` 已用它过滤低分 HN 条目；`hf_papers.py` 抓到 `upvotes` 信号但从不检查 `min_score`, 只靠 `scoring.yaml` 里 `popularity_weights.upvotes: 0.6` 的连续加权, 低质量论文仍能进候选池。`docs/recent-papers.md` 实测样本显示单日 upvotes 尾部低到 20 左右, 头部 60-185, 用作硬下限过滤"几乎无人关注"的论文足够, 不会误伤头部。
 
+**E.（用户追加需求）GitHub 内容没有整体条数封顶, 会挤占真实官方公告的名额。** `github_releases` 全部映射到 `genre: announcement`（`config/sources.yaml`），和 OpenAI/Anthropic 等真官方博客共用 `quota.announcement: 3` 这一个桶；`github_trending` 映射到 `genre: writeup`，和其他博客源共用 `quota.writeup: 2`。genre 配额只管总数, 不区分"来自 GitHub 的自动化 release 通知"和"公司官方一手公告"——理论上 3 个 announcement 名额可以被 3 条无关紧要的 release 占满, 真正的官方公告反而落选。**注**：`hf-papers` 论文数其实已经被 `quota.paper: 3` 兜底, 这条不是新问题, 用户确认后核实清楚。
+
 ## 目标 / 验收
 
 1. `github_releases` 条目命中 `extractive_fallback` 的比例下降（不定死具体值, 用 §7 metrics `fallback_breakdown` 按 genre 观察 —— 若需要 metrics 支持按 genre 拆分, 顺手加）。
 2. 即使命中 fallback, 输出不再在版本号/缩写中间截断。
 3. `prerelease=true` 的 release 不再出现在候选池（同仓库同日 canary 刷屏问题随之解决, 不需要额外的跨条目去重逻辑）。
 4. `hf-papers` 低于阈值的论文不进候选池, 头部论文（近 5 天样本 top 2 均 ≥60）不受影响。
-5. 三个改动各自独立可关（config 开关 / 阈值可调）, 互不耦合, 符合"一次一个模块"但按用户要求一个 PR 交付, 分 commit 验收。
+5. 每日最终刊物里 `github_trending` 来源条目 ≤1、`github_releases` 来源条目 ≤2, 不占用真实公司公告的 `announcement` 配额名额。
+6. 四个改动各自独立可关（config 开关 / 阈值可调）, 互不耦合, 符合"一次一个模块"但按用户要求一个 PR 交付, 分 commit 验收。
+7. **明确不做**（用户已确认"后面再说"）: 超出配额的 GitHub 内容/论文顺延到第二天。本圈只是"砍掉", 不做跨天队列。
 
 ## 设计
 
@@ -100,6 +104,48 @@ async def fetch(self, source: SourceSpec, ctx: RunContext, timeout_s: int) -> li
 ```
 `min_score: 15` 依据 `docs/recent-papers.md` 5 天样本尾部分布定, 留 config 注释写明依据和调整方式, 不锁死。
 
+### §5 GitHub 内容整体封顶（`github_releases` ≤2, `github_trending` ≤1）
+
+**为什么不能直接复用 genre 配额**：genre 配额（`quota.announcement`/`quota.writeup`）按 `item.genre` 分组, 而 `genre` 是"内容类型"（公告/博客）不是"来源渠道"（GitHub 自动生成 vs 人工写的公司公告）。需要一个新的分组键。
+
+**方案：给 `RawItem` 加 `adapter` 字段, 在 collect.py 单点回填, 复用现有 quota 的分组+截断模式。**
+
+`src/core/types.py::RawItem` 加字段:
+```python
+adapter: str | None = None  # 回填自 SourceSpec.adapter, 供下游按"采集渠道"分组(如 GitHub 封顶)
+```
+`NewsItem`/`ScoredItem`/`InterpretedItem` 均继承 `RawItem`, 且下游构造都用 `**item.model_dump()` 展开（`dedup.py::NewsItem(...)`、`interpret.py::build_ok_item`/`extractive_fallback`), 新字段自动透传, **不需要改 dedup.py / interpret.py 的构造调用**。
+
+唯一回填点, `src/pipeline/collect.py`（`fetch_source` 里 `adapter.fetch(...)` 调用之后, `window_hours`/`max_items` 过滤之前均可, 选在过滤前）:
+```python
+items = await asyncio.wait_for(adapter.fetch(source, ctx, config.timeout_s), timeout=config.timeout_s)
+items = [it.model_copy(update={"adapter": source.adapter}) for it in items]
+```
+
+`config/publish.yaml` 新增:
+```yaml
+adapter_quota: {github_releases: 2, github_trending: 1}   # 按采集渠道封顶, 不占用 genre 配额名额
+```
+
+`src/pipeline/score.py` 新增纯函数, 与 `apply_quota` 同构（分组 → 按 `(score desc, published_at, link)` 排序 → 截断）, 只是分组键从 `genre` 换成 `adapter`, 且**未在 `adapter_quota` 里出现的 adapter 不受限**:
+```python
+def apply_adapter_quota(
+    scored: list[ScoredItem], adapter_quota: dict[str, int]
+) -> tuple[list[ScoredItem], dict[str, QuotaLine]]:
+    """按 item.adapter 分组截断(spec §5)。adapter_quota 里没写的 adapter 不过滤。"""
+    if not adapter_quota:
+        return scored, {}
+    ...  # 与 apply_quota 同套排序/截断逻辑, 分组键换成 (it.adapter or "")
+```
+
+`src/pipeline/publish.py::render`（现有 `apply_quota` 调用处）**先跑 adapter 封顶再跑 genre 配额**——GitHub 超额条目先被砍掉, 让 genre 配额的剩余名额优先留给非 GitHub 的公告/博客:
+```python
+items, _ = apply_adapter_quota(items, config.adapter_quota)
+items, _ = apply_quota(items, config.quota, config.total_limit)
+```
+
+**范围声明**：本节只覆盖"当天配额封顶"（直接砍掉超额条目）。**跨天顺延**（用户已说明"后面再说"）不在本 spec 内, 需要持久化"待发布队列"这类新状态, 属于另一个模块, 留给下一轮单独 brainstorm。
+
 ## 替代方案（拒）
 
 | 方案 | 拒因 |
@@ -109,14 +155,19 @@ async def fetch(self, source: SourceSpec, ctx: RunContext, timeout_s: int) -> li
 | 加"同仓库同日去重"规则（跨条目逻辑） | `prerelease` 过滤已解决实测的具体案例; 无证据证明还有别的重复模式, YAGNI, 等以后真遇到再加 |
 | `hf-papers` 用相对排名过滤（"每日 top N 才留"）而非绝对 `min_score` | quota 层（`score.py::apply_quota`）已经做 top-N 截断; adapter 层的 `min_score` 是**候选池噪声地板**, 二者不冲突, 相对排名放 quota 更合适, 不重复造 |
 | `min_score` 阈值定更高（如 30）"更保险" | 会误伤头部尾巴的正常论文（样本里 top-2 之外仍有 20-40 分的合理候选）, 15 是尾部噪声和正常论文的粗略分界, 先上线用 metrics 观察再调 |
+| GitHub 封顶做成"同 repo 每天只留 1 条"或"当天只允许 1 个 repo 出现" | 用户明确选了"整体 GitHub 内容封顶"（1 个 trending + 2 个 releases, 不限定 repo）, 不是同 repo 去重, 见 §5 |
+| GitHub 封顶复用 genre 配额（把 `github_releases`/`github_trending` 拆成独立 genre） | 改 `Genre` 枚举牵动 `genre_value`/`genre_labels`/渲染分组等一堆下游, 违反"外科手术式改动"; 加 `adapter` 字段是纯新增, 不影响任何现有分组逻辑 |
+| GitHub 封顶在 adapter fetch 阶段就砍（类似 `max_items`） | fetch 阶段还不知道最终 `score`, 无法"留分数最高的 2 条"; 必须在打分之后、genre 配额之前做, 见 §5 排序方式 |
+| 本圈顺手做"超额顺延到第二天" | 用户明确说"这个后面再说", 需要新的持久化状态(待发布队列), 是另一个模块, 强行塞进本 spec 违反"一次一个模块" |
 
-## 实施顺序（3 commit, 单 PR, 用户已确认一次性做完）
+## 实施顺序（4 commit, 单 PR, 用户已确认一次性做完）
 
 | # | 内容 | 验证 |
 |---|---|---|
 | **C1** | `_trim_to_sentence` 句末判定修 bug（§2）+ 单元测试（版本号/缩写场景不再中间截断, 中英文标点场景不回归） | pytest 全绿 |
 | **C2** | `InterpretConfig.raw_summary_max_chars` + `build_item_prompt` 截断（§1）+ 单元测试（超长 raw_summary 被截, 短的不变） | pytest 全绿 |
 | **C3** | `github_releases.py` 过滤 `prerelease`（§3）+ `hf_papers.py` 加 `min_score`（§4）+ `config/sources.yaml` 设 `min_score: 15` + 两个 adapter 的 contract test | pytest 全绿 + dry-run smoke 对比过滤前后候选数 |
+| **C4** | `RawItem.adapter` 字段 + `collect.py` 单点回填（§5）+ `apply_adapter_quota` 纯函数 + `config/publish.yaml` 加 `adapter_quota` + `publish.py` 接入（先 adapter 封顶再 genre 配额）+ 单元/contract 测试 | pytest 全绿 + dry-run smoke 确认最终刊物 github_releases≤2/github_trending≤1 |
 
 ## 测试矩阵
 
@@ -127,7 +178,10 @@ async def fetch(self, source: SourceSpec, ctx: RunContext, timeout_s: int) -> li
 | `build_item_prompt` | `raw_summary` 超 `raw_summary_max_chars` → 被截; 短的原样保留 | 单元 |
 | `GithubReleasesAdapter.fetch` | mock 响应含 `prerelease=true` 条目 → 不出现在结果里；`prerelease=false` 正常收录 | contract |
 | `HFPapersAdapter.fetch` | mock 响应含 `upvotes` 低于 `source.min_score` → 过滤；`min_score=None` → 不过滤（向后兼容） | contract |
-| e2e | `--dry-run` 对比改动前后同一份历史 payload 的候选数 + fallback 条数变化 | integration/手验 |
+| `collect.py::fetch_source` | 返回的 `RawItem.adapter` 等于 `source.adapter` | 单元 |
+| `apply_adapter_quota` | 3 条 `github_releases` 按 score 截到 2 条(留分高的 2 条)；`adapter_quota` 里没写的 adapter(如 `rss`)不受限；空 `adapter_quota` 原样返回 | 单元 |
+| `publish.py::render` | adapter 封顶 + genre 配额组合: GitHub 超额条目被砍后, genre 配额剩余名额被非 GitHub 条目填满(若供给充足) | golden |
+| e2e | `--dry-run` 对比改动前后同一份历史 payload 的候选数 + fallback 条数变化 + 最终刊物里 github_releases/github_trending 各自条数 | integration/手验 |
 
 ## 不做（YAGNI）
 
@@ -136,6 +190,8 @@ async def fetch(self, source: SourceSpec, ctx: RunContext, timeout_s: int) -> li
 - release note 关键词打分（"breaking/new model/benchmark"）——同上, 证据不足以证明 `prerelease` 过滤后仍有明显噪声剩余
 - `hf-papers` 话题相关性打分（KANBAN 提过的备选）——`min_score` 更简单且复用现成模式, 先上线看效果, 不够再加
 - 按 genre 拆分 `fallback_breakdown` metrics（§目标验收提到"顺手加"但非本 spec 核心, 若 C1-C3 验证不够用再补）
+- **GitHub/论文超额顺延到第二天**（用户已明确"后面再说"）——需要跨 run 持久化"待发布队列" + 判断"是否仍有时效性"的规则, 是独立模块, 下一轮单独 brainstorm
+- `adapter_quota` 支持除 `github_releases`/`github_trending` 外的其他 adapter——机制通用, 但目前只有 GitHub 系有这个问题(公告/writeup 里唯一同时有"自动化源"和"人工源"混装的情况), 其他 adapter 需要时再加配置行, 不用预先写
 
 ## 关联
 
