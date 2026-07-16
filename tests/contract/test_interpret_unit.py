@@ -241,6 +241,24 @@ def test_trim_to_sentence_cuts_at_punctuation():
     assert _trim_to_sentence("没有标点的很长一段文字内容", 5) == "没有标点…"
 
 
+def test_trim_to_sentence_does_not_cut_mid_version_number():
+    from src.pipeline.interpret import _trim_to_sentence
+
+    text = "Based on changes since v2.2.11-canary.3, this release adds streaming support for chat."
+    # window of 40 chars lands right after "v2.2.11-canary." with the old bug
+    out = _trim_to_sentence(text, 40)
+    assert not out.endswith("canary.")
+    assert out == text[:39] + "…"  # no real sentence end in window -> hard cut + ellipsis
+
+
+def test_trim_to_sentence_dot_followed_by_space_still_counts():
+    from src.pipeline.interpret import _trim_to_sentence
+
+    text = "First sentence. Second sentence is much longer than the limit here."
+    out = _trim_to_sentence(text, 20)
+    assert out == "First sentence."  # "." followed by space still a valid cut point
+
+
 def test_build_ok_item_reads_relevant_and_defaults_true():
     from src.core.types import InterpretConfig
     from src.pipeline.interpret import build_ok_item

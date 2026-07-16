@@ -56,15 +56,20 @@ def _filter_evidence(raw_evidence, item: ScoredItem) -> list[Evidence]:
     return out
 
 
-_SENT_ENDS = "。！？!?；;."
+_SENT_ENDS = "。！？!?；;"
 
 
 def _trim_to_sentence(text: str, n: int) -> str:
-    """超长则截到上限内最后一个句末标点(含); 无标点则硬切 + 省略号。"""
+    """超长则截到上限内最后一个句末标点(含); 无标点则硬切 + 省略号。
+    "." 只在其后紧跟空白或就是窗口末尾时才算句末, 避开版本号(v2.2.11-canary.3)/缩写(e.g.)。"""
     if len(text) <= n:
         return text
     window = text[:n]
-    cut = max((window.rfind(ch) for ch in _SENT_ENDS), default=-1)
+    dot_cut = -1
+    for i, ch in enumerate(window):
+        if ch == "." and (i + 1 == len(window) or window[i + 1].isspace()):
+            dot_cut = i
+    cut = max([window.rfind(ch) for ch in _SENT_ENDS] + [dot_cut], default=-1)
     if cut >= 0:
         return window[: cut + 1]
     return text[: n - 1] + "…"
