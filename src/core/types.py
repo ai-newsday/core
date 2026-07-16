@@ -240,6 +240,7 @@ class InterpretConfig:
     timeout_s: int = 60
     title_max_chars: int = 64
     body_max_chars: int = 240
+    raw_summary_max_chars: int = 1500  # 防任意 adapter 的超长 raw_summary 撑爆 prompt
     tags_count: int = 3
     min_evidence: int = 1
     item_prompt_path: str = "src/prompts/interpret_item.md"

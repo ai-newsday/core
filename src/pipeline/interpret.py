@@ -14,17 +14,21 @@ from src.core.types import (
 from src.observability.events import emit
 
 
-def build_item_prompt(item: ScoredItem, template: str) -> str:
+def build_item_prompt(item: ScoredItem, template: str, config: InterpretConfig) -> str:
     """Render the per-item prompt by substituting {{name}} placeholders.
-    Double-brace placeholders avoid clashing with JSON braces in the template."""
+    Double-brace placeholders avoid clashing with JSON braces in the template.
+    raw_summary is capped at config.raw_summary_max_chars so an oversized
+    changelog/release body can't blow the LLM's prompt budget and force a
+    fallback (spec §1)."""
     related = "\n".join(item.related_links)
+    raw_summary = _trim_to_sentence(item.raw_summary or "", config.raw_summary_max_chars)
     repl = {
         "{{title_en}}": item.title_en,
         "{{source}}": item.source,
         "{{genre}}": item.genre.value,
         "{{link}}": item.link,
         "{{related_links}}": related,
-        "{{raw_summary}}": item.raw_summary or "",
+        "{{raw_summary}}": raw_summary,
     }
     out = template
     for k, v in repl.items():
@@ -130,7 +134,7 @@ def interpret_item(
         parsed_holder["parsed"] = parse_and_validate(raw)
 
     try:
-        prompt = build_item_prompt(item, item_template)
+        prompt = build_item_prompt(item, item_template, config)
         llm.complete_json(
             prompt,
             temperature=config.temperature,

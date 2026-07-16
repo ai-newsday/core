@@ -95,6 +95,7 @@ def load_interpret_config(path: str) -> InterpretConfig:
         timeout_s=data.get("timeout_s", d.timeout_s),
         title_max_chars=data.get("title_max_chars", d.title_max_chars),
         body_max_chars=data.get("body_max_chars", d.body_max_chars),
+        raw_summary_max_chars=data.get("raw_summary_max_chars", d.raw_summary_max_chars),
         tags_count=data.get("tags_count", d.tags_count),
         min_evidence=data.get("min_evidence", d.min_evidence),
         item_prompt_path=data.get("item_prompt_path", d.item_prompt_path),

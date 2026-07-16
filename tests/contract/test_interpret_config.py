@@ -53,3 +53,15 @@ def test_interpreted_item_uses_body_not_old_fields():
     assert "summary" not in fields
     assert "takeaway" not in fields
     assert "hot_take" not in fields
+
+
+def test_interpret_config_has_raw_summary_max_chars_default():
+    c = load_interpret_config("does/not/exist.yaml")
+    assert c.raw_summary_max_chars == 1500
+
+
+def test_interpret_config_loads_raw_summary_max_chars_override(tmp_path):
+    p = tmp_path / "interpret.yaml"
+    p.write_text("raw_summary_max_chars: 800\n", encoding="utf-8")
+    c = load_interpret_config(str(p))
+    assert c.raw_summary_max_chars == 800
