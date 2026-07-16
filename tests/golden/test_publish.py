@@ -230,7 +230,7 @@ def test_build_report_adapter_quota_applies_before_genre_quota():
     """采集渠道封顶(spec §5) 在 genre 配额之前生效: github_releases 超额条目先被砍掉,
     腾出的 genre 名额优先给非 GitHub 条目, 而不是被同 adapter 的次优条目占用。"""
     cfg = PublishConfig(
-        quota={"announcement": 3},
+        quota={"announcement": 2},
         total_limit=99,
         adapter_quota={"github_releases": 1},
     )
