@@ -40,6 +40,25 @@ def _release(
 
 
 @respx.mock
+async def test_releases_skips_prerelease():
+    releases = [
+        {**_release(tag="v0.3.40"), "prerelease": False},
+        {
+            **_release(
+                tag="v0.3.41-canary.1",
+                url="https://github.com/comfyanonymous/ComfyUI/releases/tag/v0.3.41-canary.1",
+            ),
+            "prerelease": True,
+        },
+    ]
+    respx.get(_RELEASES).mock(return_value=httpx.Response(200, json=releases))
+    respx.get(_REPO).mock(return_value=httpx.Response(200, json={"stargazers_count": 65000}))
+    items = await GithubReleasesAdapter().fetch(_spec(), _ctx(), timeout_s=15)
+    assert len(items) == 1
+    assert items[0].title_en == "comfyui v0.3.40"
+
+
+@respx.mock
 async def test_releases_maps_fields_and_star_signal():
     respx.get(_RELEASES).mock(return_value=httpx.Response(200, json=[_release()]))
     respx.get(_REPO).mock(return_value=httpx.Response(200, json={"stargazers_count": 65000}))

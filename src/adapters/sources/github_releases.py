@@ -30,6 +30,8 @@ class GithubReleasesAdapter:
         signals = {"github_stars": stars} if stars is not None else {}
         items: list[RawItem] = []
         for r in releases:
+            if r.get("prerelease"):
+                continue
             published = r.get("published_at")
             tag = r.get("tag_name")
             html_url = r.get("html_url")
