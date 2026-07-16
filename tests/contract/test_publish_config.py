@@ -42,3 +42,15 @@ def test_publish_quota_total_limit_and_floor(tmp_path):
     c = load_publish_config(str(p))
     assert c.total_limit == 5
     assert c.quota == {"paper": 1, "model": 1}
+
+
+def test_load_publish_config_adapter_quota_default_empty():
+    cfg = load_publish_config("does/not/exist.yaml")
+    assert cfg.adapter_quota == {}
+
+
+def test_load_publish_config_adapter_quota_override(tmp_path):
+    p = tmp_path / "publish.yaml"
+    p.write_text("adapter_quota: {github_releases: 2, github_trending: 1}\n", encoding="utf-8")
+    cfg = load_publish_config(str(p))
+    assert cfg.adapter_quota == {"github_releases": 2, "github_trending": 1}

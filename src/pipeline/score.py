@@ -175,6 +175,36 @@ def apply_quota(
     return selected, report
 
 
+def apply_adapter_quota(
+    scored: list[ScoredItem], adapter_quota: dict[str, int]
+) -> tuple[list[ScoredItem], dict[str, QuotaLine]]:
+    """按 item.adapter 分组截断(spec §5), 与 apply_quota 同构但分组键是采集渠道不是内容类型。
+    adapter_quota 里没写的 adapter 完全不受限(通过型)。空 adapter_quota -> 原样返回。"""
+    if not adapter_quota:
+        return scored, {}
+
+    by_adapter: dict[str, list[ScoredItem]] = defaultdict(list)
+    passthrough: list[ScoredItem] = []
+    for s in scored:
+        key = s.adapter or ""
+        if key in adapter_quota:
+            by_adapter[key].append(s)
+        else:
+            passthrough.append(s)
+
+    selected: list[ScoredItem] = list(passthrough)
+    report: dict[str, QuotaLine] = {}
+    for a, group in by_adapter.items():
+        group_sorted = sorted(group, key=lambda s: (-s.score, s.published_at, s.link))
+        q = adapter_quota.get(a, 0)
+        take = group_sorted[:q]
+        selected.extend(take)
+        report[a] = QuotaLine(genre=a, available=len(group), quota=q, selected=len(take))
+
+    selected.sort(key=lambda s: (-s.score, s.published_at, s.link))
+    return selected, report
+
+
 def score(
     items: list[NewsItem],
     config: ScoringConfig,

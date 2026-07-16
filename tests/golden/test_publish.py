@@ -226,6 +226,31 @@ def test_build_report_respects_total_limit():
     assert rep.item_count == 2
 
 
+def test_build_report_adapter_quota_applies_before_genre_quota():
+    """采集渠道封顶(spec §5) 在 genre 配额之前生效: github_releases 超额条目先被砍掉,
+    腾出的 genre 名额优先给非 GitHub 条目, 而不是被同 adapter 的次优条目占用。"""
+    cfg = PublishConfig(
+        quota={"announcement": 3},
+        total_limit=99,
+        adapter_quota={"github_releases": 1},
+    )
+    items = [
+        _ri(link="https://gh/1", genre=Genre.announcement, score=90).model_copy(
+            update={"adapter": "github_releases"}
+        ),
+        _ri(link="https://gh/2", genre=Genre.announcement, score=85).model_copy(
+            update={"adapter": "github_releases"}
+        ),
+        _ri(link="https://openai/1", genre=Genre.announcement, score=70).model_copy(
+            update={"adapter": "rss"}
+        ),
+    ]
+    report = build_report(_rr(items), "2026-07-14", cfg)
+    links = {it.link for sec in report.categories for it in sec.items}
+    # github_releases capped to 1 (highest-scored: gh/1) -> frees a genre slot for the rss item
+    assert links == {"https://gh/1", "https://openai/1"}
+
+
 def test_render_markdown_full():
     items = [
         _ri(
