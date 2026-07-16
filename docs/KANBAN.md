@@ -2,7 +2,7 @@
 
 > 唯一任务看板 + 进度表（合并自旧 `ROADMAP.md`）。源头意图见 `docs/intent/`，每层契约见 `docs/specs/`。
 > 约定:一次一个子项目、小 PR、issue-per-PR、从真实 `origin/master` 起有意义分支名。
-> 最后更新:2026-07-01。
+> 最后更新:2026-07-16。
 
 ---
 
@@ -25,9 +25,7 @@
 
 ## 2. 🔴 Blocked / 待决策
 
-| ✓ | 任务 | 状态 | 详情 |
-|---|---|---|---|
-| ☐ | **Reddit 源生产被 IP 封死** | 🔴 待决策 | 2026-06-19 真实 cron(run `27805287782`)证实 `old.reddit.com/r/*` 在 GitHub Actions 出口 IP 整段 `403 Blocked`(反爬黑名单,非 UA)。本地能跑(51 条带 upvotes),**生产 yield=0**。#20 在生产里目前≈没做。方案:(a)加代理/换出口 IP;(b)换数据源(reddit OAuth/镜像/pushshift);(c)砍掉源回退到 enrich 贴 `hn_points`。**用户决定:先记下不停工,推进 GitHub。** |
+（暂无。Reddit 生产 403 已由 #55 换 `.rss` 端点解决,见 §5。）
 
 ---
 
@@ -35,15 +33,12 @@
 
 > **M1(人审闭环+可见链)与 M2(文风/版式/配额/过滤)已全部 SHIPPED**(见 §5)。pipeline 上线,每日 **09:00 北京(01:00 UTC `finalize.yml`)** 自动出报,Pages 部署,live **https://ai-newsday.github.io/core/**。
 
-> **竞品/BRD 分析见 `docs/competitive-analysis-ai-news.md`**(2026-06-24,12 个开源 AI 日报项目实读对比)。以下 P0 直接来自该分析的结论。
+> **竞品/BRD 分析见 `docs/competitive-analysis-ai-news.md`**(2026-06-24,12 个开源 AI 日报项目实读对比 + 2026-07-14 补充 alphasignal.ai)。该分析结论出的 5 条 P0 已**全部 SHIPPED**(放宽发卡池 #49、翻译失效根治 #60、metrics dashboard #59/#60、Reddit 生产 403 由 #55 `.rss` 方案解决、主动降噪 #61),见 §5。
+
+> **2026-07-16 量级分析**:实测 juya 竞品单期 22 条 vs 我们单期 6-7 条,差距的主因不是"没做完上面的 P0",而是 (a) 人审确认门是有意的架构选择(零幻觉换量级) (b) genre 覆盖窄——候选池里 `writeup` 类条目分数普遍 17-27 分,过不了 `min_display_score:40` 地板,不是没候选是候选质量不够 (c) 我们完全没有融资/政策/硬件类一手信号源,juya 的"行业动态/产品应用/前瞻与传闻"3 类我们的 genre 体系里没有对应桶。**是否要扩量是产品方向决策,不是纯技术任务,下面暂不立对应任务项,等用户定调。**
 
 | ✓ | 优先 | 任务 | 详情 |
 |---|---|---|---|
-| ☐ | **P0** | **放宽发卡池(解耦 可审候选 vs 发布 top-N)** | **根因**:`--tick collect` 在发卡前就 `score→quota` 砍到 top-11(`interpret(sres.selected_items)`),Telegram 只发这 11 条 → 低信号但重要的发布(如 **Krea-2**,来自 comfy priority-3 writeup 零信号)**到不了人眼前,无从 keep**。修:发卡阶段放宽(发 relevant 的 top-N 更大,或不在发卡前砍配额),最终刊物仍由 `total_limit` 控。**最高优先,直接解"只发 11 条没得选"。** |
-| ☐ | **P0** | **翻译失效根治** | 用户直接痛点: post 出来仍有条目全英文 = `extractive_fallback` 触发但无治根。现状: PR #54 只贴 ⚠️ 徽章, 无 fallback_rate 遥测, 无 prompt 迭代, 无 retry。要做: (1) 落 fallback_rate 到 metrics; (2) 抓 fallback 样本, 定位是 LLM (Haiku) 拒答/超时/解 JSON 失败哪种; (3) 对症: 换 Sonnet 备胎/加 1 次 retry/收紧 prompt。**用户投诉集中来源之一。** |
-| ☐ | **P0** | **主动降噪·Paper + GitHub Releases 重要性** | 用户明说主噪声源 = **Paper + Releases**。**设计已定稿**: `docs/superpowers/specs/2026-07-14-paper-release-noise-reduction-design.md`——根因是 `raw_summary` 无上限撑爆 LLM prompt 触发 fallback(原始英文残片)、`github_releases` 丢弃 `prerelease` 信号、`hf-papers` 无 `min_score` 门槛;另加 GitHub 内容整体封顶(releases≤2/trending≤1, 不挤占真实公告配额)。**待写实施计划 + 编码**。 |
-| ☐ | **P0** | **Reddit 换 PRAW 官方 OAuth** | 现 old.reddit HTML 抓取在 prod 403、yield=0。竞品 `reddit-ai-trends` 用 `praw`(client_id/secret)走官方 API**不吃 403**。换之,拿回 Reddit 信号。**现成解。**(替代旧 §2 的"代理/换源/砍"三选一。) |
-| ☐ | **P0** | **产品质量 metrics dashboard (元任务)** | 上面 3 条 P0 治了没治好, 现在**没数据说话**, 只能靠肉眼看 keep/drop。落每日: 候选数 / 合格数 / fallback_rate / dedup 撞击率 / keep-drop 比 / 各 source yield。**必须先落**才能量化其他 P0 的效果。轻量,复用现有 `source_reports` + `0X_*.jsonl` + `quota_applied`。 |
 | ☐ | **P1** | **扩源探活 + 死源 legacy 化** | 用户明说加源**必须先测过稳定提供 AI News**。做: (a) 探活脚本 = 该源近 30d yield 是否 >0 且 AI 相关性 > 阈值; (b) 加源门槛: 探活通过才 status=working, 否则 manual; (c) 长期 403 / manual 未维护的自动挂 legacy (从 registry 隐藏但保留历史)。**当前 22 死源 (gwern/garymarcus 等 substack 403) 手动挂 manual, 应自动化。** 自动发现新 KOL/repo/subreddit 延后到 P2 (等 metrics 上线才能量化"有用"vs"噪声")。 |
 | ☐ | **P1** | 故事线合并(其余部分) | 相同事件多源聚合成时间线; Paper/Releases 部分已上升 P0, 剩余"多家媒体报同一新闻不同措辞"归此。竞品 `ai-news-radar` 参考。 |
 | ⚠ | ~~P1~~ | ~~评估 Folo cookie 读 X(首发信道)~~ | **改走浏览器 extension 路径** ([#57](https://github.com/ai-newsday/core/pull/57) 合并 + [#58](https://github.com/ai-newsday/core/pull/58) 待合 + [ai-newsday/x-extension](https://github.com/ai-newsday/x-extension) 已 ship + `ai-newsday/x-signals` 私仓已建). Folo 方案未采用. 手动 smoke pending (用户装 extension + 配 PAT + 建 4 个 X list). |
@@ -78,6 +73,11 @@
 
 | ✓ | 任务 | 详情 |
 |---|---|---|
+| ☑ | 主动降噪·Paper + GitHub Releases 重要性(#61) | `raw_summary` 无上限撑爆 prompt 触发 fallback 已修(`InterpretConfig.raw_summary_max_chars`);`github_releases` 过滤 `prerelease`;`hf-papers` 加 `min_score:15`;GitHub 内容整体封顶(releases≤2/trending≤1,不挤占公告配额)。`_trim_to_sentence` 版本号截断 bug 一并修。见 `docs/superpowers/specs/2026-07-14-paper-release-noise-reduction-design.md`。 |
+| ☑ | 产品质量 metrics dashboard(#59/#60) | 纯函数 funnel + rates、per_genre/per_source_top10/fallback_titles/trend_7d、matplotlib waterfall 图、TG photo 推送、`--tick metrics`。 |
+| ☑ | 翻译失效根治(#60) | 多 provider LLM 链(ModelScope 4 家 alive + 3 未探活 + Agnes 付费保险丝)、`complete_json` parse 失败即切下一模型、`fallback_reason` 遥测接入 metrics。 |
+| ☑ | Reddit 生产 403(#55) | 换 `old.reddit.com` HTML 抓取为 `.rss` 端点(数据中心 IP 不被封,但无 upvotes 信号),`config/sources.d/community.yaml` overlay。**未采用** PRAW OAuth 方案(`.rss` 更简单,现成解决)。 |
+| ☑ | 放宽发卡池(#49) | 解耦"可审候选池"(`card_pool_limit`)与"发布 top-N"(`total_limit`),让低分但重要的首发不再在发卡前被砍。 |
 | ☑ | 子项目 2:GitHub 源(releases+trending)(#36) | `github_releases`(comfyui/ollama/vllm)+`github_trending`(Search 保底+Trending 尽力)+`github_stars` 信号轴(ADR 0003 一致,不造 tool genre)。[PR #37](https://github.com/ai-newsday/core/pull/37)。**trending 出老 repo 修复**:注入 `created:>=now-180d` 只捞新建([PR #43](https://github.com/ai-newsday/core/pull/43),#42)。 |
 | ☑ | finalize 确认门(#38) | 未确认内容不进报告:`select_report_items` 只放显式 keep/edit。[PR #39](https://github.com/ai-newsday/core/pull/39)。 |
 | ☑ | finalize 跨天去重(#44) | `published_items` 表排除已在别 date_label 发过的条目(72h 窗口跨天复发)。[PR #45](https://github.com/ai-newsday/core/pull/45)。 |
