@@ -34,6 +34,9 @@ class RawItem(BaseModel):
     raw_summary: str | None = None
     image_url: str | None = None
     fetched_via: Literal["native", "firecrawl"] = "native"
+    adapter: str | None = (
+        None  # 回填自 SourceSpec.adapter, 供下游按"采集渠道"分组(如 GitHub 封顶, spec §5)
+    )
     # 源端原生量化信号 (popularity / quality), 后续层可读不可改。
     # 约定键: upvotes / num_comments / github_stars / likes / downloads / ai_keywords
     signals: dict[str, Any] = Field(default_factory=dict)
@@ -240,6 +243,7 @@ class InterpretConfig:
     timeout_s: int = 60
     title_max_chars: int = 64
     body_max_chars: int = 240
+    raw_summary_max_chars: int = 1500  # 防任意 adapter 的超长 raw_summary 撑爆 prompt
     tags_count: int = 3
     min_evidence: int = 1
     item_prompt_path: str = "src/prompts/interpret_item.md"
@@ -368,6 +372,9 @@ class PublishConfig:
             "news": "新闻",
         }
     )
+    adapter_quota: dict[str, int] = field(
+        default_factory=dict
+    )  # 按采集渠道封顶(spec §5), 不占用 genre 配额名额
 
 
 @dataclass

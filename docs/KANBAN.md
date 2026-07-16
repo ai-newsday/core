@@ -41,7 +41,7 @@
 |---|---|---|---|
 | ☐ | **P0** | **放宽发卡池(解耦 可审候选 vs 发布 top-N)** | **根因**:`--tick collect` 在发卡前就 `score→quota` 砍到 top-11(`interpret(sres.selected_items)`),Telegram 只发这 11 条 → 低信号但重要的发布(如 **Krea-2**,来自 comfy priority-3 writeup 零信号)**到不了人眼前,无从 keep**。修:发卡阶段放宽(发 relevant 的 top-N 更大,或不在发卡前砍配额),最终刊物仍由 `total_limit` 控。**最高优先,直接解"只发 11 条没得选"。** |
 | ☐ | **P0** | **翻译失效根治** | 用户直接痛点: post 出来仍有条目全英文 = `extractive_fallback` 触发但无治根。现状: PR #54 只贴 ⚠️ 徽章, 无 fallback_rate 遥测, 无 prompt 迭代, 无 retry。要做: (1) 落 fallback_rate 到 metrics; (2) 抓 fallback 样本, 定位是 LLM (Haiku) 拒答/超时/解 JSON 失败哪种; (3) 对症: 换 Sonnet 备胎/加 1 次 retry/收紧 prompt。**用户投诉集中来源之一。** |
-| ☐ | **P0** | **主动降噪·Paper + GitHub Releases 重要性** | 用户明说主噪声源 = **Paper + Releases**。Paper 已用 hf-papers upvotes 筛仍嫌多; **Releases 大部分是 bugfix/依赖升级不值得发**。要做: (a) Paper: 提高 upvotes 门槛 或加话题相关性打分; (b) Releases: LLM 判定"是否重要更新" (major.minor.patch 差 + release note 长度 + 关键词 "breaking/new model/benchmark"); 跨源同事件重述去重 (原 P1 故事线合并的 Paper/Releases 部分上升 P0)。 |
+| ☐ | **P0** | **主动降噪·Paper + GitHub Releases 重要性** | 用户明说主噪声源 = **Paper + Releases**。**设计已定稿**: `docs/superpowers/specs/2026-07-14-paper-release-noise-reduction-design.md`——根因是 `raw_summary` 无上限撑爆 LLM prompt 触发 fallback(原始英文残片)、`github_releases` 丢弃 `prerelease` 信号、`hf-papers` 无 `min_score` 门槛;另加 GitHub 内容整体封顶(releases≤2/trending≤1, 不挤占真实公告配额)。**待写实施计划 + 编码**。 |
 | ☐ | **P0** | **Reddit 换 PRAW 官方 OAuth** | 现 old.reddit HTML 抓取在 prod 403、yield=0。竞品 `reddit-ai-trends` 用 `praw`(client_id/secret)走官方 API**不吃 403**。换之,拿回 Reddit 信号。**现成解。**(替代旧 §2 的"代理/换源/砍"三选一。) |
 | ☐ | **P0** | **产品质量 metrics dashboard (元任务)** | 上面 3 条 P0 治了没治好, 现在**没数据说话**, 只能靠肉眼看 keep/drop。落每日: 候选数 / 合格数 / fallback_rate / dedup 撞击率 / keep-drop 比 / 各 source yield。**必须先落**才能量化其他 P0 的效果。轻量,复用现有 `source_reports` + `0X_*.jsonl` + `quota_applied`。 |
 | ☐ | **P1** | **扩源探活 + 死源 legacy 化** | 用户明说加源**必须先测过稳定提供 AI News**。做: (a) 探活脚本 = 该源近 30d yield 是否 >0 且 AI 相关性 > 阈值; (b) 加源门槛: 探活通过才 status=working, 否则 manual; (c) 长期 403 / manual 未维护的自动挂 legacy (从 registry 隐藏但保留历史)。**当前 22 死源 (gwern/garymarcus 等 substack 403) 手动挂 manual, 应自动化。** 自动发现新 KOL/repo/subreddit 延后到 P2 (等 metrics 上线才能量化"有用"vs"噪声")。 |
@@ -68,6 +68,7 @@
 | ☐ | 反馈→打分接线 | 中 | `quality_weight` 接回第 3 层评分;**先写 ADR** 说明信誉如何折进打分再动代码。 |
 | ☐ | 多渠道发布(P1) | 中 | 复用 `DailyReport` 加 RSS/公众号/网站 JSON 渲染器 + 真实推送 + 失败隔离。**门槛:源质量达标后**。 |
 | ☐ | 向量沉淀 / AI 编年史(P1) | 低 | Qdrant archive + 检索。长期资产。 |
+| ☐ | GitHub/论文超额顺延到第二天 | 低 | 源于 `2026-07-14-paper-release-noise-reduction-design.md` §5:当前设计对超出 `adapter_quota`(github_releases≤2/github_trending≤1)或 genre 配额的条目直接砍掉,不顺延。若被砍内容仍有时效性(如未过审的 release),应进入第二天候选池而非丢弃。需要跨天持久化"待发布队列"新状态,**用户已确认是独立模块,后面再说**,不塞进当前 spec。 |
 
 > 子项目 2 开放设计点:新 `tool` genre 的 `genre_value` 权重 + 配额槽(总配额 8 是否调整/挤占);repo `publisher` 如何承载 org 身份(GitHub `owner.type` → company/individual)。
 

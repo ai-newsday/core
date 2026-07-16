@@ -2,7 +2,13 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from src.core.types import Genre, NewsItem, RunContext, ScoringConfig
-from src.pipeline.score import _topic_relevance, apply_quota, compute_scores, recency_band
+from src.pipeline.score import (
+    _topic_relevance,
+    apply_adapter_quota,
+    apply_quota,
+    compute_scores,
+    recency_band,
+)
 from tests.fakes import DEFAULT_PUBLISHER
 
 NOW = datetime(2026, 5, 30, 12, tzinfo=timezone.utc)
@@ -192,6 +198,49 @@ def test_apply_quota_does_not_dedupe_same_source_within_genre():
     selected, report = apply_quota(scored, {"writeup": 2}, total_limit=99)
     assert report["writeup"].selected == 2
     assert {s.source for s in selected} == {"langchain"}  # both slots, same source
+
+
+def _scored_list_with_adapter(ctx, *specs):
+    # specs: (title, link, source, genre, published, adapter)
+    items = []
+    for title, link, source, genre, published, adapter in specs:
+        ni = _ni(title, link, source, genre, published)
+        items.append(ni.model_copy(update={"adapter": adapter}))
+    return compute_scores(items, {}, ScoringConfig(), ctx)
+
+
+def test_apply_adapter_quota_trims_to_cap_keeping_top_scored():
+    ctx = _ctx()
+    fresh = NOW
+    mid = NOW - timedelta(hours=36)
+    stale = NOW - timedelta(hours=100)
+    scored = _scored_list_with_adapter(
+        ctx,
+        ("r1", "https://gh/1", "s1", Genre.announcement, fresh, "github_releases"),
+        ("r2", "https://gh/2", "s2", Genre.announcement, mid, "github_releases"),
+        ("r3", "https://gh/3", "s3", Genre.announcement, stale, "github_releases"),
+    )
+    selected, report = apply_adapter_quota(scored, {"github_releases": 2})
+    assert report["github_releases"].available == 3
+    assert report["github_releases"].selected == 2
+    links = {s.link for s in selected}
+    assert links == {"https://gh/1", "https://gh/2"}  # stale (lowest score) dropped
+
+
+def test_apply_adapter_quota_ignores_unlisted_adapters():
+    ctx = _ctx()
+    scored = _scored_list_with_adapter(ctx, ("a", "https://a/1", "s1", Genre.writeup, NOW, "rss"))
+    selected, report = apply_adapter_quota(scored, {"github_releases": 2})
+    assert len(selected) == 1  # "rss" not in adapter_quota -> not filtered
+    assert "rss" not in report
+
+
+def test_apply_adapter_quota_empty_dict_returns_unchanged():
+    ctx = _ctx()
+    scored = _scored_list_with_adapter(ctx, ("a", "https://a/1", "s1", Genre.writeup, NOW, "rss"))
+    selected, report = apply_adapter_quota(scored, {})
+    assert selected == scored
+    assert report == {}
 
 
 # --- topic relevance tests ---

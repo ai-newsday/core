@@ -35,7 +35,7 @@ def _scored(**over):
 
 def test_build_item_prompt_substitutes_double_brace_placeholders():
     tpl = "T={{title_en}} L={{link}} R={{related_links}} S={{raw_summary}} ST={{genre}}"
-    out = build_item_prompt(_scored(), tpl)
+    out = build_item_prompt(_scored(), tpl, InterpretConfig())
     assert "T=GLM-5 released" in out
     assert "L=https://hf.co/glm5" in out
     assert "https://blog/glm5" in out
@@ -45,9 +45,20 @@ def test_build_item_prompt_substitutes_double_brace_placeholders():
 
 def test_build_item_prompt_handles_empty_summary_and_links():
     out = build_item_prompt(
-        _scored(raw_summary=None, related_links=[]), "S={{raw_summary}}|R={{related_links}}"
+        _scored(raw_summary=None, related_links=[]),
+        "S={{raw_summary}}|R={{related_links}}",
+        InterpretConfig(),
     )
     assert "S=|" in out
+
+
+def test_build_item_prompt_truncates_oversized_raw_summary():
+    long_summary = "A" * 5000
+    cfg = InterpretConfig(raw_summary_max_chars=100)
+    out = build_item_prompt(_scored(raw_summary=long_summary), "S={{raw_summary}}", cfg)
+    # "AAAA...A" has no sentence-end punctuation -> hard cut + ellipsis at n=100
+    assert out == "S=" + ("A" * 99) + "…"
+    assert len(out) < len(long_summary)
 
 
 def test_parse_and_validate_ok():
@@ -239,6 +250,24 @@ def test_trim_to_sentence_cuts_at_punctuation():
     assert _trim_to_sentence("第一句。第二句很长很长很长。", 6) == "第一句。"
     assert _trim_to_sentence("短句。", 50) == "短句。"
     assert _trim_to_sentence("没有标点的很长一段文字内容", 5) == "没有标点…"
+
+
+def test_trim_to_sentence_does_not_cut_mid_version_number():
+    from src.pipeline.interpret import _trim_to_sentence
+
+    text = "Based on changes since v2.2.11-canary.3, this release adds streaming support for chat."
+    # window of 40 chars lands right after "v2.2.11-canary." with the old bug
+    out = _trim_to_sentence(text, 40)
+    assert not out.endswith("canary.")
+    assert out == text[:39] + "…"  # no real sentence end in window -> hard cut + ellipsis
+
+
+def test_trim_to_sentence_dot_followed_by_space_still_counts():
+    from src.pipeline.interpret import _trim_to_sentence
+
+    text = "First sentence. Second sentence is much longer than the limit here."
+    out = _trim_to_sentence(text, 20)
+    assert out == "First sentence."  # "." followed by space still a valid cut point
 
 
 def test_build_ok_item_reads_relevant_and_defaults_true():

@@ -14,17 +14,21 @@ from src.core.types import (
 from src.observability.events import emit
 
 
-def build_item_prompt(item: ScoredItem, template: str) -> str:
+def build_item_prompt(item: ScoredItem, template: str, config: InterpretConfig) -> str:
     """Render the per-item prompt by substituting {{name}} placeholders.
-    Double-brace placeholders avoid clashing with JSON braces in the template."""
+    Double-brace placeholders avoid clashing with JSON braces in the template.
+    raw_summary is capped at config.raw_summary_max_chars so an oversized
+    changelog/release body can't blow the LLM's prompt budget and force a
+    fallback (spec §1)."""
     related = "\n".join(item.related_links)
+    raw_summary = _trim_to_sentence(item.raw_summary or "", config.raw_summary_max_chars)
     repl = {
         "{{title_en}}": item.title_en,
         "{{source}}": item.source,
         "{{genre}}": item.genre.value,
         "{{link}}": item.link,
         "{{related_links}}": related,
-        "{{raw_summary}}": item.raw_summary or "",
+        "{{raw_summary}}": raw_summary,
     }
     out = template
     for k, v in repl.items():
@@ -56,15 +60,20 @@ def _filter_evidence(raw_evidence, item: ScoredItem) -> list[Evidence]:
     return out
 
 
-_SENT_ENDS = "。！？!?；;."
+_SENT_ENDS = "。！？!?；;"
 
 
 def _trim_to_sentence(text: str, n: int) -> str:
-    """超长则截到上限内最后一个句末标点(含); 无标点则硬切 + 省略号。"""
+    """超长则截到上限内最后一个句末标点(含); 无标点则硬切 + 省略号。
+    "." 只在其后紧跟空白或就是窗口末尾时才算句末, 避开版本号(v2.2.11-canary.3)/缩写(e.g.)。"""
     if len(text) <= n:
         return text
     window = text[:n]
-    cut = max((window.rfind(ch) for ch in _SENT_ENDS), default=-1)
+    dot_cut = -1
+    for i, ch in enumerate(window):
+        if ch == "." and (i + 1 == len(window) or window[i + 1].isspace()):
+            dot_cut = i
+    cut = max([window.rfind(ch) for ch in _SENT_ENDS] + [dot_cut], default=-1)
     if cut >= 0:
         return window[: cut + 1]
     return text[: n - 1] + "…"
@@ -125,7 +134,7 @@ def interpret_item(
         parsed_holder["parsed"] = parse_and_validate(raw)
 
     try:
-        prompt = build_item_prompt(item, item_template)
+        prompt = build_item_prompt(item, item_template, config)
         llm.complete_json(
             prompt,
             temperature=config.temperature,

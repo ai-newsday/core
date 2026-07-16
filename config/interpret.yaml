@@ -28,6 +28,7 @@ max_tokens: 1500                     # 从 800 上调, 治 DeepSeek verbose 截�
 timeout_s: 60
 title_max_chars: 64
 body_max_chars: 240
+raw_summary_max_chars: 1500          # 防任意 adapter 的超长 raw_summary(如 GitHub release body)撑爆 prompt
 tags_count: 3
 min_evidence: 1
 item_prompt_path: "src/prompts/interpret_item.md"

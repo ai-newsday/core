@@ -63,3 +63,31 @@ async def test_hf_papers_prefers_submitted_on_daily_at():
     assert len(items) == 1
     assert items[0].published_at == datetime(2026, 5, 30, 0, 0, tzinfo=timezone.utc)
     assert items[0].signals["upvotes"] == 88
+
+
+@respx.mock
+async def test_hf_papers_filters_below_min_score():
+    data = json.load(open("fixtures/sources/hf_papers_sample.json"))
+    respx.get("https://huggingface.co/api/papers").mock(return_value=httpx.Response(200, json=data))
+    spec = SourceSpec(
+        name="hf-papers",
+        url="https://huggingface.co/api/papers",
+        genre=Genre.paper,
+        publisher=Publisher.company,
+        adapter="hf_papers",
+        min_score=15,
+    )
+    items = await HFPapersAdapter().fetch(spec, _ctx(), timeout_s=15)
+    # fixture has upvotes=42 and upvotes=7 -> only the 42 survives min_score=15
+    assert len(items) == 1
+    assert items[0].signals["upvotes"] == 42
+
+
+@respx.mock
+async def test_hf_papers_min_score_none_does_not_filter():
+    data = json.load(open("fixtures/sources/hf_papers_sample.json"))
+    respx.get("https://huggingface.co/api/papers").mock(return_value=httpx.Response(200, json=data))
+    items = await HFPapersAdapter().fetch(
+        _spec(), _ctx(), timeout_s=15
+    )  # _spec() has min_score=None
+    assert len(items) == 2  # unchanged — backward compatible

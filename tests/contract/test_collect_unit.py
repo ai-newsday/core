@@ -82,6 +82,23 @@ async def test_one_source_failure_does_not_break_chain(monkeypatch, cfg):
     assert len(res.source_reports) == 2  # invariant: every enabled source reported
 
 
+async def test_adapter_field_backfilled_from_source(monkeypatch, cfg):
+    specs = [
+        SourceSpec(
+            name="vllm-gh",
+            url="u",
+            genre=Genre.announcement,
+            publisher=Publisher.company,
+            adapter="github_releases",
+        )
+    ]
+    monkeypatch.setattr(collect_mod, "load_registry", lambda p, c: specs)
+    monkeypatch.setattr(collect_mod, "ADAPTERS", {"github_releases": FakeOK([_item("vllm-gh", 2)])})
+    res = await collect_mod.collect(cfg, _ctx())
+    assert len(res.items) == 1
+    assert res.items[0].adapter == "github_releases"
+
+
 async def test_empty_source_marked_empty_not_failed(monkeypatch, cfg):
     specs = [
         SourceSpec(

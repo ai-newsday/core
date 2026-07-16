@@ -41,6 +41,7 @@ async def _run_one(
             items = await asyncio.wait_for(
                 adapter.fetch(source, ctx, config.timeout_s), timeout=config.timeout_s
             )
+            items = [it.model_copy(update={"adapter": source.adapter}) for it in items]
     except Exception as e:  # noqa: BLE001 - single source failure is non-fatal
         emit(ctx.logger, "source_fetch_fail", name=source.name, error_code=str(e))
         return SourceReport(
