@@ -46,7 +46,9 @@ ai-company: # genre: announcement, publisher: company · 14 个
   - {handle: NVIDIAAI, note: "移出 ai-lab: 是产品/市场号不是纯科研号(2026-07-16 用户纠正)"}
   - {handle: physical_int, note: "Physical Intelligence (π) — 移出 ai-lab: 商业化机器人基础模型公司(2026-07-16 用户纠正)"}
 
-ai-product: # genre: announcement, publisher: company · 15 个
+ai-product: # genre: announcement, publisher: company · 20 个
+# 判定标准(2026-07-16 用户确认): 公司本体旗舰账号(发前沿模型/重大战略新闻)算
+# ai-company; 具体产品/开发者关系/新闻公关号(哪怕同一家公司)都算 ai-product。
   - {handle: runwayml, note: "Runway"}
   - {handle: StabilityAI}
   - {handle: ideogram_ai}
@@ -60,8 +62,13 @@ ai-product: # genre: announcement, publisher: company · 15 个
   - {handle: Figure_robot, note: "Figure AI"}
   - {handle: 1x_tech, note: "1X Technologies"}
   - {handle: cursor_ai}
-  - {handle: OpenAIDevs, note: "OpenAI 开发者关系官方号"}
+  - {handle: OpenAIDevs, note: "OpenAI 开发者关系官方号(Codex/API)"}
+  - {handle: OpenAINewsroom, note: "OpenAI 公司新闻/公关号(非模型发布)"}
+  - {handle: claudeai, note: "Claude 消费端产品号, 区别于 AnthropicAI 主账号"}
   - {handle: ClaudeDevs, note: "Anthropic 开发者关系官方号"}
+  - {handle: GeminiApp, note: "Google Gemini 消费端产品号"}
+  - {handle: NotebookLM}
+  - {handle: GoogleLabs, note: "Google 实验性产品孵化账号"}
 
 researcher: # genre: writeup, publisher: individual · 20 个
   - {handle: DrJimFan, note: "NVIDIA, embodied AI"}
