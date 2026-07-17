@@ -1,0 +1,100 @@
+# X (Twitter) 账号清单 — 本地配置/预览用。
+#
+# ai-lab / ai-company 两个 X List 已建好并激活(见 config/sources.d/x.yaml 的
+# list_id + status: working)。ai-product / researcher / kol 三个还是候选,
+# 待建 X List。
+#
+# 核实纪律(对齐本仓库 CLAUDE.md "宁可少写不可编造"): 每个 handle 都用 WebSearch
+# 核实过真实存在, 搜不到官方账号的宁可跳过, 不猜。
+# 明确排除: 国内自媒体/新闻聚合号(量子位/机器之心等) — 用户 2026-07-16 确认不要,
+# 只要一手账号(机构官方号 + 个人号)。
+#
+# 分类逻辑(2026-07-16 定稿, 几轮用户纠正后的最终版):
+#   ai-lab      纯科研机构 — 学术/非营利/大厂研究院, 不直接卖产品
+#   ai-company  公司官方号 — 前沿模型厂商 / 工具厂商, 含"公司=产品"高度绑定的情况
+#               (Suno、RunwayML、StabilityAI 这类公司本体就是产品, 不算 ai-product)
+#   ai-product  从大母品牌里独立拆出来的具体产品/开发者关系/公关子账号
+#               (如 GeminiApp/NotebookLM 之于 Google, claudeai/ClaudeDevs 之于 Anthropic)
+#   researcher  个人研究者/科学家
+#   kol         其余个人号 — 创始人高管 / 产品负责人 / 行业观察爆料 / 中文圈
+#
+# ai-company 由用户自行维护候选(账号量大、变动快), 本文件不再列出/同步候选,
+# 只记 list_id, 见 config/sources.d/x.yaml。
+#
+# 日期: 2026-07-16
+
+ai-lab: # genre: announcement, publisher: lab · 13 个 · list_id 2078117376042610858 (已激活)
+  - {handle: GoogleDeepMind}
+  - {handle: MSFTResearch, note: "Microsoft Research"}
+  - {handle: AmazonScience, note: "Amazon Science"}
+  - {handle: IBMResearch}
+  - {handle: allen_ai, note: "Allen Institute for AI / Ai2"}
+  - {handle: berkeley_ai, note: "Berkeley AI Research (BAIR)"}
+  - {handle: MIT_CSAIL}
+  - {handle: StanfordAILab}
+  - {handle: stanfordnlp, note: "Stanford NLP Group"}
+  - {handle: ssi, note: "Safe Superintelligence Inc."}
+  - {handle: AiEleuther, note: "EleutherAI"}
+  - {handle: laion_ai, note: "LAION"}
+  - {handle: SakanaAILabs, note: "Sakana AI"}
+
+ai-company: # genre: announcement, publisher: company · list_id 2078140161863323804 (已激活)
+# 58 个账号(含 TencentAI_News/Tencentglobal/TencentHunyuan、Alibaba_Wan/Ali_TongyiLab/
+# Alibaba_Qwen、MiniMax_AI/MiniMaxAgent、Kimi_Moonshot/Kimidevs 等一家多号) + OpenClaw
+# + LangChain + Dify(dify_ai), 用户自建自维护, 本文件不重复列出实际清单, 只记规则:
+#   - "公司=产品"高度绑定的都算 company: Suno/RunwayML/StabilityAI/Kling/bfl(Flux)/
+#     ideogram/pika/krea/ElevenLabs/Luma/midjourney/cursor/ollama/ComfyUI/Dify/
+#     LangChain/OpenClaw/CrewAI/FlowiseAI/NousResearch(Hermes 系列出品方)等
+#   - Hermes 不需要单独账号 — 是 NousResearch 的模型系列, 归 NousResearch 一个号下
+
+ai-product: # genre: announcement, publisher: company · 7 个 (只留"从大母品牌独立拆出来"的子账号)
+  - {handle: OpenAIDevs, note: "OpenAI 开发者关系官方号(Codex/API)"}
+  - {handle: OpenAINewsroom, note: "OpenAI 公司新闻/公关号(非模型发布)"}
+  - {handle: claudeai, note: "Claude 消费端产品号, 区别于 AnthropicAI 主账号"}
+  - {handle: ClaudeDevs, note: "Anthropic 开发者关系官方号"}
+  - {handle: GeminiApp, note: "Google Gemini 消费端产品号"}
+  - {handle: NotebookLM}
+  - {handle: GoogleLabs, note: "Google 实验性产品孵化账号"}
+
+researcher: # genre: writeup, publisher: individual · 20 个
+  - {handle: DrJimFan, note: "NVIDIA, embodied AI"}
+  - {handle: drfeifei, note: "Fei-Fei Li"}
+  - {handle: demishassabis, note: "DeepMind CEO"}
+  - {handle: ilyasut, note: "Ilya Sutskever"}
+  - {handle: JeffDean}
+  - {handle: lilianweng, note: "ex-OpenAI"}
+  - {handle: fchollet, note: "François Chollet"}
+  - {handle: rasbt, note: "Sebastian Raschka"}
+  - {handle: hardmaru, note: "David Ha"}
+  - {handle: giffmana, note: "Lucas Beyer"}
+  - {handle: sarahookr, note: "Cohere"}
+  - {handle: SchmidhuberAI, note: "Jürgen Schmidhuber"}
+  - {handle: OriolVinyalsML, note: "DeepMind"}
+  - {handle: Michael_J_Black}
+  - {handle: pabbeel, note: "Pieter Abbeel"}
+  - {handle: hugo_larochelle}
+  - {handle: Francis_YAO_, note: "Yao Fu"}
+  - {handle: achowdhery, note: "Aakanksha Chowdhery"}
+  - {handle: ericschmidt}
+  - {handle: ESYudkowsky, note: "Eliezer Yudkowsky"}
+
+kol: # genre: writeup, publisher: individual · 15 个 (离 50 目标还差, 中文圈最薄)
+  创始人高管:
+    - {handle: sama, note: "Sam Altman, OpenAI"}
+    - {handle: EMostaque, note: "ex-Stability"}
+    - {handle: Suhail, note: "Suhail Doshi"}
+    - {handle: levie, note: "Aaron Levie, Box"}
+    - {handle: AndrewYNg}
+    - {handle: jietang, note: "唐杰, 智谱创始人"}
+  产品负责人:
+    - {handle: thsottiaux, note: "OpenAI Codex 负责人"}
+  行业观察早期信号:
+    - {handle: tszzl, note: "roon, OpenAI"}
+    - {handle: btibor91, note: "科技记者/爆料"}
+    - {handle: jeremyphoward, note: "fast.ai"}
+    - {handle: mathemagic1an, note: "Jay Hack"}
+    - {handle: johnjnay, note: "John Nay"}
+  中文圈:
+    - {handle: op7418, note: "歸藏"}
+    - {handle: dotey, note: "宝玉"}
+    - {handle: Xianbao_QIAN, note: "钱学愿, HF China"}
