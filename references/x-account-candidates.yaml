@@ -17,17 +17,20 @@
 #
 # 日期: 2026-07-16
 
-ai-lab: # genre: announcement, publisher: lab · 8 个 (只留"纯科研"账号, 不卖产品)
+ai-lab: # genre: announcement, publisher: lab · 8 个
+# 判定标准(2026-07-16 用户确认): "公司下的 AI 实验室"(论文/研究向账号,
+# 跟母公司的产品/市场号分开发声, 如 Amazon Science ≠ Amazon)算 ai-lab;
+# 母公司直接卖产品/模型的商业账号(哪怕也发论文, 如 Physical Intelligence)算 ai-company。
   - {handle: GoogleDeepMind}
   - {handle: MSFTResearch, note: "Microsoft Research — 论文/研究向, 区别于 Microsoft 产品号"}
   - {handle: AmazonScience, note: "Amazon Science — 同上, 论文/研究向"}
-  - {handle: physical_int, note: "Physical Intelligence (π), 具身智能研究"}
+  - {handle: AIatMeta, note: "Meta AI / FAIR — 同上, 论文/研究向, 区别于 Meta 产品号"}
   - {handle: allen_ai, note: "Allen Institute for AI / Ai2"}
   - {handle: berkeley_ai, note: "Berkeley AI Research (BAIR)"}
   - {handle: MIT_CSAIL}
   - {handle: StanfordAILab}
 
-ai-company: # genre: announcement, publisher: company · 13 个
+ai-company: # genre: announcement, publisher: company · 14 个
   - {handle: OpenAI}
   - {handle: AnthropicAI}
   - {handle: MistralAI}
@@ -41,6 +44,7 @@ ai-company: # genre: announcement, publisher: company · 13 个
   - {handle: cohere}
   - {handle: perplexity_ai}
   - {handle: NVIDIAAI, note: "移出 ai-lab: 是产品/市场号不是纯科研号(2026-07-16 用户纠正)"}
+  - {handle: physical_int, note: "Physical Intelligence (π) — 移出 ai-lab: 商业化机器人基础模型公司(2026-07-16 用户纠正)"}
 
 ai-product: # genre: announcement, publisher: company · 15 个
   - {handle: runwayml, note: "Runway"}
