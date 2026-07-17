@@ -17,18 +17,17 @@
 #
 # 日期: 2026-07-16
 
-ai-lab: # genre: announcement, publisher: lab · 9 个
+ai-lab: # genre: announcement, publisher: lab · 8 个 (只留"纯科研"账号, 不卖产品)
   - {handle: GoogleDeepMind}
-  - {handle: MSFTResearch, note: "Microsoft Research"}
-  - {handle: NVIDIAAI}
-  - {handle: AmazonScience}
+  - {handle: MSFTResearch, note: "Microsoft Research — 论文/研究向, 区别于 Microsoft 产品号"}
+  - {handle: AmazonScience, note: "Amazon Science — 同上, 论文/研究向"}
   - {handle: physical_int, note: "Physical Intelligence (π), 具身智能研究"}
   - {handle: allen_ai, note: "Allen Institute for AI / Ai2"}
   - {handle: berkeley_ai, note: "Berkeley AI Research (BAIR)"}
   - {handle: MIT_CSAIL}
   - {handle: StanfordAILab}
 
-ai-company: # genre: announcement, publisher: company · 12 个
+ai-company: # genre: announcement, publisher: company · 13 个
   - {handle: OpenAI}
   - {handle: AnthropicAI}
   - {handle: MistralAI}
@@ -41,6 +40,7 @@ ai-company: # genre: announcement, publisher: company · 12 个
   - {handle: xai, note: "xAI / Grok"}
   - {handle: cohere}
   - {handle: perplexity_ai}
+  - {handle: NVIDIAAI, note: "移出 ai-lab: 是产品/市场号不是纯科研号(2026-07-16 用户纠正)"}
 
 ai-product: # genre: announcement, publisher: company · 15 个
   - {handle: runwayml, note: "Runway"}
