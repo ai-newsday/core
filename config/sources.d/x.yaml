@@ -1,9 +1,11 @@
 # config/sources.d/x.yaml — X (Twitter) list timelines via local extension capture
 # url: 'xlist:<list_id>' sentinel encodes the X List ID;
 #   adapter routes data/x/YYYY-MM-DD.ndjson rows by list_id match.
-# status: manual — PR-1 wires path but does not run; flip to 'working' after
-#   PR-3 (extension) is installed and the user fills real list_id values.
-- {name: x-ai-lab,    url: "xlist:TBD", genre: announcement, publisher: lab,        adapter: x_list, status: manual, priority: 1}
-- {name: x-ai-kol-en, url: "xlist:TBD", genre: writeup,      publisher: individual, adapter: x_list, status: manual, priority: 2}
-- {name: x-ai-kol-zh, url: "xlist:TBD", genre: writeup,      publisher: individual, adapter: x_list, status: manual, priority: 2}
-- {name: x-ai-news,   url: "xlist:TBD", genre: news,         publisher: media,      adapter: x_list, status: manual, priority: 2}
+# status: manual — wires path but does not run; flip to 'working' after the
+#   extension is producing data and the user fills real list_id values.
+# 候选账号见 references/x-account-candidates.yaml (2026-07-16 定稿, 5 类拆分)。
+- {name: x-ai-lab,        url: "xlist:TBD", genre: announcement, publisher: lab,        adapter: x_list, status: manual, priority: 1}
+- {name: x-ai-company,    url: "xlist:TBD", genre: announcement, publisher: company,    adapter: x_list, status: manual, priority: 1}
+- {name: x-ai-product,    url: "xlist:TBD", genre: announcement, publisher: company,    adapter: x_list, status: manual, priority: 2}
+- {name: x-ai-researcher, url: "xlist:TBD", genre: writeup,      publisher: individual, adapter: x_list, status: manual, priority: 2}
+- {name: x-ai-kol,        url: "xlist:TBD", genre: writeup,      publisher: individual, adapter: x_list, status: manual, priority: 2}
