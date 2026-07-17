@@ -1,0 +1,95 @@
+# X (Twitter) 候选账号清单 — 本地配置/预览用, 尚未建 X List, 尚未激活。
+#
+# 用途: 建 X List 时从这里挑账号关注; 建完 4 个 (或更多) list 后, 把拿到的
+# list_id 填回 config/sources.d/x.yaml 的 xlist:TBD, status 从 manual 改 working。
+#
+# 核实纪律(对齐本仓库 CLAUDE.md "宁可少写不可编造"): 每个 handle 都用 WebSearch
+# 核实过真实存在, 搜不到官方账号的宁可跳过(如 ByteDance Seed 团队), 不猜。
+# 明确排除: 国内自媒体/新闻聚合号(量子位/机器之心等) — 用户 2026-07-16 确认不要,
+# 只要一手账号(lab 官方号 + KOL 个人号)。
+#
+# 日期: 2026-07-16
+
+lab: # genre: announcement · 覆盖多模态 + 大厂/初创, 30 个
+  综合前沿模型:
+    - {handle: OpenAI}
+    - {handle: AnthropicAI}
+    - {handle: GoogleDeepMind}
+    - {handle: AIatMeta, note: "Meta AI"}
+    - {handle: xai, note: "xAI / Grok"}
+    - {handle: MistralAI}
+    - {handle: character_ai}
+  中国实验室:
+    - {handle: deepseek_ai}
+    - {handle: Alibaba_Qwen, note: "通义千问官方"}
+    - {handle: Zai_org, note: "智谱改名后官方号(原 Zhipu AI), GLM 系列"}
+    - {handle: Kimi_Moonshot, note: "月之暗面 / Kimi"}
+    - {handle: MiniMax_AI}
+  图像视频生成:
+    - {handle: runwayml, note: "Runway"}
+    - {handle: StabilityAI}
+    - {handle: ideogram_ai}
+    - {handle: LumaLabsAI, note: "Luma AI"}
+    - {handle: pika_labs, note: "Pika"}
+    - {handle: BlackForestLabs, note: "Flux 出品方"}
+    - {handle: midjourney}
+    - {handle: Kling_ai, note: "快手可灵"}
+  语音音频:
+    - {handle: ElevenLabsio}
+    - {handle: suno_ai_, note: "Suno"}
+  搜索Agent工具:
+    - {handle: perplexity_ai}
+    - {handle: cohere}
+  具身机器人:
+    - {handle: Figure_robot, note: "Figure AI"}
+    - {handle: physical_int, note: "Physical Intelligence (π)"}
+    - {handle: 1x_tech, note: "1X Technologies"}
+  大厂研究部门:
+    - {handle: MSFTResearch, note: "Microsoft Research"}
+    - {handle: NVIDIAAI}
+    - {handle: AmazonScience}
+
+kol: # genre: writeup · 目前 38 个, 离 50 还差 ~12, 中文圈最薄, 建议下一轮补
+  研究员科学家:
+    - {handle: DrJimFan, note: "NVIDIA, embodied AI"}
+    - {handle: drfeifei, note: "Fei-Fei Li"}
+    - {handle: demishassabis, note: "DeepMind CEO"}
+    - {handle: ilyasut, note: "Ilya Sutskever"}
+    - {handle: JeffDean}
+    - {handle: lilianweng, note: "ex-OpenAI"}
+    - {handle: fchollet, note: "François Chollet"}
+    - {handle: rasbt, note: "Sebastian Raschka"}
+    - {handle: hardmaru, note: "David Ha"}
+    - {handle: giffmana, note: "Lucas Beyer"}
+    - {handle: sarahookr, note: "Cohere"}
+    - {handle: SchmidhuberAI, note: "Jürgen Schmidhuber"}
+    - {handle: OriolVinyalsML, note: "DeepMind"}
+    - {handle: Michael_J_Black}
+    - {handle: pabbeel, note: "Pieter Abbeel"}
+    - {handle: hugo_larochelle}
+    - {handle: Francis_YAO_, note: "Yao Fu"}
+    - {handle: achowdhery, note: "Aakanksha Chowdhery"}
+    - {handle: ericschmidt}
+    - {handle: ESYudkowsky, note: "Eliezer Yudkowsky"}
+  创始人高管:
+    - {handle: sama, note: "Sam Altman, OpenAI"}
+    - {handle: EMostaque, note: "ex-Stability"}
+    - {handle: Suhail, note: "Suhail Doshi"}
+    - {handle: levie, note: "Aaron Levie, Box"}
+    - {handle: AndrewYNg}
+    - {handle: jietang, note: "唐杰, 智谱创始人"}
+  产品工程负责人:
+    - {handle: thsottiaux, note: "OpenAI Codex 负责人"}
+    - {handle: OpenAIDevs, note: "OpenAI 开发者关系官方号"}
+    - {handle: ClaudeDevs, note: "Anthropic 开发者关系官方号"}
+    - {handle: cursor_ai}
+  行业观察早期信号:
+    - {handle: tszzl, note: "roon, OpenAI"}
+    - {handle: btibor91, note: "科技记者/爆料"}
+    - {handle: jeremyphoward, note: "fast.ai"}
+    - {handle: mathemagic1an, note: "Jay Hack"}
+    - {handle: johnjnay, note: "John Nay"}
+  中文圈:
+    - {handle: op7418, note: "歸藏"}
+    - {handle: dotey, note: "宝玉"}
+    - {handle: Xianbao_QIAN, note: "钱学愿, HF China"}
