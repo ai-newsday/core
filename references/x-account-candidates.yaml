@@ -1,67 +1,53 @@
-# X (Twitter) 候选账号清单 — 本地配置/预览用, 尚未建 X List, 尚未激活。
+# X (Twitter) 账号清单 — 本地配置/预览用。
 #
-# 5 个分类对应 5 个 X List, 建完后把拿到的 list_id 填回
-# config/sources.d/x.yaml 的 xlist:TBD, status 从 manual 改 working。
+# ai-lab / ai-company 两个 X List 已建好并激活(见 config/sources.d/x.yaml 的
+# list_id + status: working)。ai-product / researcher / kol 三个还是候选,
+# 待建 X List。
 #
 # 核实纪律(对齐本仓库 CLAUDE.md "宁可少写不可编造"): 每个 handle 都用 WebSearch
-# 核实过真实存在, 搜不到官方账号的宁可跳过(如 ByteDance Seed 团队), 不猜。
+# 核实过真实存在, 搜不到官方账号的宁可跳过, 不猜。
 # 明确排除: 国内自媒体/新闻聚合号(量子位/机器之心等) — 用户 2026-07-16 确认不要,
 # 只要一手账号(机构官方号 + 个人号)。
 #
-# 分类逻辑(2026-07-16 定稿, 用户要求把原 lab 拆细):
+# 分类逻辑(2026-07-16 定稿, 几轮用户纠正后的最终版):
 #   ai-lab      纯科研机构 — 学术/非营利/大厂研究院, 不直接卖产品
-#   ai-company  大厂/独角兽官方号 — 商业化 + 前沿模型并重
-#   ai-product  具体产品/工具账号 — 应用层, 不一定是原创大模型研究
-#   researcher  个人研究者/科学家 — 从原 kol 拆出来独立成类
+#   ai-company  公司官方号 — 前沿模型厂商 / 工具厂商, 含"公司=产品"高度绑定的情况
+#               (Suno、RunwayML、StabilityAI 这类公司本体就是产品, 不算 ai-product)
+#   ai-product  从大母品牌里独立拆出来的具体产品/开发者关系/公关子账号
+#               (如 GeminiApp/NotebookLM 之于 Google, claudeai/ClaudeDevs 之于 Anthropic)
+#   researcher  个人研究者/科学家
 #   kol         其余个人号 — 创始人高管 / 产品负责人 / 行业观察爆料 / 中文圈
+#
+# ai-company 由用户自行维护候选(账号量大、变动快), 本文件不再列出/同步候选,
+# 只记 list_id, 见 config/sources.d/x.yaml。
 #
 # 日期: 2026-07-16
 
-ai-lab: # genre: announcement, publisher: lab · 8 个
-# 判定标准(2026-07-16 用户确认): "公司下的 AI 实验室"(论文/研究向账号,
-# 跟母公司的产品/市场号分开发声, 如 Amazon Science ≠ Amazon)算 ai-lab;
-# 母公司直接卖产品/模型的商业账号(哪怕也发论文, 如 Physical Intelligence)算 ai-company。
+ai-lab: # genre: announcement, publisher: lab · 13 个 · list_id 2078117376042610858 (已激活)
   - {handle: GoogleDeepMind}
-  - {handle: MSFTResearch, note: "Microsoft Research — 论文/研究向, 区别于 Microsoft 产品号"}
-  - {handle: AmazonScience, note: "Amazon Science — 同上, 论文/研究向"}
-  - {handle: AIatMeta, note: "Meta AI / FAIR — 同上, 论文/研究向, 区别于 Meta 产品号"}
+  - {handle: MSFTResearch, note: "Microsoft Research"}
+  - {handle: AmazonScience, note: "Amazon Science"}
+  - {handle: IBMResearch}
   - {handle: allen_ai, note: "Allen Institute for AI / Ai2"}
   - {handle: berkeley_ai, note: "Berkeley AI Research (BAIR)"}
   - {handle: MIT_CSAIL}
   - {handle: StanfordAILab}
+  - {handle: stanfordnlp, note: "Stanford NLP Group"}
+  - {handle: ssi, note: "Safe Superintelligence Inc."}
+  - {handle: AiEleuther, note: "EleutherAI"}
+  - {handle: laion_ai, note: "LAION"}
+  - {handle: SakanaAILabs, note: "Sakana AI"}
 
-ai-company: # genre: announcement, publisher: company · 14 个
-  - {handle: OpenAI}
-  - {handle: AnthropicAI}
-  - {handle: MistralAI}
-  - {handle: character_ai}
-  - {handle: deepseek_ai}
-  - {handle: Alibaba_Qwen, note: "通义千问官方"}
-  - {handle: Zai_org, note: "智谱改名后官方号(原 Zhipu AI), GLM 系列"}
-  - {handle: Kimi_Moonshot, note: "月之暗面 / Kimi"}
-  - {handle: MiniMax_AI}
-  - {handle: xai, note: "xAI / Grok"}
-  - {handle: cohere}
-  - {handle: perplexity_ai}
-  - {handle: NVIDIAAI, note: "移出 ai-lab: 是产品/市场号不是纯科研号(2026-07-16 用户纠正)"}
-  - {handle: physical_int, note: "Physical Intelligence (π) — 移出 ai-lab: 商业化机器人基础模型公司(2026-07-16 用户纠正)"}
+ai-company: # genre: announcement, publisher: company · list_id 2078140161863323804 (已激活)
+# 58 个账号(含 TencentAI_News/Tencentglobal/TencentHunyuan、Alibaba_Wan/Ali_TongyiLab/
+# Alibaba_Qwen、MiniMax_AI/MiniMaxAgent、Kimi_Moonshot/Kimidevs 等一家多号) + OpenClaw
+# + LangChain + Dify(dify_ai), 用户自建自维护, 本文件不重复列出实际清单, 只记规则:
+#   - "公司=产品"高度绑定的都算 company: Suno/RunwayML/StabilityAI/Kling/bfl(Flux)/
+#     ideogram/pika/krea/ElevenLabs/Luma/midjourney/cursor/ollama/ComfyUI/Dify/
+#     LangChain/OpenClaw/CrewAI/FlowiseAI/NousResearch(Hermes 系列出品方)等
+#   - Hermes 不需要单独账号 — 是 NousResearch 的模型系列, 归 NousResearch 一个号下
 
-ai-product: # genre: announcement, publisher: company · 20 个
-# 判定标准(2026-07-16 用户确认): 公司本体旗舰账号(发前沿模型/重大战略新闻)算
-# ai-company; 具体产品/开发者关系/新闻公关号(哪怕同一家公司)都算 ai-product。
-  - {handle: runwayml, note: "Runway"}
-  - {handle: StabilityAI}
-  - {handle: ideogram_ai}
-  - {handle: LumaLabsAI, note: "Luma AI"}
-  - {handle: pika_labs, note: "Pika"}
-  - {handle: BlackForestLabs, note: "Flux 出品方"}
-  - {handle: midjourney}
-  - {handle: Kling_ai, note: "快手可灵"}
-  - {handle: ElevenLabsio}
-  - {handle: suno_ai_, note: "Suno"}
-  - {handle: Figure_robot, note: "Figure AI"}
-  - {handle: 1x_tech, note: "1X Technologies"}
-  - {handle: cursor_ai}
+ai-product: # genre: announcement, publisher: company · 7 个 (只留"从大母品牌独立拆出来"的子账号)
   - {handle: OpenAIDevs, note: "OpenAI 开发者关系官方号(Codex/API)"}
   - {handle: OpenAINewsroom, note: "OpenAI 公司新闻/公关号(非模型发布)"}
   - {handle: claudeai, note: "Claude 消费端产品号, 区别于 AnthropicAI 主账号"}
