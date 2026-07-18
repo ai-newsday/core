@@ -1,8 +1,6 @@
 # X (Twitter) 账号清单 — 本地配置/预览用。
 #
-# ai-lab / ai-company 两个 X List 已建好并激活(见 config/sources.d/x.yaml 的
-# list_id + status: working)。ai-product / researcher / kol 三个还是候选,
-# 待建 X List。
+# 5 个 X List 全部已建好并激活(见 config/sources.d/x.yaml 的 list_id + status: working)。
 #
 # 核实纪律(对齐本仓库 CLAUDE.md "宁可少写不可编造"): 每个 handle 都用 WebSearch
 # 核实过真实存在, 搜不到官方账号的宁可跳过, 不猜。
@@ -47,7 +45,7 @@ ai-company: # genre: announcement, publisher: company · list_id 207814016186332
 #     LangChain/OpenClaw/CrewAI/FlowiseAI/NousResearch(Hermes 系列出品方)等
 #   - Hermes 不需要单独账号 — 是 NousResearch 的模型系列, 归 NousResearch 一个号下
 
-ai-product: # genre: announcement, publisher: company · 7 个 (只留"从大母品牌独立拆出来"的子账号)
+ai-product: # genre: announcement, publisher: company · 7 个 · list_id 2078603948387377532 (已激活) (只留"从大母品牌独立拆出来"的子账号)
   - {handle: OpenAIDevs, note: "OpenAI 开发者关系官方号(Codex/API)"}
   - {handle: OpenAINewsroom, note: "OpenAI 公司新闻/公关号(非模型发布)"}
   - {handle: claudeai, note: "Claude 消费端产品号, 区别于 AnthropicAI 主账号"}
@@ -56,7 +54,7 @@ ai-product: # genre: announcement, publisher: company · 7 个 (只留"从大母
   - {handle: NotebookLM}
   - {handle: GoogleLabs, note: "Google 实验性产品孵化账号"}
 
-researcher: # genre: writeup, publisher: individual · 20 个
+researcher: # genre: writeup, publisher: individual · 20 个 · list_id 2078613295687409747 (已激活)
   - {handle: DrJimFan, note: "NVIDIA, embodied AI"}
   - {handle: drfeifei, note: "Fei-Fei Li"}
   - {handle: demishassabis, note: "DeepMind CEO"}
@@ -78,7 +76,7 @@ researcher: # genre: writeup, publisher: individual · 20 个
   - {handle: ericschmidt}
   - {handle: ESYudkowsky, note: "Eliezer Yudkowsky"}
 
-kol: # genre: writeup, publisher: individual · 15 个 (离 50 目标还差, 中文圈最薄)
+kol: # genre: writeup, publisher: individual · 15 个 · list_id 2078618664497299760 (已激活) (离 50 目标还差, 中文圈最薄)
   创始人高管:
     - {handle: sama, note: "Sam Altman, OpenAI"}
     - {handle: EMostaque, note: "ex-Stability"}

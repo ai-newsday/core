@@ -6,6 +6,6 @@
 # 候选账号见 references/x-account-candidates.yaml (2026-07-16 定稿, 5 类拆分)。
 - {name: x-ai-lab,        url: "xlist:2078117376042610858", genre: announcement, publisher: lab,        adapter: x_list, status: working, priority: 1}
 - {name: x-ai-company,    url: "xlist:2078140161863323804", genre: announcement, publisher: company, adapter: x_list, status: working, priority: 1}
-- {name: x-ai-product,    url: "xlist:TBD", genre: announcement, publisher: company,    adapter: x_list, status: manual, priority: 2}
-- {name: x-ai-researcher, url: "xlist:TBD", genre: writeup,      publisher: individual, adapter: x_list, status: manual, priority: 2}
-- {name: x-ai-kol,        url: "xlist:TBD", genre: writeup,      publisher: individual, adapter: x_list, status: manual, priority: 2}
+- {name: x-ai-product,    url: "xlist:2078603948387377532", genre: announcement, publisher: company,    adapter: x_list, status: working, priority: 2}
+- {name: x-ai-researcher, url: "xlist:2078613295687409747", genre: writeup,      publisher: individual, adapter: x_list, status: working, priority: 2}
+- {name: x-ai-kol,        url: "xlist:2078618664497299760", genre: writeup,      publisher: individual, adapter: x_list, status: working, priority: 2}
