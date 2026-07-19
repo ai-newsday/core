@@ -17,6 +17,8 @@ jobs:
       MODELSCOPE_API_KEY: ${{ secrets.MODELSCOPE_API_KEY }}
       AGNES_API_KEY: ${{ secrets.AGNES_API_KEY }}
       DECISIONS_API_SECRET: ${{ secrets.DECISIONS_API_SECRET }}
+      # x-extension (utils/sync.ts) writes to <repo-root>/data/x/<date>.ndjson.
+      X_LIST_DATA_DIR: .cache/x-signals/data/x
     steps:
       # 用 PAT checkout: 使后续 content push 触发 pages.yml(默认 GITHUB_TOKEN 防递归不触发)
       - uses: actions/checkout@v4
@@ -34,6 +36,14 @@ jobs:
           path: data/state.db
           key: state-db-${{ github.run_id }}
           restore-keys: state-db-
+
+      # finalize's `--tick finalize` re-runs its own fresh collect() internally
+      # (src/cli.py::run_tick), so it needs the same x-signals fetch as collect.yml —
+      # this is a separate job/checkout, nothing is shared from collect.yml's run.
+      # Clone failure is non-fatal — adapter yields 0 items, pipeline continues.
+      - name: Fetch x-signals repo
+        run: |
+          git clone --depth 1 https://x-access-token:${{ secrets.X_SIGNALS_PAT }}@github.com/ai-newsday/x-signals.git .cache/x-signals || echo "x-signals clone failed; x_list will yield 0"
 
       - name: Run finalize tick (writes content/posts/<date>.md, draft:true)
         run: uv run python -m src.cli --tick finalize
