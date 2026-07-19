@@ -14,7 +14,9 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       MODELSCOPE_API_KEY: ${{ secrets.MODELSCOPE_API_KEY }}
       AGNES_API_KEY: ${{ secrets.AGNES_API_KEY }}
-      X_LIST_DATA_DIR: .cache/x-signals
+      # x-extension (utils/sync.ts) writes to <repo-root>/data/x/<date>.ndjson,
+      # not the repo root itself — this dir must include that data/x suffix.
+      X_LIST_DATA_DIR: .cache/x-signals/data/x
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
@@ -31,8 +33,8 @@ jobs:
           restore-keys: state-db-
 
       # x-signals contains X (Twitter) list-timeline tweets pushed by the browser extension
-      # (ai-newsday/x-extension). x_list adapter reads .cache/x-signals/<UTC-date>.ndjson.
-      # Clone failure is non-fatal — adapter yields 0 items, pipeline continues.
+      # (ai-newsday/x-extension). x_list adapter reads .cache/x-signals/data/x/<UTC-date>.ndjson
+      # (X_LIST_DATA_DIR above). Clone failure is non-fatal — adapter yields 0 items, pipeline continues.
       - name: Fetch x-signals repo
         run: |
           git clone --depth 1 https://x-access-token:${{ secrets.X_SIGNALS_PAT }}@github.com/ai-newsday/x-signals.git .cache/x-signals || echo "x-signals clone failed; x_list will yield 0"
