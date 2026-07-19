@@ -52,8 +52,10 @@ popularity_weights: {upvotes: 0.6, hn_points: 0.5, likes: 0.3, github_stars: 0.3
 popularity_cap: 15.0              # 单条最高 +15 分, 防异常超大数值
 
 # 发卡候选池: score 排序后取 top-N 进 interpret(发卡)。比旧 quota→top-11 宽,
-# 让低分相关首发也能发卡被 keep。interpret 成本上界 = card_pool_limit。
+# 让低分相关首发也能发卡被 keep。也是 collect tick 每天推 Telegram 审阅卡片的条数上限
+# (不只是 interpret 成本上界)。25→50(2026-07-19): 实测同日 322 条候选只有 25 条(8%)
+# 进发卡池, 明显欠采样; 50 条兼顾覆盖率与人工审阅量。
 # per-genre 配额 + total_limit 已移到 config/publish.yaml(人 keep 后施加)。
-card_pool_limit: 25
+card_pool_limit: 50
 
 sources_registry_path: "config/sources.yaml"
