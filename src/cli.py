@@ -29,7 +29,13 @@ from src.core.config import (
     load_scoring_config,
     load_selfcheck_config,
 )
-from src.core.types import CollectionConfig, InterpretConfig, ProviderSpec, RunContext
+from src.core.types import (
+    CollectionConfig,
+    InterpretConfig,
+    ProviderSpec,
+    ReleaseImportanceConfig,
+    RunContext,
+)
 from src.notifiers import FakeNotifier
 from src.notifiers.telegram_polling import TelegramPollingNotifier
 from src.notifiers.website import WebsiteNotifier
@@ -50,6 +56,7 @@ from src.pipeline.metrics import (
 )
 from src.pipeline.metrics_render import render_caption, render_md, render_png
 from src.pipeline.publish import publish
+from src.pipeline.release_importance import judge_release_importance
 from src.pipeline.review import review
 from src.pipeline.score import score
 from src.pipeline.selfcheck import self_check
@@ -68,6 +75,21 @@ def _make_llm(icfg: InterpretConfig) -> OpenAICompatLLM:
         providers=icfg.providers,
         model=primary,
         timeout_s=icfg.timeout_s,
+        fallback_models=fallbacks,
+    )
+
+
+def _make_release_importance_llm(cfg: ReleaseImportanceConfig) -> OpenAICompatLLM:
+    if cfg.models:
+        primary = cfg.models[0]
+        fallbacks = cfg.models[1:] + cfg.fallback_models
+    else:
+        primary = cfg.model
+        fallbacks = cfg.fallback_models
+    return OpenAICompatLLM(
+        providers=cfg.providers,
+        model=primary,
+        timeout_s=cfg.timeout_s,
         fallback_models=fallbacks,
     )
 
@@ -112,6 +134,7 @@ def _dry_run_prefix(
     ctx: RunContext,
     embedder=None,
     llm=None,
+    release_llm=None,
     *,
     enrich: bool = False,
     stop_at: str = "interpret",
@@ -128,6 +151,9 @@ def _dry_run_prefix(
             c = await collect(coll_cfg, ctx)
             if ecfg.enabled and c.items:
                 await enrich_with_hn(c.items, HNAlgoliaClient(ecfg.timeout_s), ecfg, ctx)
+            if ecfg.release_importance.enabled and c.items:
+                ri_llm = release_llm or _make_release_importance_llm(ecfg.release_importance)
+                c.items = judge_release_importance(c.items, ri_llm, ecfg.release_importance, ctx)
             return c
 
         coll = asyncio.run(_collect_then_enrich())
@@ -412,6 +438,9 @@ def run_tick(
         c = await collect(coll_cfg, ctx)
         if ecfg.enabled and c.items:
             await enrich_with_hn(c.items, HNAlgoliaClient(ecfg.timeout_s), ecfg, ctx)
+        if ecfg.release_importance.enabled and c.items:
+            ri_llm = _make_release_importance_llm(ecfg.release_importance)
+            c.items = judge_release_importance(c.items, ri_llm, ecfg.release_importance, ctx)
         dcfg2 = load_dedup_config("config/dedup.yaml")
         dcfg2.sources_registry_path = registry_path
         _embedder = _make_embedder(dcfg2, embedder)

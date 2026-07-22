@@ -3,3 +3,29 @@ concurrency: 5
 timeout_s: 8
 # 这些 genre 已经带原生 popularity 信号, 不再查 HN
 skip_genres: [paper, model]
+
+# github_releases 重要性判定 (2026-07-22 设计, docs/superpowers/specs/2026-07-22-github-release-importance-design.md)
+# LLM 判 4 个独立布尔维度(scale/refactor/new_concept/bugfix_only), 纯函数映射成 tier(0-3)。
+# tier <= hard_filter_max_tier 直接从候选池剔除; tier >= 2 写 release_tier_score 参与打分。
+release_importance:
+  enabled: true
+  providers:
+    modelscope:
+      base_url: "https://api-inference.modelscope.cn/v1/chat/completions"
+      api_key_env: "MODELSCOPE_API_KEY"
+    agnes:
+      base_url: "https://apihub.agnes-ai.com/v1/chat/completions"
+      api_key_env: "AGNES_API_KEY"
+  # 分类任务(4 个布尔值), 用 Flash 档足够, 比 interpret 主链更便宜更快
+  models:
+    - "modelscope:deepseek-ai/DeepSeek-V4-Flash"
+  fallback_models:
+    - "modelscope:moonshotai/Kimi-K2.6"
+    - "agnes:agnes-2.0-flash"
+  temperature: 0.1        # 分类任务, 低温度求稳定
+  max_tokens: 300          # 只需 4 个布尔 + 一句 reason
+  timeout_s: 30
+  empty_body_min_chars: 30 # 去掉 Full Changelog 链接后正文短于此 -> 短路判 tier 0, 不调 LLM
+  hard_filter_max_tier: 1  # tier <= 1 (空转/常规补丁) 从候选池剔除
+  tier_score: {2: 4, 3: 9} # tier -> release_tier_score(写入 popularity_weights, sqrt+cap 压缩)
+  prompt_path: "src/prompts/release_importance.md"

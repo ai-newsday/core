@@ -48,7 +48,8 @@ penalty:
 # - hf-models.likes 范围 0-1000+ → sqrt 后 0-30, 极值有但少
 # - hn_points 范围 0-1000+ → sqrt 后 0-30, AI 圈中位数 5-50
 # - 权重 0.5 让 sqrt(100)=10 → 5 分, sqrt(900)=30 → 15 (近 cap)
-popularity_weights: {upvotes: 0.6, hn_points: 0.5, likes: 0.3, github_stars: 0.3, num_comments: 0.4}
+popularity_weights: {upvotes: 0.6, hn_points: 0.5, likes: 0.3, github_stars: 0.3, num_comments: 0.4, release_tier_score: 1.0}
+# release_tier_score: judge_release_importance() 写入的 tier 分值(2/3 档), 直接用不加权(该维度本身已是策展分值, 不是原始人气数字)
 popularity_cap: 15.0              # 单条最高 +15 分, 防异常超大数值
 
 # 发卡候选池: score 排序后取 top-N 进 interpret(发卡)。比旧 quota→top-11 宽,
