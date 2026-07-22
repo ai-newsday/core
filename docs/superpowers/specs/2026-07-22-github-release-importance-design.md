@@ -62,13 +62,15 @@ def tier(scale: bool, refactor: bool, new_concept: bool, bugfix_only: bool) -> i
 新建 `src/pipeline/release_importance.py`(不塞进 `enrich.py`——那个文件职责是"HN 反查 popularity 信号",这是另一件事:LLM 分类 + 硬过滤,混在一起违反单一职责)。
 
 ```python
-async def judge_release_importance(
-    items: list[RawItem], llm: LLMProvider, config: EnrichConfig, ctx: RunContext
+def judge_release_importance(
+    items: list[RawItem], llm: LLMProvider, config: ReleaseImportanceConfig, ctx: RunContext
 ) -> list[RawItem]:
     """只处理 adapter == "github_releases" 的条目; 其余原样透传。
     空 body 短路判 tier 0; 否则调 LLM 判 4 维 → tier() 映射。
-    tier <= config.release_importance.hard_filter_max_tier → 从返回列表剔除。
+    tier <= config.hard_filter_max_tier → 从返回列表剔除。
     tier >= 2 → 写 signals["release_tier_score"](映射见下), 参与打分。
+    同步函数(非 async)——OpenAICompatLLM.complete_json 本身是阻塞的 httpx.Client 调用,
+    跟随 interpret.py 的既有约定(顺序循环), 不是 enrich_with_hn 那种 async 客户端。
     """
 ```
 
@@ -94,8 +96,7 @@ release_importance:
   fallback_models: [...]
   temperature: 0.1           # 分类任务, 低温度求稳定
   max_tokens: 300             # 只需 4 个布尔 + 一句 reason
-  timeout_s: 30
-  concurrency: 5
+  timeout_s: 30              # 单条 release 串行判定(见"架构:接入点"), 无 concurrency 字段
   prompt_path: "src/prompts/release_importance.md"
   empty_body_min_chars: 30    # 短于此判 tier 0, 不调 LLM
   hard_filter_max_tier: 1     # tier <= 此值从候选池剔除
