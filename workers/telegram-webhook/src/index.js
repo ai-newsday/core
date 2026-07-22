@@ -37,11 +37,12 @@ async function handleWebhook(request, env) {
         const label = ACTIONS[action];
         await tg(env, "answerCallbackQuery", { callback_query_id: cq.id, text: label });
         if (cq.message) {
-          const old = cq.message.text || "";
-          await tg(env, "editMessageText", {
+          // editMessageText 会丢失原文的链接 entities（cq.message.text 是纯文本），
+          // 改用 editMessageReplyMarkup 只换按钮为状态标记，正文（含链接）不动。
+          await tg(env, "editMessageReplyMarkup", {
             chat_id: cq.message.chat.id,
             message_id: cq.message.message_id,
-            text: `${old}\n\n${label}`,
+            reply_markup: { inline_keyboard: [[{ text: label, callback_data: "noop" }]] },
           });
         }
         await env.DECISIONS.put(`dec:${itemId}`, action, { expirationTtl: TTL });
