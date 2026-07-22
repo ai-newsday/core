@@ -403,6 +403,27 @@ class SourceFeedbackStats(BaseModel):
 
 
 @dataclass
+class ReleaseImportanceConfig:
+    """LLM 判定 github_releases 条目的实质重要性(spec 2026-07-22)。
+    4 个独立布尔维度(scale/refactor/new_concept/bugfix_only) -> tier() 纯函数映射。"""
+
+    enabled: bool = True
+    model: str = "modelscope:deepseek-ai/DeepSeek-V4-Flash"
+    models: list[str] = field(default_factory=list)
+    fallback_models: list[str] = field(default_factory=list)
+    providers: dict[str, ProviderSpec] = field(
+        default_factory=lambda: {"modelscope": _DEFAULT_MODELSCOPE}
+    )
+    temperature: float = 0.1
+    max_tokens: int = 300
+    timeout_s: int = 30
+    empty_body_min_chars: int = 30  # 去掉 Full Changelog 链接后正文短于此 -> 短路判 tier 0, 不调 LLM
+    hard_filter_max_tier: int = 1  # tier <= 此值从候选池剔除
+    tier_score: dict[int, float] = field(default_factory=lambda: {2: 4.0, 3: 9.0})
+    prompt_path: str = "src/prompts/release_importance.md"
+
+
+@dataclass
 class EnrichConfig:
     """RSS 类源天然无 popularity, 用 HN Algolia by URL 反查补 signals.hn_*。"""
 
@@ -411,6 +432,7 @@ class EnrichConfig:
     timeout_s: int = 8
     # 已经带原生 popularity 信号的 genre 不查 HN (省请求, 不覆盖)
     skip_genres: list[str] = field(default_factory=lambda: ["paper", "model"])
+    release_importance: ReleaseImportanceConfig = field(default_factory=ReleaseImportanceConfig)
 
 
 @dataclass

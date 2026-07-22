@@ -166,14 +166,41 @@ def load_publish_config(path: str) -> PublishConfig:
 
 
 def load_enrich_config(path: str) -> EnrichConfig:
-    """HN URL 反查 popularity 的开关 + 配额; 缺文件 -> 默认。"""
+    """HN URL 反查 popularity 的开关 + 配额, 以及 release 重要性判定; 缺文件 -> 默认。"""
+    from src.core.types import ProviderSpec, ReleaseImportanceConfig  # local import to avoid cycles
+
     data = _read_yaml(path)
     d = EnrichConfig()
+    ri_data = data.get("release_importance", {})
+    ri_d = ReleaseImportanceConfig()
+    raw_providers = ri_data.get("providers")
+    if raw_providers:
+        ri_providers = {
+            name: ProviderSpec(base_url=spec["base_url"], api_key_env=spec["api_key_env"])
+            for name, spec in raw_providers.items()
+        }
+    else:
+        ri_providers = ri_d.providers
+    release_importance = ReleaseImportanceConfig(
+        enabled=ri_data.get("enabled", ri_d.enabled),
+        model=ri_data.get("model", ri_d.model),
+        models=ri_data.get("models", ri_d.models),
+        fallback_models=ri_data.get("fallback_models", ri_d.fallback_models),
+        providers=ri_providers,
+        temperature=ri_data.get("temperature", ri_d.temperature),
+        max_tokens=ri_data.get("max_tokens", ri_d.max_tokens),
+        timeout_s=ri_data.get("timeout_s", ri_d.timeout_s),
+        empty_body_min_chars=ri_data.get("empty_body_min_chars", ri_d.empty_body_min_chars),
+        hard_filter_max_tier=ri_data.get("hard_filter_max_tier", ri_d.hard_filter_max_tier),
+        tier_score=ri_data.get("tier_score", ri_d.tier_score),
+        prompt_path=ri_data.get("prompt_path", ri_d.prompt_path),
+    )
     return EnrichConfig(
         enabled=data.get("enabled", d.enabled),
         concurrency=data.get("concurrency", d.concurrency),
         timeout_s=data.get("timeout_s", d.timeout_s),
         skip_genres=data.get("skip_genres", d.skip_genres),
+        release_importance=release_importance,
     )
 
 
