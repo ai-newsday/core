@@ -85,3 +85,11 @@ def test_load_enrich_config_release_importance_missing_block_uses_defaults(tmp_p
     p.write_text("enabled: true\n", encoding="utf-8")
     cfg = load_enrich_config(str(p))
     assert cfg.release_importance == ReleaseImportanceConfig()
+
+
+def test_production_enrich_yaml_has_release_importance_configured():
+    cfg = load_enrich_config("config/enrich.yaml")
+    ri = cfg.release_importance
+    assert ri.enabled is True
+    assert len(ri.models) >= 1
+    assert ri.prompt_path == "src/prompts/release_importance.md"
