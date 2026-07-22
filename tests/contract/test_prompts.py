@@ -38,3 +38,14 @@ def test_interpret_prompt_has_relevant_field():
     t = load_prompt("src/prompts/interpret_item.md")
     assert "relevant" in t
     assert '"relevant"' in t
+
+
+def test_release_importance_prompt_exists_and_has_placeholders():
+    t = load_prompt("src/prompts/release_importance.md")
+    assert "{{title}}" in t and "{{body}}" in t
+
+
+def test_release_importance_prompt_has_four_dimension_schema():
+    t = load_prompt("src/prompts/release_importance.md")
+    for key in ('"scale"', '"refactor"', '"new_concept"', '"bugfix_only"', '"reason"'):
+        assert key in t
