@@ -417,7 +417,9 @@ class ReleaseImportanceConfig:
     temperature: float = 0.1
     max_tokens: int = 300
     timeout_s: int = 30
-    empty_body_min_chars: int = 30  # 去掉 Full Changelog 链接后正文短于此 -> 短路判 tier 0, 不调 LLM
+    empty_body_min_chars: int = (
+        30  # 去掉 Full Changelog 链接后正文短于此 -> 短路判 tier 0, 不调 LLM
+    )
     hard_filter_max_tier: int = 1  # tier <= 此值从候选池剔除
     tier_score: dict[int, float] = field(default_factory=lambda: {2: 4.0, 3: 9.0})
     prompt_path: str = "src/prompts/release_importance.md"
