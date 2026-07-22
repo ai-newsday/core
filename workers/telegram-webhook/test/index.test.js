@@ -22,14 +22,14 @@ describe("POST /tg", () => {
     expect(res.status).toBe(403);
   });
 
-  it("on callback: answers, edits, writes KV", async () => {
+  it("on callback: answers, edits reply markup only (preserves text/entities), writes KV", async () => {
     tgOk("answerCallbackQuery");
-    tgOk("editMessageText");
+    tgOk("editMessageReplyMarkup");
     const update = {
       callback_query: {
         id: "cbid",
         data: "abc123def456:keep",
-        message: { message_id: 9, chat: { id: 555 }, text: "卡片正文" },
+        message: { message_id: 9, chat: { id: 555 }, text: "卡片正文", entities: [{ type: "url", offset: 0, length: 4 }] },
       },
     };
     const req = new Request("https://w/tg", {
