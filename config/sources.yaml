@@ -183,9 +183,7 @@
 - {name: cline-gh,         url: "https://api.github.com/repos/cline/cline/releases",                genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
 - {name: dify-gh,          url: "https://api.github.com/repos/langgenius/dify/releases",            genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
 - {name: ragflow-gh,       url: "https://api.github.com/repos/infiniflow/ragflow/releases",         genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
-- {name: flux-gh,          url: "https://api.github.com/repos/black-forest-labs/flux/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
 - {name: fish-speech-gh,   url: "https://api.github.com/repos/fishaudio/fish-speech/releases",      genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3}
-- {name: openvoice-gh,     url: "https://api.github.com/repos/myshell-ai/OpenVoice/releases",       genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
 # R2 — UI / 浏览器 Agent / 多模态 / 苹果生态 / 机器人 (9)
 - {name: open-webui-gh,    url: "https://api.github.com/repos/open-webui/open-webui/releases",      genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 2}
 - {name: lobe-chat-gh,     url: "https://api.github.com/repos/lobehub/lobe-chat/releases",          genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
@@ -195,7 +193,6 @@
 - {name: mlx-gh,           url: "https://api.github.com/repos/ml-explore/mlx/releases",             genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
 - {name: ms-swift-gh,      url: "https://api.github.com/repos/modelscope/ms-swift/releases",        genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
 - {name: lerobot-gh,       url: "https://api.github.com/repos/huggingface/lerobot/releases",        genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
-- {name: minicpm-v-gh,     url: "https://api.github.com/repos/OpenBMB/MiniCPM-V/releases",          genre: announcement, publisher: lab,        adapter: github_releases, status: working, priority: 3}
 # R3 — 用户直点 (Hermes 周更, openai/codex 每天 alpha 刷屏 → priority 4 降权)
 - {name: hermes-agent-gh,  url: "https://api.github.com/repos/NousResearch/hermes-agent/releases",  genre: announcement, publisher: lab,        adapter: github_releases, status: working, priority: 2}
 - {name: codex-gh,         url: "https://api.github.com/repos/openai/codex/releases",               genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 4, max_items: 3}
@@ -207,6 +204,50 @@
 - {name: paddleocr-gh,     url: "https://api.github.com/repos/PaddlePaddle/PaddleOCR/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
 - {name: cowagent-gh,      url: "https://api.github.com/repos/zhayujie/CowAgent/releases",          genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3}
 - {name: nanobot-gh,       url: "https://api.github.com/repos/HKUDS/nanobot/releases",              genre: announcement, publisher: lab,        adapter: github_releases, status: working, priority: 3}
+# R5 — 扩源 2026-07-23: 领域分类审计(agent 应用/训练库/推理引擎/视觉/语音/工具基建), 逐个核实真实非-prerelease 发版记录后加入。
+# 淘汰 flux-gh/openvoice-gh(从不发 Release)、minicpm-v-gh(最后发版 2025-05, 停更超一年)。
+# max_items:3 = 发版频率高(一天多条/多子包同日发版), 参考既有 codex-gh/claude-mem-gh/ruflo-gh 处理方式。
+# --- Agent 应用/框架 ---
+- {name: opencode-gh,      url: "https://api.github.com/repos/sst/opencode/releases",               genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2, max_items: 3}
+- {name: autogpt-gh,       url: "https://api.github.com/repos/Significant-Gravitas/AutoGPT/releases", genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 2}
+- {name: adk-python-gh,    url: "https://api.github.com/repos/google/adk-python/releases",           genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: deer-flow-gh,     url: "https://api.github.com/repos/bytedance/deer-flow/releases",         genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: agentscope-gh,    url: "https://api.github.com/repos/agentscope-ai/agentscope/releases",    genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: copilotkit-gh,    url: "https://api.github.com/repos/CopilotKit/CopilotKit/releases",       genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3, max_items: 3}
+- {name: semantic-kernel-gh, url: "https://api.github.com/repos/microsoft/semantic-kernel/releases", genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: mem0-gh,          url: "https://api.github.com/repos/mem0ai/mem0/releases",                 genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2, max_items: 3}
+- {name: anything-llm-gh,  url: "https://api.github.com/repos/Mintplex-Labs/anything-llm/releases",  genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: localai-gh,       url: "https://api.github.com/repos/mudler/LocalAI/releases",               genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3}
+- {name: jan-gh,           url: "https://api.github.com/repos/janhq/jan/releases",                    genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: flowise-gh,       url: "https://api.github.com/repos/FlowiseAI/Flowise/releases",            genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+# --- 训练/微调/算法基础库 ---
+- {name: transformers-gh,  url: "https://api.github.com/repos/huggingface/transformers/releases",    genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: pytorch-gh,       url: "https://api.github.com/repos/pytorch/pytorch/releases",              genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: sd-scripts-gh,    url: "https://api.github.com/repos/kohya-ss/sd-scripts/releases",          genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3}
+- {name: deepspeed-gh,     url: "https://api.github.com/repos/microsoft/DeepSpeed/releases",          genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: ray-gh,           url: "https://api.github.com/repos/ray-project/ray/releases",              genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: datasets-gh,      url: "https://api.github.com/repos/huggingface/datasets/releases",         genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+# --- 推理引擎 ---
+- {name: llama-cpp-gh,     url: "https://api.github.com/repos/ggml-org/llama.cpp/releases",           genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3, max_items: 3}
+# --- 图像生成/视觉 ---
+- {name: invokeai-gh,      url: "https://api.github.com/repos/invoke-ai/InvokeAI/releases",           genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: opencv-gh,        url: "https://api.github.com/repos/opencv/opencv/releases",                genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: timm-gh,          url: "https://api.github.com/repos/huggingface/pytorch-image-models/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 3}
+# --- 语音/音频 ---
+- {name: whisper-cpp-gh,   url: "https://api.github.com/repos/ggml-org/whisper.cpp/releases",         genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 2}
+- {name: funasr-gh,        url: "https://api.github.com/repos/modelscope/FunASR/releases",            genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3, max_items: 3}
+- {name: voxcpm-gh,        url: "https://api.github.com/repos/OpenBMB/VoxCPM/releases",                genre: announcement, publisher: lab,        adapter: github_releases, status: working, priority: 3}
+# --- 工具/基建 ---
+- {name: firecrawl-gh,     url: "https://api.github.com/repos/firecrawl/firecrawl/releases",          genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: llama-index-gh,   url: "https://api.github.com/repos/run-llama/llama_index/releases",        genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: vercel-ai-gh,     url: "https://api.github.com/repos/vercel/ai/releases",                    genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3, max_items: 3}
+- {name: milvus-gh,        url: "https://api.github.com/repos/milvus-io/milvus/releases",             genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: spec-kit-gh,      url: "https://api.github.com/repos/github/spec-kit/releases",               genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3, max_items: 3}
+- {name: playwright-mcp-gh, url: "https://api.github.com/repos/microsoft/playwright-mcp/releases",    genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+# --- Agent 开发方法论/skill 生态(2026 新兴品类, 用户明确要求纳入) ---
+- {name: superpowers-gh,   url: "https://api.github.com/repos/obra/superpowers/releases",              genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3}
+- {name: mattpocock-skills-gh, url: "https://api.github.com/repos/mattpocock/skills/releases",        genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3}
+- {name: smolagents-gh,    url: "https://api.github.com/repos/huggingface/smolagents/releases",       genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
 # --- 扩源 2026-06 (探活全部确认出条目): 公司官博 + 产品 YouTube 第一方 + 聚合 newsletter ---
 # 聚合/补墙后公司(Mistral/Perplexity/ElevenLabs 等无 RSS, 靠这些二手覆盖)
 - {name: smol-ai-news, url: "https://news.smol.ai/rss.xml", genre: news, publisher: media, adapter: rss, status: working, priority: 3, max_items: 10}  # 660 条 firehose, 限流
