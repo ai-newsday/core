@@ -6,6 +6,7 @@ from src.pipeline.score import (
     _topic_relevance,
     apply_adapter_quota,
     apply_quota,
+    apply_reserved_quota,
     compute_scores,
     recency_band,
 )
@@ -241,6 +242,48 @@ def test_apply_adapter_quota_empty_dict_returns_unchanged():
     selected, report = apply_adapter_quota(scored, {})
     assert selected == scored
     assert report == {}
+
+
+def test_apply_reserved_quota_takes_top_n_by_score_regardless_of_genre():
+    ctx = _ctx()
+    fresh = NOW
+    stale = NOW - timedelta(hours=100)
+    scored = _scored_list_with_adapter(
+        ctx,
+        ("x1", "https://x.com/1", "x-ai-lab", Genre.announcement, fresh, "x_list"),
+        ("x2", "https://x.com/2", "x-ai-kol", Genre.writeup, stale, "x_list"),
+        ("gh", "https://gh/1", "s1", Genre.announcement, fresh, "github_releases"),
+    )
+    reserved, remaining = apply_reserved_quota(scored, {"x_list": 2})
+    assert {s.link for s in reserved} == {"https://x.com/1", "https://x.com/2"}
+    assert {s.link for s in remaining} == {"https://gh/1"}
+
+
+def test_apply_reserved_quota_caps_at_n_keeping_top_scored():
+    ctx = _ctx()
+    fresh = NOW
+    mid = NOW - timedelta(hours=36)
+    stale = NOW - timedelta(hours=100)
+    scored = _scored_list_with_adapter(
+        ctx,
+        ("x1", "https://x.com/1", "x-ai-lab", Genre.announcement, fresh, "x_list"),
+        ("x2", "https://x.com/2", "x-ai-lab", Genre.announcement, mid, "x_list"),
+        ("x3", "https://x.com/3", "x-ai-lab", Genre.announcement, stale, "x_list"),
+    )
+    reserved, remaining = apply_reserved_quota(scored, {"x_list": 2})
+    assert len(reserved) == 2
+    assert {s.link for s in reserved} == {"https://x.com/1", "https://x.com/2"}  # stale dropped
+    assert {s.link for s in remaining} == {"https://x.com/3"}  # still eligible for genre quota
+
+
+def test_apply_reserved_quota_empty_dict_returns_unchanged():
+    ctx = _ctx()
+    scored = _scored_list_with_adapter(
+        ctx, ("a", "https://a/1", "s1", Genre.writeup, NOW, "x_list")
+    )
+    reserved, remaining = apply_reserved_quota(scored, {})
+    assert reserved == []
+    assert remaining == scored
 
 
 # --- topic relevance tests ---

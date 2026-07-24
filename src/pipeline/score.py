@@ -205,6 +205,30 @@ def apply_adapter_quota(
     return selected, report
 
 
+def apply_reserved_quota(
+    scored: list[ScoredItem], reserved: dict[str, int]
+) -> tuple[list[ScoredItem], list[ScoredItem]]:
+    """按 item.adapter 保底选 top-N(纯按 score 排序), 用户明确要求 X 基本不筛
+    (只卡 min_display_score 底线+去重), 不跟其它 genre 一起抢 apply_quota 的配额名额。
+    与 apply_adapter_quota(封顶)方向相反: 这里是保证进, 不是限制进。
+    返回 (reserved_items, remaining_items); remaining 交给后续 apply_quota 照常竞争
+    (含被保底截掉的同 adapter 条目——没进保底不代表没资格进 genre 配额)。
+    空 dict -> reserved 为空, remaining 原样返回。"""
+    reserved_items: list[ScoredItem] = []
+    remaining = list(scored)
+    for adapter, n in reserved.items():
+        pool = sorted(
+            (s for s in remaining if s.adapter == adapter),
+            key=lambda s: (-s.score, s.published_at, s.link),
+        )
+        take = pool[:n]
+        reserved_items.extend(take)
+        taken_links = {s.link for s in take}
+        remaining = [s for s in remaining if s.link not in taken_links]
+    reserved_items.sort(key=lambda s: (-s.score, s.published_at, s.link))
+    return reserved_items, remaining
+
+
 def score(
     items: list[NewsItem],
     config: ScoringConfig,
