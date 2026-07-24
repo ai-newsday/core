@@ -251,6 +251,26 @@ def test_build_report_adapter_quota_applies_before_genre_quota():
     assert links == {"https://gh/1", "https://openai/1"}
 
 
+def test_build_report_reserved_quota_bypasses_genre_competition():
+    """X 保底通道: reserved_quota 里的 adapter 直接进报告, 不占 genre 配额名额,
+    即便 genre 配额本来会因为分数更高的其它来源把它挤掉。"""
+    cfg = PublishConfig(
+        quota={"announcement": 1},
+        total_limit=99,
+        reserved_quota={"x_list": 1},
+    )
+    items = [
+        _ri(link="https://openai/1", genre=Genre.announcement, score=95),  # 分数更高, 占满配额
+        _ri(link="https://x.com/1", genre=Genre.announcement, score=50).model_copy(
+            update={"adapter": "x_list"}
+        ),
+    ]
+    report = build_report(_rr(items), "2026-07-24", cfg)
+    links = {it.link for sec in report.categories for it in sec.items}
+    # 换成普通 quota 竞争, x.com/1 分数更低会被挤掉; 走保底通道两条都进
+    assert links == {"https://openai/1", "https://x.com/1"}
+
+
 def test_render_markdown_full():
     items = [
         _ri(

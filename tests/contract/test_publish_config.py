@@ -61,3 +61,22 @@ def test_load_publish_config_adapter_quota_override(tmp_path):
     p.write_text("adapter_quota: {github_releases: 2, github_trending: 1}\n", encoding="utf-8")
     cfg = load_publish_config(str(p))
     assert cfg.adapter_quota == {"github_releases": 2, "github_trending": 1}
+
+
+def test_load_publish_config_reserved_quota_default_empty():
+    cfg = load_publish_config("does/not/exist.yaml")
+    assert cfg.reserved_quota == {}
+
+
+def test_load_publish_config_reserved_quota_override(tmp_path):
+    p = tmp_path / "publish.yaml"
+    p.write_text("reserved_quota: {x_list: 4}\n", encoding="utf-8")
+    cfg = load_publish_config(str(p))
+    assert cfg.reserved_quota == {"x_list": 4}
+
+
+def test_production_config_reserves_x_slots():
+    # 用户明确要求: X 数据基本不筛(只卡 min_display_score 底线 + 去重), 不跟其它
+    # announcement/writeup 来源抢 genre 配额名额。走独立 reserved_quota 保底通道。
+    c = load_publish_config("config/publish.yaml")
+    assert c.reserved_quota.get("x_list", 0) == 4

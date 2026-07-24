@@ -4,7 +4,8 @@ pending_watermark: "草稿待定稿"
 min_display_score: 40                    # 人工 keep 条目质量底(确认门已保证全是 keep; 60 会吞 keep 的低分首发)
 quota: {paper: 3, model: 3, announcement: 3, writeup: 2, news: 1}  # per-genre 上限(人 keep 后施加)
 adapter_quota: {github_releases: 2, github_trending: 1}  # 按采集渠道封顶, 不占用 genre 配额名额(spec §5)
-total_limit: 12                          # 刊物总条目硬上限(2026-07-24: 11→12, 对齐用户定的量级; X 走独立保底通道见 reserved_quota, 不占这里的 genre 配额)
+reserved_quota: {x_list: 4}              # X 保底 4 条(纯按分数, 不进 genre 配额竞争); 用户要求 X 基本不筛, 只卡 min_display_score 底线+去重
+total_limit: 12                          # 刊物总条目硬上限(2026-07-24: 11→12, 对齐用户定的量级; 保底占用的名额已从这里扣除)
 genre_labels:                            # genre → 中文展示名(键顺序=组间顺序)
   paper: "论文"
   model: "模型"

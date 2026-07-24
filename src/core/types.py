@@ -375,6 +375,9 @@ class PublishConfig:
     adapter_quota: dict[str, int] = field(
         default_factory=dict
     )  # 按采集渠道封顶(spec §5), 不占用 genre 配额名额
+    reserved_quota: dict[str, int] = field(
+        default_factory=dict
+    )  # 按采集渠道保底(与 adapter_quota 方向相反): top-N 直接进, 不进 genre 配额竞争
 
 
 @dataclass
