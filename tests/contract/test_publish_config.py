@@ -44,6 +44,13 @@ def test_publish_quota_total_limit_and_floor(tmp_path):
     assert c.quota == {"paper": 1, "model": 1}
 
 
+def test_production_config_raises_total_limit():
+    # 2026-07-24: 发布层 total_limit 此前从没跟着候选池/X 覆盖扩容跟着调过,
+    # 是量级卡在个位数的实际瓶颈; 用户拍板先到 12(X 走独立 reserved_quota 保底通道)。
+    c = load_publish_config("config/publish.yaml")
+    assert c.total_limit == 12
+
+
 def test_load_publish_config_adapter_quota_default_empty():
     cfg = load_publish_config("does/not/exist.yaml")
     assert cfg.adapter_quota == {}
