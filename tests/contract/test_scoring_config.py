@@ -66,6 +66,15 @@ def test_production_config_has_topic_keywords():
     assert "multimodal" in c.topic_keywords
 
 
+def test_production_config_weighs_x_signals():
+    # x_list adapter writes x_favorite/x_retweet/x_quote/x_reply into signals
+    # (src/adapters/sources/x_list.py); popularity_weights must know about
+    # them or every X item's "可见指标" silently stays 0 regardless of engagement.
+    c = load_scoring_config("config/scoring.yaml")
+    assert c.popularity_weights.get("x_favorite", 0) > 0
+    assert c.popularity_weights.get("x_retweet", 0) > 0
+
+
 def test_card_pool_limit_default_and_override(tmp_path):
     assert ScoringConfig().card_pool_limit == 25
     p = tmp_path / "s.yaml"
