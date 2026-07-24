@@ -2,7 +2,7 @@
 
 > 唯一任务看板 + 进度表（合并自旧 `ROADMAP.md`）。源头意图见 `docs/intent/`，每层契约见 `docs/specs/`。
 > 约定:一次一个子项目、小 PR、issue-per-PR、从真实 `origin/master` 起有意义分支名。
-> 最后更新:2026-07-19。
+> 最后更新:2026-07-24。
 
 ---
 
@@ -39,9 +39,10 @@
 
 > **2026-07-18/19 用户定调**:目标"每天更多信息、更优质信息、至少追平 juya 产出"。已确认方向:X **必须全覆盖**(已做,见下)、二手媒体/传闻类**必须全覆盖**(未做)、博客**必须全覆盖**(现状待查,见 P1 扩源)、微信公众号**明确不做**。当天已 SHIPPED:5 个 X List 建成+激活(lab/company/product/researcher/kol,见 `references/x-account-candidates.yaml`)、`x-extension` 两处生产链路 bug 修复(#66 `collect.yml` 路径、#67 `finalize.yml` 从未 clone x-signals)、`card_pool_limit` 25→50(#68,实测 322 候选仅 25 条进发卡池,明显欠采样)。**下一次 09:00 北京 finalize 是这些改动首次一起生效,先看真实产出再叠加新工作。**
 
+> **2026-07-24 X 数据链路验证通过**:`x-extension` 加了 `chrome.alarms` 自动巡查(定时后台开 5 个 List tab → 抓取 → 关闭,不再需要用户手动开标签页,见 §5);轮换 `X_SIGNALS_PAT`(旧 token 一直 clone 认证失败,此前 X 数据从未真正进过 core 流水线);Collect 真实跑通验证:243 候选里 x.com 链接大量进入打分/解读/发卡,`tick_collect_done pushed=22`。顺带发现并修复 `popularity_weights` 缺 X 信号权重的 gap(#73,可见指标此前对所有 X 条目恒为 0)。
+
 | ✓ | 优先 | 任务 | 详情 |
 |---|---|---|---|
-| ☐ | **P0** | **验证 X 数据链路首次真实产出** | 前置校验步骤,不是新功能。看下一次 finalize(09:00 北京)后:(a) Telegram 卡片数量是否明显变多(50 上限);(b) 卡片/日报里是否出现 `x.com/*` 来源;(c) `content/metrics/` 里 fallback_rate 有无异常波动。**在此之前不要再往候选池/打分层加东西,先确认地基稳**。 |
 | ☐ | **P0** | **二手媒体/传闻类信源接入** | 用户明确要求全覆盖,直接对应 juya ~17% 的量级差距(Bloomberg/Reuters 报道传闻、政府公文如网信办备案)。**结构性障碍**:现有打分体系"一手性"维度(`genre_value` 里 paper/announcement 一手性权重 20)天然排斥二手转述,需要决定是 (a) 新增 genre/桶专门装"行业动态/传闻"配独立配额+更低真实性门槛,还是 (b) 放宽现有 genre 的一手性权重。**这是设计决策,先 `/brainstorm` 不要直接动 scoring.yaml**。 |
 | ☐ | **P1** | **扩源探活 + 死源 legacy 化(含"博客全覆盖")** | 用户明说加源**必须先测过稳定提供 AI News**,且博客类信源要求全覆盖。做: (a) 探活脚本 = 该源近 30d yield 是否 >0 且 AI 相关性 > 阈值; (b) 加源门槛: 探活通过才 status=working, 否则 manual; (c) 长期 403 / manual 未维护的自动挂 legacy。**当前 22 死源 (gwern/garymarcus 等 substack 403) 手动挂 manual, 应自动化**,清完死源后再评估是否需要补充新博客源填补"全覆盖"缺口。自动发现新 KOL/repo/subreddit 延后到 P2。 |
 | ☐ | **P1** | **X kol/researcher 名单继续扩充** | `references/x-account-candidates.yaml` 里 kol 目前只有 15 个(目标 50),中文圈仅 3 个明显偏薄;researcher/lab/company/product 相对完整。补充需要具体方向(用户点名关注的中文 AI 博主/研究者),不要凭空编 handle,每个都要 WebSearch 核实真实存在。 |
@@ -78,6 +79,7 @@
 
 | ✓ | 任务 | 详情 |
 |---|---|---|
+| ☑ | X 数据链路首次真实产出验证 + 插件自动巡查(#73) | 根因排查:①`X_SIGNALS_PAT` 一直认证失败(旧 token 失效),core 从未真正 clone 到过 x-signals,此前"5 个 List 已激活"只是配置就绪、数据没流进来;轮换 token 后 clone 打通。②`x-extension` 抓取此前完全靠用户手动打开/刷新 List 标签页,人一忘就断供(实测断了近一周)——加 `x-visit` alarm,跟 `x-sync` 同频在后台自动开关 5 个 List tab,不再依赖人记得。③顺带发现 `config/scoring.yaml` `popularity_weights` 没配 `x_favorite`/`x_retweet`/`x_quote`,导致"可见指标"对所有 X 条目恒为 0,已修(contract test 防回归)。三者叠加后单次 Collect 验证:243 候选含大量 x.com 链接进打分/解读,`pushed=22`。 |
 | ☑ | X 全覆盖:5 个 List + 生产链路修复(#65/#66/#67) | `ai-newsday/x-extension`4 个 bug 修完(MAIN-world 脚本从未被 WXT 注入过、GraphQL 字段 `user.legacy`→`user.core` 迁移、options 页面正则转义、诊断日志缺失);建成并激活 5 个 X List(lab/company/product/researcher/kol,`config/sources.d/x.yaml`);`collect.yml`/`finalize.yml` 两处 `X_LIST_DATA_DIR` 路径断链修复(真实 clone x-signals 验证过,9/25 候选来自 x_list)。 |
 | ☑ | 扩大发卡池(#68) | `card_pool_limit` 25→50,实测 322 候选仅 25 条(8%)进发卡池,明显欠采样;也直接影响每日 Telegram 审阅卡片量,跟 juya-vs-us 量级差距分析联动。 |
 | ☑ | 主动降噪·Paper + GitHub Releases 重要性(#61) | `raw_summary` 无上限撑爆 prompt 触发 fallback 已修(`InterpretConfig.raw_summary_max_chars`);`github_releases` 过滤 `prerelease`;`hf-papers` 加 `min_score:15`;GitHub 内容整体封顶(releases≤2/trending≤1,不挤占公告配额)。`_trim_to_sentence` 版本号截断 bug 一并修。见 `docs/superpowers/specs/2026-07-14-paper-release-noise-reduction-design.md`。 |
