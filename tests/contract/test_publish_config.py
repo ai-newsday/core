@@ -44,6 +44,14 @@ def test_publish_quota_total_limit_and_floor(tmp_path):
     assert c.quota == {"paper": 1, "model": 1}
 
 
+def test_production_config_targets_juya_scale():
+    # 2026-07-16 量级分析: juya ~22/day vs 我们 total_limit=11 从没跟着调过,
+    # 是发布层实际瓶颈(候选池/X 覆盖扩了, 发布口子没跟着开)。
+    c = load_publish_config("config/publish.yaml")
+    assert c.total_limit >= 20
+    assert sum(c.quota.values()) == c.total_limit
+
+
 def test_load_publish_config_adapter_quota_default_empty():
     cfg = load_publish_config("does/not/exist.yaml")
     assert cfg.adapter_quota == {}
