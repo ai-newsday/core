@@ -123,6 +123,7 @@ def compute_scores(
             else config.priority_bonus_default
         )
         qw = (quality_of or {}).get(it.source, 1.0)
+        authority_factor = config.adapter_authority_factor.get(it.adapter or "", 1.0)
         firehose = (
             float(config.firehose_penalty)
             if it.genre.value in ("model", "writeup")
@@ -131,7 +132,7 @@ def compute_scores(
             else 0.0
         )
         breakdown = {
-            "机构影响力": round((float(authority) + float(prio_bonus)) * qw, 4),
+            "机构影响力": round((float(authority) + float(prio_bonus)) * qw * authority_factor, 4),
             "可见指标": round(_visibility(it, config), 4),
             "时效": recency_band(it.published_at, ctx.now, config),
             "惩罚": penalty_of[it.link] + firehose,

@@ -61,3 +61,10 @@ popularity_cap: 15.0              # 单条最高 +15 分, 防异常超大数值
 card_pool_limit: 50
 
 sources_registry_path: "config/sources.yaml"
+
+# 机构影响力按 adapter 打折(2026-07-24 实测): 一条推文不等于一篇官方博客/论文的机构
+# 背书分量, 但两者共用同一套 genre_value+publisher_authority 固定分(company/priority1
+# = 20 + announcement 矩阵 58 = 78), 加上时效 10 + 关键词 5 就到 93, 只剩 7 分给可见指标
+# 区分冷门/爆款推文 —— 实测 99 分 vs 100 分, 分不出好坏。x_list 直接把机构影响力清零,
+# 把区分度让给可见指标/时效/关键词。
+adapter_authority_factor: {x_list: 0.0}
