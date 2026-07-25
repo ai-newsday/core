@@ -306,6 +306,45 @@ def test_render_markdown_source_line_last():
     assert "来源 [src](https://a/1) · 75 分" in md
 
 
+def test_render_markdown_drops_evidence_line_when_anchors_duplicate_source_link():
+    # 2026-07-25: 依据锚点全部等于来源链接时(同一个 URL 出现 2-4 次), 只留来源一行,
+    # 不重复罗列"依据"。
+    items = [
+        _ri(
+            "https://a/1",
+            title="T",
+            body="B。",
+            evidence=[
+                Evidence(claim="事实一", anchor="https://a/1"),
+                Evidence(claim="事实二", anchor="https://a/1"),
+            ],
+            score=75,
+        )
+    ]
+    md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
+    assert "依据" not in md
+    assert "来源 [src](https://a/1) · 75 分" in md
+
+
+def test_render_markdown_keeps_evidence_line_when_anchor_differs_from_source_link():
+    items = [
+        _ri(
+            "https://a/1",
+            title="T",
+            body="B。",
+            related=["https://a/related"],
+            evidence=[
+                Evidence(claim="事实一", anchor="https://a/1"),
+                Evidence(claim="事实二", anchor="https://a/related"),
+            ],
+            score=75,
+        )
+    ]
+    md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
+    assert "依据：" in md
+    assert "事实一" in md and "事实二" in md
+
+
 def test_render_markdown_pending_watermark():
     items = [_ri("https://a/1", score=80)]
     cfg = PublishConfig()
