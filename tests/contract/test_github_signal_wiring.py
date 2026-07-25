@@ -31,6 +31,10 @@ def test_github_stars_counts_as_popularity():
     assert _has_popularity(it) is True
 
 
-def test_scoring_yaml_has_github_stars_weight():
+def test_scoring_yaml_does_not_weigh_github_stars():
+    # 2026-07-25 reversal: github_stars is a repo-level constant, not per-release
+    # popularity — it doesn't belong in the "可见指标"(per-item visibility) dimension.
+    # It's still a valid _has_popularity() signal (skips redundant HN lookup, see
+    # test_github_stars_counts_as_popularity above) — just not a scoring weight.
     cfg = yaml.safe_load(open("config/scoring.yaml"))
-    assert cfg["popularity_weights"]["github_stars"] == 0.3
+    assert "github_stars" not in cfg["popularity_weights"]
