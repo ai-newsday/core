@@ -75,6 +75,14 @@ def test_production_config_weighs_x_signals():
     assert c.popularity_weights.get("x_retweet", 0) > 0
 
 
+def test_production_config_discounts_x_institutional_authority():
+    # 2026-07-24 实测: X 推文套用跟官方博客/论文一样的固定"机构影响力"+内容矩阵分(78分),
+    # 只给可见指标留 7 分浮动空间, 导致冷门推文(99分)和爆款推文(100分)几乎打平。
+    # x_list 的机构影响力必须打折, 把空间让给可见指标/时效/关键词去真正区分内容。
+    c = load_scoring_config("config/scoring.yaml")
+    assert c.adapter_authority_factor.get("x_list", 1.0) == 0.0
+
+
 def test_card_pool_limit_default_and_override(tmp_path):
     assert ScoringConfig().card_pool_limit == 25
     p = tmp_path / "s.yaml"

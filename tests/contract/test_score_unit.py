@@ -60,6 +60,34 @@ def test_compute_scores_breakdown_has_nine_keys_and_sums_to_score():
     assert bd["机构影响力"] == 18 + 6
 
 
+def test_adapter_authority_factor_discounts_institutional_credit():
+    ctx = _ctx()
+    item = _ni("A", "https://x.com/1", "x-ai-company", Genre.announcement).model_copy(
+        update={"adapter": "x_list"}
+    )
+    cfg = ScoringConfig(adapter_authority_factor={"x_list": 0.0})
+    scored = compute_scores([item], {"x-ai-company": 1}, cfg, ctx)
+    assert scored[0].score_breakdown["机构影响力"] == 0.0
+
+
+def test_adapter_authority_factor_defaults_to_no_discount():
+    ctx = _ctx()
+    item = _ni("A", "https://a/1", "openai", Genre.announcement)  # adapter unset -> ""
+    cfg = ScoringConfig(adapter_authority_factor={"x_list": 0.0})  # doesn't match ""
+    scored = compute_scores([item], {"openai": 1}, cfg, ctx)
+    assert scored[0].score_breakdown["机构影响力"] == 18 + 6  # unaffected
+
+
+def test_adapter_authority_factor_partial_discount():
+    ctx = _ctx()
+    item = _ni("A", "https://x.com/1", "x-ai-company", Genre.announcement).model_copy(
+        update={"adapter": "x_list"}
+    )
+    cfg = ScoringConfig(adapter_authority_factor={"x_list": 0.5})
+    scored = compute_scores([item], {"x-ai-company": 1}, cfg, ctx)
+    assert scored[0].score_breakdown["机构影响力"] == (18 + 6) * 0.5
+
+
 def test_compute_scores_missing_priority_uses_default():
     items = [_ni("A", "https://a/1", "unknown-src", Genre.paper)]
     scored = compute_scores(items, {}, ScoringConfig(), _ctx())  # source not in map

@@ -173,6 +173,11 @@ class ScoringConfig:
     sources_registry_path: str = "config/sources.yaml"
     topic_keywords: list[str] = field(default_factory=list)
     topic_bonus: float = 5.0
+    # 机构影响力按 adapter 打折(0.0-1.0, 缺省 1.0=不打折)。一条推文不等于一篇官方博客/论文
+    # 的机构背书分量, 但两者共用同一套 genre_value+publisher_authority 固定分, 导致高热度
+    # 推文和普通推文都被这部分固定分顶到分数上限、可见指标的区分度被吃掉(2026-07-24 实测:
+    # 78 分固定 + 10 时效 + 5 关键词 = 93, 只剩 7 分给可见指标, 冷门/爆款推文只差 1 分)。
+    adapter_authority_factor: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
