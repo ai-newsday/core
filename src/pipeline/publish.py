@@ -111,7 +111,8 @@ def _render_categories(report: DailyReport) -> list[str]:
             lines.append("")
             if it.tags:
                 lines.append(" ".join(it.tags))
-            if it.evidence:
+            # 依据锚点全部等于来源链接时(同一 URL 重复 2-4 次), 只留来源一行不重复罗列。
+            if it.evidence and any(e.anchor != it.link for e in it.evidence):
                 ev = "；".join(f"[{e.claim}]({e.anchor})" for e in it.evidence)
                 lines.append(f"依据：{ev}")
             lines.append(f"来源 [{it.source}]({it.link}) · {it.score} 分")
