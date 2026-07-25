@@ -99,3 +99,34 @@ async def test_releases_http_error_raises():
     respx.get(_RELEASES).mock(return_value=httpx.Response(503))
     with pytest.raises(httpx.HTTPStatusError):
         await GithubReleasesAdapter().fetch(_spec(), _ctx(), timeout_s=15)
+
+
+@respx.mock
+async def test_releases_tag_pattern_filters_out_non_matching_tags():
+    # 2026-07-25 实测: langchain monorepo 每个子包(langchain-openai/-fireworks/-core...)
+    # 独立打 tag, 真正的主包 langchain== 反而最少见; tag_pattern 只放行匹配的 tag。
+    releases = [
+        {**_release(tag="langchain==1.3.14"), "prerelease": False},
+        {
+            **_release(
+                tag="langchain-fireworks==1.5.1",
+                url="https://github.com/x/x/releases/tag/langchain-fireworks%3D%3D1.5.1",
+            ),
+            "prerelease": False,
+        },
+    ]
+    respx.get(_RELEASES).mock(return_value=httpx.Response(200, json=releases))
+    respx.get(_REPO).mock(return_value=httpx.Response(200, json={"stargazers_count": 65000}))
+    spec = _spec().model_copy(update={"tag_pattern": r"^langchain==\d"})
+    items = await GithubReleasesAdapter().fetch(spec, _ctx(), timeout_s=15)
+    assert len(items) == 1
+    assert items[0].title_en == "comfyui langchain==1.3.14"
+
+
+@respx.mock
+async def test_releases_no_tag_pattern_keeps_all_tags():
+    releases = [{**_release(tag="langchain-core==1.5.1"), "prerelease": False}]
+    respx.get(_RELEASES).mock(return_value=httpx.Response(200, json=releases))
+    respx.get(_REPO).mock(return_value=httpx.Response(200, json={"stargazers_count": 65000}))
+    items = await GithubReleasesAdapter().fetch(_spec(), _ctx(), timeout_s=15)  # tag_pattern unset
+    assert len(items) == 1

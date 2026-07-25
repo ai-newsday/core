@@ -177,7 +177,7 @@
 - {name: diffusers-gh,     url: "https://api.github.com/repos/huggingface/diffusers/releases",      genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
 - {name: llama-factory-gh, url: "https://api.github.com/repos/hiyouga/LLaMA-Factory/releases",      genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3}
 - {name: peft-gh,          url: "https://api.github.com/repos/huggingface/peft/releases",           genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
-- {name: langchain-gh,     url: "https://api.github.com/repos/langchain-ai/langchain/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
+- {name: langchain-gh,     url: "https://api.github.com/repos/langchain-ai/langchain/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2, tag_pattern: "^langchain==\\d"}
 - {name: langgraph-gh,     url: "https://api.github.com/repos/langchain-ai/langgraph/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
 - {name: openhands-gh,     url: "https://api.github.com/repos/All-Hands-AI/OpenHands/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
 - {name: cline-gh,         url: "https://api.github.com/repos/cline/cline/releases",                genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
