@@ -83,6 +83,15 @@ def test_production_config_discounts_x_institutional_authority():
     assert c.adapter_authority_factor.get("x_list", 1.0) == 0.0
 
 
+def test_production_config_does_not_weigh_github_stars_in_visibility():
+    # 2026-07-25 实测: github_stars 是仓库固定星数, 不是这次 release 的热度——同一仓库
+    # 连续 3 个补丁版本(FunASR v1.3.27/28/29) github_stars 完全相同, 0.3*sqrt(stars)
+    # 对任何 >~2500 星的仓库都会直接把可见指标顶满 15 分封顶, release_tier_score(真正
+    # 衡量"这次发布重不重要"的信号)完全被盖过, 导致补丁版本跟真大版本一样顶到 100 分。
+    c = load_scoring_config("config/scoring.yaml")
+    assert "github_stars" not in c.popularity_weights
+
+
 def test_card_pool_limit_default_and_override(tmp_path):
     assert ScoringConfig().card_pool_limit == 25
     p = tmp_path / "s.yaml"

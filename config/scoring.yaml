@@ -48,9 +48,13 @@ penalty:
 # - hf-models.likes 范围 0-1000+ → sqrt 后 0-30, 极值有但少
 # - hn_points 范围 0-1000+ → sqrt 后 0-30, AI 圈中位数 5-50
 # - 权重 0.5 让 sqrt(100)=10 → 5 分, sqrt(900)=30 → 15 (近 cap)
-popularity_weights: {upvotes: 0.6, hn_points: 0.5, likes: 0.3, github_stars: 0.3, num_comments: 0.4, release_tier_score: 1.0, x_favorite: 0.4, x_retweet: 0.5, x_quote: 0.3}
+popularity_weights: {upvotes: 0.6, hn_points: 0.5, likes: 0.3, num_comments: 0.4, release_tier_score: 1.0, x_favorite: 0.4, x_retweet: 0.5, x_quote: 0.3}
 # x_reply 不计入: 回复数更多反映争议度而非质量, 加进来会奖励吵架贴而不是好内容.
 # release_tier_score: judge_release_importance() 写入的 tier 分值(2/3 档), 直接用不加权(该维度本身已是策展分值, 不是原始人气数字)
+# github_stars 2026-07-25 移出此维度: 它是仓库固定星数, 不随具体某次 release 变化——
+# 同一仓库连续几个补丁版本 github_stars 完全相同, 任何 >~2500 星的仓库 0.3*sqrt(stars)
+# 就已经把可见指标顶满 15 分封顶, 真正该衡量"这次发布是否重要"的 release_tier_score
+# 反而被盖过, 导致补丁版本和真大版本一样顶到满分。star 数留给 priority(机构影响力)体现。
 popularity_cap: 15.0              # 单条最高 +15 分, 防异常超大数值
 
 # 发卡候选池: score 排序后取 top-N 进 interpret(发卡)。比旧 quota→top-11 宽,
