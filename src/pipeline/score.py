@@ -58,10 +58,13 @@ def _same_source_penalty(items: list[NewsItem], config: ScoringConfig) -> dict[s
     Ordered by (published_at asc, -popularity desc, link asc): 最早发的免罚; 同 published_at
     时取最高人气 (issue #11: HF 每日精选全部同 submittedOnDailyAt, 退化到 link 字母序不合理);
     仍同则 link 字母序兜底 (确定性)."""
+    exempt = set(config.same_source_penalty_exempt_adapters)
     by_source: dict[str, list[NewsItem]] = defaultdict(list)
     for it in items:
+        if it.adapter in exempt:
+            continue
         by_source[it.source].append(it)
-    out: dict[str, float] = {}
+    out: dict[str, float] = defaultdict(float)
     for grp in by_source.values():
         ordered = sorted(
             grp,

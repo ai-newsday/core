@@ -144,6 +144,48 @@ def test_compute_scores_same_source_penalty_by_published_order():
     assert pen["https://s/3"] == ScoringConfig().same_source_penalty
 
 
+def test_same_source_penalty_exempts_configured_adapters():
+    # 2026-07-25: X 账号一天报好几条不同大新闻是常态(不是同一博客灌水占坑), dedup 的
+    # 聚类已经挡掉真正的同事件重复; 按 adapter 豁免同源惩罚, 不再惩罚"今天发得多"。
+    t1 = NOW - timedelta(hours=3)
+    t2 = NOW - timedelta(hours=2)
+    t3 = NOW - timedelta(hours=1)
+    items = [
+        _ni("early", "https://x.com/1", "x-ai-kol", Genre.writeup, t1).model_copy(
+            update={"adapter": "x_list"}
+        ),
+        _ni("mid", "https://x.com/2", "x-ai-kol", Genre.writeup, t2).model_copy(
+            update={"adapter": "x_list"}
+        ),
+        _ni("late", "https://x.com/3", "x-ai-kol", Genre.writeup, t3).model_copy(
+            update={"adapter": "x_list"}
+        ),
+    ]
+    cfg = ScoringConfig(firehose_penalty=0.0, same_source_penalty_exempt_adapters=["x_list"])
+    scored = compute_scores(items, {}, cfg, _ctx())
+    pen = {s.link: s.score_breakdown["惩罚"] for s in scored}
+    assert pen["https://x.com/1"] == 0.0
+    assert pen["https://x.com/2"] == 0.0
+    assert pen["https://x.com/3"] == 0.0
+
+
+def test_same_source_penalty_exempt_adapters_defaults_to_no_exemption():
+    t1 = NOW - timedelta(hours=2)
+    t2 = NOW - timedelta(hours=1)
+    items = [
+        _ni("early", "https://x.com/1", "x-ai-kol", Genre.writeup, t1).model_copy(
+            update={"adapter": "x_list"}
+        ),
+        _ni("late", "https://x.com/2", "x-ai-kol", Genre.writeup, t2).model_copy(
+            update={"adapter": "x_list"}
+        ),
+    ]
+    scored = compute_scores(items, {}, ScoringConfig(firehose_penalty=0.0), _ctx())
+    pen = {s.link: s.score_breakdown["惩罚"] for s in scored}
+    assert pen["https://x.com/1"] == 0.0
+    assert pen["https://x.com/2"] == ScoringConfig().same_source_penalty
+
+
 def test_compute_scores_sorted_desc_by_score():
     items = [
         _ni("blog", "https://b/1", "b", Genre.writeup),  # low base

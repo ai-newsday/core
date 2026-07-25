@@ -69,6 +69,9 @@ def load_scoring_config(path: str) -> ScoringConfig:
         topic_keywords=data.get("topic_boost", {}).get("keywords", d.topic_keywords),
         topic_bonus=data.get("topic_boost", {}).get("bonus", d.topic_bonus),
         adapter_authority_factor=data.get("adapter_authority_factor", d.adapter_authority_factor),
+        same_source_penalty_exempt_adapters=data.get(
+            "same_source_penalty_exempt_adapters", d.same_source_penalty_exempt_adapters
+        ),
     )
 
 
