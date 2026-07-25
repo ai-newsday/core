@@ -71,6 +71,10 @@ class SourceSpec(BaseModel):
     max_items: int | None = None  # truncate fetched items to this cap (e.g. arXiv firehose)
     min_score: int | None = None  # HN points / Reddit ups 下限; None = 不过滤
     keywords: list[str] | None = None  # HN AI 关键词(标题/URL 命中); Reddit 不填
+    # github_releases 专用: release tag_name 必须匹配才保留, 缺省不过滤。
+    # monorepo(如 langchain-ai/langchain)每个子包独立打 tag, 主包反而最少见,
+    # 用这个把噪声子包挡在外面(2026-07-25 实测)。
+    tag_pattern: str | None = None
 
 
 @dataclass

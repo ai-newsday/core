@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import httpx
 
 from src.adapters.sources._github import _auth_headers, _parse_dt
@@ -27,6 +29,7 @@ class GithubReleasesAdapter:
             repo_resp.raise_for_status()
             stars = (repo_resp.json() or {}).get("stargazers_count")
 
+        tag_re = re.compile(source.tag_pattern) if source.tag_pattern else None
         signals = {"github_stars": stars} if stars is not None else {}
         items: list[RawItem] = []
         for r in releases:
@@ -36,6 +39,8 @@ class GithubReleasesAdapter:
             tag = r.get("tag_name")
             html_url = r.get("html_url")
             if not published or not tag or not html_url:
+                continue
+            if tag_re and not tag_re.search(tag):
                 continue
             items.append(
                 RawItem(
