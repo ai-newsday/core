@@ -40,6 +40,14 @@ def test_interpret_prompt_has_relevant_field():
     assert '"relevant"' in t
 
 
+def test_interpret_prompt_forbids_misattributing_hosting_platform():
+    # 2026-07-25 实测: hf-papers/hf-models 的 raw_summary 只有摘要文本, 没有作者
+    # 机构字段(HF daily_papers API 只给作者姓名), 但 LLM 常把"Hugging Face"(托管
+    # 平台)写成论文发布方("Hugging Face 发布论文")。禁止这种误归因。
+    t = load_prompt("src/prompts/interpret_item.md")
+    assert "Hugging Face" in t and "托管" in t
+
+
 def test_release_importance_prompt_exists_and_has_placeholders():
     t = load_prompt("src/prompts/release_importance.md")
     assert "{{title}}" in t and "{{body}}" in t
