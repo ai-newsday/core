@@ -72,3 +72,8 @@ sources_registry_path: "config/sources.yaml"
 # 区分冷门/爆款推文 —— 实测 99 分 vs 100 分, 分不出好坏。x_list 直接把机构影响力清零,
 # 把区分度让给可见指标/时效/关键词。
 adapter_authority_factor: {x_list: 0.0}
+
+# 同源惩罚豁免(spec §5.3 例外): X 账号一天报多条不同大新闻是常态, 不是同一博客灌水
+# 占坑——同事件重复已由 dedup 聚类挡掉, 这里的"同源"只是"同账号", 惩罚发得多的账号
+# 跟内容质量无关(2026-07-25 实测: fchollet/testingcatalog 这类活跃账号被 -5 压分)。
+same_source_penalty_exempt_adapters: [x_list]

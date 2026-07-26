@@ -182,6 +182,10 @@ class ScoringConfig:
     # 推文和普通推文都被这部分固定分顶到分数上限、可见指标的区分度被吃掉(2026-07-24 实测:
     # 78 分固定 + 10 时效 + 5 关键词 = 93, 只剩 7 分给可见指标, 冷门/爆款推文只差 1 分)。
     adapter_authority_factor: dict[str, float] = field(default_factory=dict)
+    # 按 adapter 豁免同源惩罚(spec §5.3 的例外): 缺省不豁免。为一天报多条不同大新闻的
+    # 采集渠道(如 X list)设计——同事件重复已由 dedup 聚类挡掉, 这里的"同源"只是"同账号",
+    # 惩罚"发得多"跟内容质量无关。
+    same_source_penalty_exempt_adapters: list[str] = field(default_factory=list)
 
 
 @dataclass

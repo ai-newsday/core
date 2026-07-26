@@ -92,6 +92,13 @@ def test_production_config_does_not_weigh_github_stars_in_visibility():
     assert "github_stars" not in c.popularity_weights
 
 
+def test_production_config_exempts_x_from_same_source_penalty():
+    # 2026-07-25: X 账号一天报多条不同大新闻是常态, 不是同一博客灌水占坑(同事件重复
+    # 已由 dedup 聚类挡掉), 同源惩罚只在"账号发得多"上惩罚 X, 跟内容质量无关。
+    c = load_scoring_config("config/scoring.yaml")
+    assert "x_list" in c.same_source_penalty_exempt_adapters
+
+
 def test_card_pool_limit_default_and_override(tmp_path):
     assert ScoringConfig().card_pool_limit == 25
     p = tmp_path / "s.yaml"
