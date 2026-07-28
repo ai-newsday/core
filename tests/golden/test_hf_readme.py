@@ -97,9 +97,7 @@ def test_client_failure_filters_item_out_does_not_crash_batch():
 def test_disabled_passthrough_no_client_call():
     items = [_model_item("a/b")]
     client = FakeReadmeClient({"a/b": _REAL_README})
-    out = asyncio.run(
-        enrich_hf_models_readme(items, client, HFReadmeConfig(enabled=False), _ctx())
-    )
+    out = asyncio.run(enrich_hf_models_readme(items, client, HFReadmeConfig(enabled=False), _ctx()))
     assert out == items
     assert client.calls == []
 
@@ -119,8 +117,6 @@ def test_mixed_list_preserves_order_for_kept_items():
         ),  # 非 hf_models, 透传(不检查长度)
         _model_item("keep/me2"),
     ]
-    client = FakeReadmeClient(
-        {"drop/me": None, "keep/me1": _REAL_README, "keep/me2": _REAL_README}
-    )
+    client = FakeReadmeClient({"drop/me": None, "keep/me1": _REAL_README, "keep/me2": _REAL_README})
     out = asyncio.run(enrich_hf_models_readme(items, client, HFReadmeConfig(), _ctx()))
     assert [i.title_en for i in out] == ["keep/me1", "rss-item", "keep/me2"]

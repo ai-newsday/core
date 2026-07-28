@@ -15,7 +15,9 @@ def test_clean_readme_strips_images():
 
 
 def test_clean_readme_strips_html_tags():
-    text = '<h1 align="center">Title</h1>\n\n<p align="center"><a href="x">badge</a></p>\n\nBody text.'
+    text = (
+        '<h1 align="center">Title</h1>\n\n<p align="center"><a href="x">badge</a></p>\n\nBody text.'
+    )
     out = _clean_readme(text)
     assert "<h1" not in out and "<p" not in out and "<a" not in out
     assert "Body text." in out
@@ -38,5 +40,10 @@ def test_clean_readme_frontmatter_only_returns_empty():
 
 
 def test_model_id_from_link_strips_hf_prefix():
-    assert _model_id_from_link("https://huggingface.co/microsoft/Mage-Flow") == "microsoft/Mage-Flow"
-    assert _model_id_from_link("https://huggingface.co/unsloth/Laguna-S-2.1-GGUF") == "unsloth/Laguna-S-2.1-GGUF"
+    assert (
+        _model_id_from_link("https://huggingface.co/microsoft/Mage-Flow") == "microsoft/Mage-Flow"
+    )
+    assert (
+        _model_id_from_link("https://huggingface.co/unsloth/Laguna-S-2.1-GGUF")
+        == "unsloth/Laguna-S-2.1-GGUF"
+    )
