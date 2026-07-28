@@ -439,6 +439,18 @@ class ReleaseImportanceConfig:
 
 
 @dataclass
+class HFReadmeConfig:
+    """hf-models 条目本身没有描述文本(adapter 只调用模型列表 API, raw_summary 恒为 None)。
+    抓取模型的 HF README 作为 interpret 的素材来源; 抓不到/清洗后内容太短的条目直接从候选
+    列表剔除(不带着空 body 进审阅卡池), 而不是放行后指望下游过滤器兜底。"""
+
+    enabled: bool = True
+    timeout_s: int = 8
+    concurrency: int = 5
+    min_body_chars: int = 80  # 清洗 frontmatter/图片/HTML 后剩余正文长度下限; 上线前用真实数据核实
+
+
+@dataclass
 class EnrichConfig:
     """RSS 类源天然无 popularity, 用 HN Algolia by URL 反查补 signals.hn_*。"""
 
@@ -448,6 +460,7 @@ class EnrichConfig:
     # 已经带原生 popularity 信号的 genre 不查 HN (省请求, 不覆盖)
     skip_genres: list[str] = field(default_factory=lambda: ["paper", "model"])
     release_importance: ReleaseImportanceConfig = field(default_factory=ReleaseImportanceConfig)
+    hf_readme: HFReadmeConfig = field(default_factory=HFReadmeConfig)
 
 
 @dataclass

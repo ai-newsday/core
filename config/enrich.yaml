@@ -29,3 +29,13 @@ release_importance:
   hard_filter_max_tier: 1  # tier <= 1 (空转/常规补丁) 从候选池剔除
   tier_score: {2: 4, 3: 9} # tier -> release_tier_score(写入 popularity_weights, sqrt+cap 压缩)
   prompt_path: "src/prompts/release_importance.md"
+
+# hf-models 条目补描述文本: adapter 本身只调模型列表 API, 没有正文可用 (2026-07-27,
+# 实锤 microsoft/Mage-Flow 发布时 body 是空的, 但 HF 上其实有真实 README)。
+# 抓每个候选模型的 README, 清洗 frontmatter/图片/HTML 后当 raw_summary 素材;
+# 抓不到或清洗后太短的条目直接从候选列表剔除, 不让空 body 进审阅卡池。
+hf_readme:
+  enabled: true
+  timeout_s: 8
+  concurrency: 5
+  min_body_chars: 80  # 占位值, Task 5 用真实数据核实后可能调整

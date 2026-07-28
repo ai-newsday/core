@@ -170,8 +170,13 @@ def load_publish_config(path: str) -> PublishConfig:
 
 
 def load_enrich_config(path: str) -> EnrichConfig:
-    """HN URL 反查 popularity 的开关 + 配额, 以及 release 重要性判定; 缺文件 -> 默认。"""
-    from src.core.types import ProviderSpec, ReleaseImportanceConfig  # local import to avoid cycles
+    """HN URL 反查 popularity 的开关 + 配额, release 重要性判定, hf-models README 抓取;
+    缺文件 -> 默认。"""
+    from src.core.types import (  # local import to avoid cycles
+        HFReadmeConfig,
+        ProviderSpec,
+        ReleaseImportanceConfig,
+    )
 
     data = _read_yaml(path)
     d = EnrichConfig()
@@ -199,12 +204,21 @@ def load_enrich_config(path: str) -> EnrichConfig:
         tier_score=ri_data.get("tier_score", ri_d.tier_score),
         prompt_path=ri_data.get("prompt_path", ri_d.prompt_path),
     )
+    hr_data = data.get("hf_readme", {})
+    hr_d = HFReadmeConfig()
+    hf_readme = HFReadmeConfig(
+        enabled=hr_data.get("enabled", hr_d.enabled),
+        timeout_s=hr_data.get("timeout_s", hr_d.timeout_s),
+        concurrency=hr_data.get("concurrency", hr_d.concurrency),
+        min_body_chars=hr_data.get("min_body_chars", hr_d.min_body_chars),
+    )
     return EnrichConfig(
         enabled=data.get("enabled", d.enabled),
         concurrency=data.get("concurrency", d.concurrency),
         timeout_s=data.get("timeout_s", d.timeout_s),
         skip_genres=data.get("skip_genres", d.skip_genres),
         release_importance=release_importance,
+        hf_readme=hf_readme,
     )
 
 
