@@ -7,6 +7,7 @@ raw_summary。只处理 adapter == "hf_models" 的条目; 其余原样透传。�
 from __future__ import annotations
 
 import asyncio
+import html
 import re
 
 from src.core.types import HFReadmeConfig, RawItem, RunContext
@@ -15,14 +16,20 @@ from src.observability.events import emit
 _FRONTMATTER_RE = re.compile(r"\A---\n.*?\n---\n?", re.DOTALL)
 _IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
+_TRAILING_WS_RE = re.compile(r"[ \t]+\n")
 _BLANK_LINES_RE = re.compile(r"\n{3,}")
 
 
 def _clean_readme(text: str) -> str:
-    """去 YAML frontmatter + markdown 图片 + HTML 标签 + 折叠多余空行(纯函数, 无网络)。"""
+    """去 YAML frontmatter + markdown 图片 + HTML 标签/实体 + 折叠多余空行(纯函数, 无网络)。
+    真实 HF README 常见徽章/logo 区块是密集的 <div>/<a>/<img> 加 &nbsp; 类实体
+    (2026-07-27 用 unsloth/Kimi-K3 真实数据核实过); 光去标签不够, 还得转义实体、
+    清掉标签删完后留下的纯空白行, 否则 raw_summary 里全是 "&nbsp;" 和空白噪声。"""
     out = _FRONTMATTER_RE.sub("", text)
     out = _IMAGE_RE.sub("", out)
     out = _HTML_TAG_RE.sub("", out)
+    out = html.unescape(out)
+    out = _TRAILING_WS_RE.sub("\n", out)
     out = _BLANK_LINES_RE.sub("\n\n", out)
     return out.strip()
 
