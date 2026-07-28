@@ -93,3 +93,52 @@ def test_production_enrich_yaml_has_release_importance_configured():
     assert ri.enabled is True
     assert len(ri.models) >= 1
     assert ri.prompt_path == "src/prompts/release_importance.md"
+
+
+from src.core.types import HFReadmeConfig
+
+
+def test_enrich_config_hf_readme_defaults():
+    cfg = EnrichConfig()
+    hr = cfg.hf_readme
+    assert isinstance(hr, HFReadmeConfig)
+    assert hr.enabled is True
+    assert hr.timeout_s > 0
+    assert hr.concurrency >= 1
+    assert hr.min_body_chars > 0
+    assert hr.max_body_chars > hr.min_body_chars
+
+
+def test_load_enrich_config_hf_readme_overrides(tmp_path):
+    p = tmp_path / "enrich.yaml"
+    p.write_text(
+        """
+hf_readme:
+  enabled: false
+  timeout_s: 5
+  concurrency: 3
+  min_body_chars: 100
+  max_body_chars: 3000
+""",
+        encoding="utf-8",
+    )
+    cfg = load_enrich_config(str(p))
+    hr = cfg.hf_readme
+    assert hr.enabled is False
+    assert hr.timeout_s == 5
+    assert hr.concurrency == 3
+    assert hr.min_body_chars == 100
+    assert hr.max_body_chars == 3000
+
+
+def test_load_enrich_config_hf_readme_missing_block_uses_defaults(tmp_path):
+    p = tmp_path / "enrich.yaml"
+    p.write_text("enabled: true\n", encoding="utf-8")
+    cfg = load_enrich_config(str(p))
+    assert cfg.hf_readme == HFReadmeConfig()
+
+
+def test_production_enrich_yaml_has_hf_readme_configured():
+    cfg = load_enrich_config("config/enrich.yaml")
+    assert cfg.hf_readme.enabled is True
+    assert cfg.hf_readme.min_body_chars > 0

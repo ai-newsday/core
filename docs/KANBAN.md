@@ -2,7 +2,7 @@
 
 > 唯一任务看板 + 进度表（合并自旧 `ROADMAP.md`）。源头意图见 `docs/intent/`，每层契约见 `docs/specs/`。
 > 约定:一次一个子项目、小 PR、issue-per-PR、从真实 `origin/master` 起有意义分支名。
-> 最后更新:2026-07-26。
+> 最后更新:2026-07-27。
 
 ---
 
@@ -49,7 +49,6 @@
 |---|---|---|---|
 | ☐ | **P1** | **release_importance 判定标准复查** | 2026-07-25(见上 b)。5% 过滤率偏低,怀疑 prompt 对"partner 包级别小改动配大话术"过于宽松。**#80 langchain tag 过滤已上线几天,先看过滤率有没有自然回升,再决定要不要动 prompt/阈值**。 |
 | ☐ | 待决策 | **`writeup`(41) vs `announcement`(58) genre_value 17 分结构性差距** | 2026-07-26 新发现(见上)。同源惩罚豁免(#83)修完后,这是继续压低 X 个人研究者账号(fchollet 这类)分数的最后一个结构性瓶颈。`genre_value` 是全局的,会影响所有 writeup 来源不只 X,**要不要动是设计决策,不要凭自己理解改**。 |
-| ☐ | 待决策 | **模型条目正文完全空仍照发(如 `microsoft/Mage-Flow`)** | 2026-07-26 新发现(见上)。`hf-models` 源没有描述数据,LLM 无米下锅,body 空/近空的条目照样能拿高分(实见 83 分)通过 `build_report` 的 `score>=floor and relevant` 过滤。方案二选一:给 `build_report` 加 `bool(body)` 过滤,或解决 `hf-models` 没有描述数据的根本问题。 |
 | ☐ | 待澄清 | **"官方"/"模型" genre 是否该合并** | 2026-07-25 用户提出但意图不明确(是嫌两个分类界限模糊,还是嫌读者一眼看得出不用标注?)。**下次对话先问清楚再动 `genre_value`/`group_by_category`**。 |
 | ☐ | **P0** | **二手媒体/传闻类信源接入** | 用户明确要求全覆盖,直接对应 juya ~17% 的量级差距(Bloomberg/Reuters 报道传闻、政府公文如网信办备案)。**结构性障碍**:现有打分体系"一手性"维度(`genre_value` 里 paper/announcement 一手性权重 20)天然排斥二手转述,需要决定是 (a) 新增 genre/桶专门装"行业动态/传闻"配独立配额+更低真实性门槛,还是 (b) 放宽现有 genre 的一手性权重。**这是设计决策,先 `/brainstorm` 不要直接动 scoring.yaml**。 |
 | ☐ | **P1** | **扩源探活 + 死源 legacy 化(含"博客全覆盖")** | 用户明说加源**必须先测过稳定提供 AI News**,且博客类信源要求全覆盖。做: (a) 探活脚本 = 该源近 30d yield 是否 >0 且 AI 相关性 > 阈值; (b) 加源门槛: 探活通过才 status=working, 否则 manual; (c) 长期 403 / manual 未维护的自动挂 legacy。**当前 22 死源 (gwern/garymarcus 等 substack 403) 手动挂 manual, 应自动化**,清完死源后再评估是否需要补充新博客源填补"全覆盖"缺口。自动发现新 KOL/repo/subreddit 延后到 P2。 |
@@ -87,6 +86,7 @@
 
 | ✓ | 任务 | 详情 |
 |---|---|---|
+| ☑ | hf-models README 抓取, 根治空 body 仍照发(如 `microsoft/Mage-Flow`) | 2026-07-27。根因:`hf_models` adapter 只调模型列表 API, `raw_summary` 恒为 `None`, LLM/回退都无米下锅——但模型在 HF 上其实常有真实 README(实测 `microsoft/Mage-Flow` 有 34KB 正文, 从未被抓)。方案:走用户要求的根本路线(不是 `build_report` 加 `bool(body)` 止血),新 enrich 阶段 `enrich_hf_models_readme()` 在 card_pool 截断前抓每个候选模型的 README, 清洗 frontmatter/图片/HTML/实体后填 `raw_summary`;抓不到或清洗后太短(`min_body_chars`, 默认 80, 走 config)的条目直接从候选剔除, 不占审阅卡位。真实 dry-run(2026-07-27, 无需 LLM key, 纯 collect+README 抓取)对当天真实收集的 2 个 hf-models 候选(`unsloth/Kimi-K3`/`-GGUF`)验证:清洗前 README 里 `&nbsp;`/空白噪声大量残留(用真实数据核实并修了清洗正则, 不是猜的), 清洗后两条都保留, 原始清洗结果 14492 字符。当天样本量小(仅 2 条 hf-models 候选), `min_body_chars=80` 尚未被真实"太短该剔除"的候选压过, 留待样本更多后再看要不要调。**全分支最终 review 又揪出两个真实缺口(已修)**:清洗后文本没封顶, 14.5KB 会原样冲进 dedup 的 embedding(单条超大文本能让整批 embedding 退化成 None, 近似模板化的 README 还可能把不同型号误聚成一条)——加 `HFReadmeConfig.max_body_chars`(2500, 走 config)截断;`_clean_readme` 正则是纯 LF, CRLF 写的 README frontmatter 会漏进正文——先统一换行符再清洗。 |
 | ☑ | X/github_releases 打分压缩修复 + 发布配额调整(#75/#76/#77/#82/#83) | 2026-07-26(见 §3 上方叙述)。`adapter_authority_factor: {x_list:0.0}`(#77,X 单推文不吃机构信用)、移出 `github_stars` 可见指标(#82,github_releases 占 top-50 68%→48%)、`same_source_penalty_exempt_adapters: [x_list]`(#83,X 占 top-50 3-4→23 条)、`total_limit` 11→12(#75)、X `reserved_quota:4`(#76)。均有真实 dry-run 前后数字支撑。 |
 | ☑ | x-extension:delta-capture + `waitForBody()` 修复 | 2026-07-26。滚动到碰见已抓过的推文为止(50 条安全上限,替代猜的固定滚动深度);后台巡查标签页被 Chrome 节流导致 `document.body` 未生成时滚动崩溃,加 `utils/dom.ts:waitForBody()`。**AnthropicAI 低频账号捕获仍未确认解决**,见 §3 待办。 |
 | ☑ | 内容质量修复:HF 机构误标 + langchain 子包过滤 + 依据去重(#79/#80/#81) | 2026-07-25 用户逐条 review 查实(见上叙述)。`interpret_item.md` 禁止把 HF 平台当论文机构(#79)、`SourceSpec.tag_pattern` 只收 langchain 主包(#80)、依据锚点与来源链接重合时去重(#81)。 |
