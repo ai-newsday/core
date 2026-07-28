@@ -235,8 +235,8 @@ git commit -m "feat(enrich): add HFReadmeConfig for hf-models README fetch"
 - Test: `tests/contract/test_hf_readme_unit.py`
 
 **Interfaces:**
-- Produces: `_clean_readme(text: str) -> str`, consumed later in this same task's `enrich_hf_models_readme()`.
-- Produces: `_model_id_from_link(link: str) -> str`, consumed later in this same task's `enrich_hf_models_readme()`.
+- Produces: `_clean_readme(text: str) -> str`, consumed by Task 3's `enrich_hf_models_readme()`.
+- Produces: `_model_id_from_link(link: str) -> str`, consumed by Task 3's `enrich_hf_models_readme()`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -298,18 +298,12 @@ Create `src/pipeline/hf_readme.py`:
 
 ```python
 """hf_readme: hf-models 条目没有描述文本(adapter 只调模型列表 API, raw_summary 恒为
-None)。抓每个候选模型的 HF README 当素材, 清洗掉 frontmatter/图片/HTML 噪声后填进
-raw_summary。只处理 adapter == "hf_models" 的条目; 其余原样透传。抓不到 README、
-或清洗后正文短于 min_body_chars 的条目直接从返回列表剔除(不带空 body 进审阅卡池),
-不是放行后指望下游过滤器兜底。"""
+None)。本文件的纯文本工具函数负责把抓回来的 README 原文清洗成可用素材;
+抓取 + 硬过滤编排逻辑(`enrich_hf_models_readme`)在 Task 3 加上。"""
 
 from __future__ import annotations
 
-import asyncio
 import re
-
-from src.core.types import HFReadmeConfig, RawItem, RunContext
-from src.observability.events import emit
 
 _FRONTMATTER_RE = re.compile(r"\A---\n.*?\n---\n?", re.DOTALL)
 _IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
@@ -329,60 +323,6 @@ def _clean_readme(text: str) -> str:
 def _model_id_from_link(link: str) -> str:
     """hf_models adapter 固定用 f"https://huggingface.co/{{mid}}" 构造 link, 反查 model id。"""
     return link.removeprefix("https://huggingface.co/")
-
-
-async def enrich_hf_models_readme(
-    items: list[RawItem], client, config: HFReadmeConfig, ctx: RunContext
-) -> list[RawItem]:
-    """对 adapter == "hf_models" 的条目抓 README 填 raw_summary; 其余原样透传。
-    返回硬过滤后的列表(抓不到内容或内容太短的条目被剔除)。"""
-    emit(ctx.logger, "hf_readme_start", input_count=len(items), enabled=config.enabled)
-    if not config.enabled or not items:
-        emit(ctx.logger, "hf_readme_done", fetched=0, filtered=0)
-        return items
-
-    targets = [it for it in items if it.adapter == "hf_models"]
-    if not targets:
-        emit(ctx.logger, "hf_readme_done", fetched=0, filtered=0)
-        return items
-
-    sem = asyncio.Semaphore(max(1, config.concurrency))
-    cleaned: dict[str, str | None] = {}
-
-    async def _fetch_one(item: RawItem) -> None:
-        async with sem:
-            try:
-                raw = await client.fetch_readme(_model_id_from_link(item.link))
-            except Exception as e:
-                emit(
-                    ctx.logger,
-                    "hf_readme_error",
-                    link=item.link,
-                    error_type=type(e).__name__,
-                    error=str(e)[:200],
-                )
-                cleaned[item.link] = None
-                return
-        cleaned[item.link] = _clean_readme(raw) if raw else None
-
-    await asyncio.gather(*(_fetch_one(it) for it in targets))
-
-    out: list[RawItem] = []
-    fetched = filtered = 0
-    for item in items:
-        if item.adapter != "hf_models":
-            out.append(item)
-            continue
-        text = cleaned.get(item.link)
-        if not text or len(text) < config.min_body_chars:
-            filtered += 1
-            continue
-        item.raw_summary = text
-        fetched += 1
-        out.append(item)
-
-    emit(ctx.logger, "hf_readme_done", fetched=fetched, filtered=filtered)
-    return out
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -395,7 +335,7 @@ Expected: all PASS.
 ```bash
 cd /Users/nev4rb14su/workspace/ai-newsday-hf-readme
 git add src/pipeline/hf_readme.py tests/contract/test_hf_readme_unit.py
-git commit -m "feat(enrich): add hf-models README cleaning + enrich_hf_models_readme skeleton"
+git commit -m "feat(enrich): add hf-models README cleaning helpers"
 ```
 
 ---
@@ -403,11 +343,13 @@ git commit -m "feat(enrich): add hf-models README cleaning + enrich_hf_models_re
 ## Task 3: `enrich_hf_models_readme` golden tests (client injection, hard filter, error handling)
 
 **Files:**
-- Modify: `src/adapters/enrich/hf_readme.py` (new file — the injected client)
+- Modify: `src/pipeline/hf_readme.py` (add `enrich_hf_models_readme`, on top of Task 2's `_clean_readme`/`_model_id_from_link`)
+- Create: `src/adapters/enrich/hf_readme.py` (the injected client)
 - Test: `tests/golden/test_hf_readme.py`
 
 **Interfaces:**
-- Consumes: `enrich_hf_models_readme(items, client, config, ctx)` from Task 2 (already implemented).
+- Consumes: `_clean_readme`, `_model_id_from_link` from Task 2 (already implemented in `src/pipeline/hf_readme.py`).
+- Produces: `enrich_hf_models_readme(items, client, config, ctx)`, consumed by Task 4's `src/cli.py` wiring.
 - Produces: `HFReadmeClient` class with `async def fetch_readme(model_id: str) -> str | None`, consumed by Task 4's `src/cli.py` wiring.
 
 - [ ] **Step 1: Write the failing tests**
@@ -543,17 +485,96 @@ def test_mixed_list_preserves_order_for_kept_items():
     assert [i.title_en for i in out] == ["keep/me1", "rss-item", "keep/me2"]
 ```
 
-- [ ] **Step 2: Run tests to verify they fail (client doesn't exist yet, but pipeline function does)**
+- [ ] **Step 2: Run tests to verify they fail**
 
 Run: `cd /Users/nev4rb14su/workspace/ai-newsday-hf-readme && uv run pytest tests/golden/test_hf_readme.py -v`
-Expected: most tests should already PASS (Task 2 already implemented `enrich_hf_models_readme` against the fake client interface). If any fail, they reveal a bug in Task 2's implementation — fix `src/pipeline/hf_readme.py` until all pass before proceeding. Do not skip this check.
+Expected: FAIL with `ImportError: cannot import name 'enrich_hf_models_readme' from 'src.pipeline.hf_readme'`.
 
-- [ ] **Step 3: Run tests to verify they pass**
+- [ ] **Step 3: Implement `enrich_hf_models_readme`**
+
+Append to `src/pipeline/hf_readme.py`. First, update the module docstring and imports at the top of the file to:
+
+```python
+"""hf_readme: hf-models 条目没有描述文本(adapter 只调模型列表 API, raw_summary 恒为
+None)。抓每个候选模型的 HF README 当素材, 清洗掉 frontmatter/图片/HTML 噪声后填进
+raw_summary。只处理 adapter == "hf_models" 的条目; 其余原样透传。抓不到 README、
+或清洗后正文短于 min_body_chars 的条目直接从返回列表剔除(不带空 body 进审阅卡池),
+不是放行后指望下游过滤器兜底。"""
+
+from __future__ import annotations
+
+import asyncio
+import re
+
+from src.core.types import HFReadmeConfig, RawItem, RunContext
+from src.observability.events import emit
+```
+
+(This replaces Task 2's plainer docstring and adds the `asyncio`/`HFReadmeConfig`/`RawItem`/`RunContext`/`emit` imports Task 2 didn't need. The `_FRONTMATTER_RE`/`_IMAGE_RE`/`_HTML_TAG_RE`/`_BLANK_LINES_RE` constants and `_clean_readme`/`_model_id_from_link` functions from Task 2 stay unchanged below the imports.)
+
+Then append this function at the end of the file:
+
+```python
+async def enrich_hf_models_readme(
+    items: list[RawItem], client, config: HFReadmeConfig, ctx: RunContext
+) -> list[RawItem]:
+    """对 adapter == "hf_models" 的条目抓 README 填 raw_summary; 其余原样透传。
+    返回硬过滤后的列表(抓不到内容或内容太短的条目被剔除)。"""
+    emit(ctx.logger, "hf_readme_start", input_count=len(items), enabled=config.enabled)
+    if not config.enabled or not items:
+        emit(ctx.logger, "hf_readme_done", fetched=0, filtered=0)
+        return items
+
+    targets = [it for it in items if it.adapter == "hf_models"]
+    if not targets:
+        emit(ctx.logger, "hf_readme_done", fetched=0, filtered=0)
+        return items
+
+    sem = asyncio.Semaphore(max(1, config.concurrency))
+    cleaned: dict[str, str | None] = {}
+
+    async def _fetch_one(item: RawItem) -> None:
+        async with sem:
+            try:
+                raw = await client.fetch_readme(_model_id_from_link(item.link))
+            except Exception as e:
+                emit(
+                    ctx.logger,
+                    "hf_readme_error",
+                    link=item.link,
+                    error_type=type(e).__name__,
+                    error=str(e)[:200],
+                )
+                cleaned[item.link] = None
+                return
+        cleaned[item.link] = _clean_readme(raw) if raw else None
+
+    await asyncio.gather(*(_fetch_one(it) for it in targets))
+
+    out: list[RawItem] = []
+    fetched = filtered = 0
+    for item in items:
+        if item.adapter != "hf_models":
+            out.append(item)
+            continue
+        text = cleaned.get(item.link)
+        if not text or len(text) < config.min_body_chars:
+            filtered += 1
+            continue
+        item.raw_summary = text
+        fetched += 1
+        out.append(item)
+
+    emit(ctx.logger, "hf_readme_done", fetched=fetched, filtered=filtered)
+    return out
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd /Users/nev4rb14su/workspace/ai-newsday-hf-readme && uv run pytest tests/golden/test_hf_readme.py -v`
 Expected: all PASS.
 
-- [ ] **Step 4: Implement the real `HFReadmeClient` (production adapter, mirrors `HNAlgoliaClient`)**
+- [ ] **Step 5: Implement the real `HFReadmeClient` (production adapter, mirrors `HNAlgoliaClient`)**
 
 Create `src/adapters/enrich/hf_readme.py`:
 
@@ -581,17 +602,17 @@ class HFReadmeClient:
             return resp.text
 ```
 
-- [ ] **Step 5: Run the full test suite to confirm no regressions**
+- [ ] **Step 6: Run the full test suite to confirm no regressions**
 
 Run: `cd /Users/nev4rb14su/workspace/ai-newsday-hf-readme && uv run pytest -q`
 Expected: all PASS, no regressions.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 cd /Users/nev4rb14su/workspace/ai-newsday-hf-readme
-git add src/adapters/enrich/hf_readme.py tests/golden/test_hf_readme.py
-git commit -m "feat(enrich): add HFReadmeClient + golden tests for enrich_hf_models_readme"
+git add src/pipeline/hf_readme.py src/adapters/enrich/hf_readme.py tests/golden/test_hf_readme.py
+git commit -m "feat(enrich): add enrich_hf_models_readme + HFReadmeClient + golden tests"
 ```
 
 ---
@@ -602,7 +623,7 @@ git commit -m "feat(enrich): add HFReadmeClient + golden tests for enrich_hf_mod
 - Modify: `src/cli.py` (two call sites: `_dry_run_prefix`'s `_collect_then_enrich()` at lines ~150-157, and `run_tick`'s `_collect_and_interpret()` at lines ~433-441)
 
 **Interfaces:**
-- Consumes: `enrich_hf_models_readme` from `src.pipeline.hf_readme`, `HFReadmeClient` from `src.adapters.enrich.hf_readme` (both from Tasks 2-3).
+- Consumes: `enrich_hf_models_readme` from `src.pipeline.hf_readme`, `HFReadmeClient` from `src.adapters.enrich.hf_readme` (both from Task 3).
 
 - [ ] **Step 1: Add imports to `src/cli.py`**
 
