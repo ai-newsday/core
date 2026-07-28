@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 from src.adapters.decisions.worker import WorkerDecisionStore
 from src.adapters.embedding.modelscope import ModelScopeEmbedder
+from src.adapters.enrich.hf_readme import HFReadmeClient
 from src.adapters.enrich.hn_algolia import HNAlgoliaClient
 from src.adapters.llm.openai_compat import OpenAICompatLLM
 from src.adapters.vectorstore.memory import InMemoryVectorStore
@@ -44,6 +45,7 @@ from src.pipeline.collect import collect
 from src.pipeline.dedup import dedup
 from src.pipeline.enrich import enrich_with_hn
 from src.pipeline.feedback import derive_events, feedback
+from src.pipeline.hf_readme import enrich_hf_models_readme
 from src.pipeline.interpret import interpret
 from src.pipeline.metrics import (
     compute_fallback_breakdown,
@@ -154,6 +156,10 @@ def _dry_run_prefix(
             if ecfg.release_importance.enabled and c.items:
                 ri_llm = release_llm or _make_release_importance_llm(ecfg.release_importance)
                 c.items = judge_release_importance(c.items, ri_llm, ecfg.release_importance, ctx)
+            if ecfg.hf_readme.enabled and c.items:
+                c.items = await enrich_hf_models_readme(
+                    c.items, HFReadmeClient(ecfg.hf_readme.timeout_s), ecfg.hf_readme, ctx
+                )
             return c
 
         coll = asyncio.run(_collect_then_enrich())
@@ -441,6 +447,10 @@ def run_tick(
         if ecfg.release_importance.enabled and c.items:
             ri_llm = _make_release_importance_llm(ecfg.release_importance)
             c.items = judge_release_importance(c.items, ri_llm, ecfg.release_importance, ctx)
+        if ecfg.hf_readme.enabled and c.items:
+            c.items = await enrich_hf_models_readme(
+                c.items, HFReadmeClient(ecfg.hf_readme.timeout_s), ecfg.hf_readme, ctx
+            )
         dcfg2 = load_dedup_config("config/dedup.yaml")
         dcfg2.sources_registry_path = registry_path
         _embedder = _make_embedder(dcfg2, embedder)
