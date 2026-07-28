@@ -448,6 +448,11 @@ class HFReadmeConfig:
     timeout_s: int = 8
     concurrency: int = 5
     min_body_chars: int = 80  # 清洗 frontmatter/图片/HTML 后剩余正文长度下限; 上线前用真实数据核实
+    # 真实 README 可以到 10k+ 字符(2026-07-27 实测 unsloth/Kimi-K3 清洗后仍 14492 字符),
+    # 不封顶会把超大文本一路带进 dedup 的 embedding(全 batch 出错即整批退化成无 embedding,
+    # 见 src/pipeline/dedup.py) ——interpret 反正只读前 raw_summary_max_chars(1500)个字符,
+    # 留出比它宽松但不夸张的余量即可, 不需要更多。
+    max_body_chars: int = 2500
 
 
 @dataclass

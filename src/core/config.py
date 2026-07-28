@@ -211,6 +211,7 @@ def load_enrich_config(path: str) -> EnrichConfig:
         timeout_s=hr_data.get("timeout_s", hr_d.timeout_s),
         concurrency=hr_data.get("concurrency", hr_d.concurrency),
         min_body_chars=hr_data.get("min_body_chars", hr_d.min_body_chars),
+        max_body_chars=hr_data.get("max_body_chars", hr_d.max_body_chars),
     )
     return EnrichConfig(
         enabled=data.get("enabled", d.enabled),

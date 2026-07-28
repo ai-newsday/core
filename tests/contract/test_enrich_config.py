@@ -106,6 +106,7 @@ def test_enrich_config_hf_readme_defaults():
     assert hr.timeout_s > 0
     assert hr.concurrency >= 1
     assert hr.min_body_chars > 0
+    assert hr.max_body_chars > hr.min_body_chars
 
 
 def test_load_enrich_config_hf_readme_overrides(tmp_path):
@@ -117,6 +118,7 @@ hf_readme:
   timeout_s: 5
   concurrency: 3
   min_body_chars: 100
+  max_body_chars: 3000
 """,
         encoding="utf-8",
     )
@@ -126,6 +128,7 @@ hf_readme:
     assert hr.timeout_s == 5
     assert hr.concurrency == 3
     assert hr.min_body_chars == 100
+    assert hr.max_body_chars == 3000
 
 
 def test_load_enrich_config_hf_readme_missing_block_uses_defaults(tmp_path):

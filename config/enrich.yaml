@@ -39,3 +39,4 @@ hf_readme:
   timeout_s: 8
   concurrency: 5
   min_body_chars: 80  # 占位值, Task 5 用真实数据核实后可能调整
+  max_body_chars: 2500  # 2026-07-27 真实数据核实: 不封顶会把 10k+ 字符的 README 带进 dedup embedding

@@ -22,11 +22,6 @@ class FakeReadmeClient:
         return self._map.get(model_id)
 
 
-class BoomClient:
-    async def fetch_readme(self, model_id: str) -> str | None:
-        raise RuntimeError("network down")
-
-
 def _model_item(mid, adapter="hf_models"):
     return RawItem(
         title_en=mid,
@@ -79,6 +74,19 @@ def test_readme_too_short_after_cleaning_filters_item_out():
         enrich_hf_models_readme(items, client, HFReadmeConfig(min_body_chars=80), _ctx())
     )
     assert out == []
+
+
+def test_readme_truncated_to_max_body_chars():
+    # 2026-07-27 final review: 真实 README 能到 10k+ 字符, 不封顶会把超大文本一路
+    # 带进 dedup 的 embedding。清洗后按 max_body_chars 截断。
+    long_body = "This model does X and Y in production. " * 200  # far over any reasonable cap
+    items = [_model_item("big/model")]
+    client = FakeReadmeClient({"big/model": long_body})
+    out = asyncio.run(
+        enrich_hf_models_readme(items, client, HFReadmeConfig(max_body_chars=100), _ctx())
+    )
+    assert len(out) == 1
+    assert len(out[0].raw_summary) == 100
 
 
 def test_client_failure_filters_item_out_does_not_crash_batch():

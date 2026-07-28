@@ -58,6 +58,16 @@ def test_clean_readme_collapses_whitespace_only_lines_left_by_tag_stripping():
     assert out == "Para one.\n\nPara two."
 
 
+def test_clean_readme_strips_frontmatter_with_crlf_line_endings():
+    # Windows 上传的 README 常是 CRLF; frontmatter 正则是纯 LF, 不先统一换行符的话
+    # \r\n---\r\n 匹配不上, YAML 会整段漏进正文(final review 2026-07-27 复现过)。
+    text = "---\r\nlicense: mit\r\ntags:\r\n- text-generation\r\n---\r\n\r\nReal prose here.\r\n"
+    out = _clean_readme(text)
+    assert "license: mit" not in out
+    assert "---" not in out
+    assert out == "Real prose here."
+
+
 def test_model_id_from_link_strips_hf_prefix():
     assert (
         _model_id_from_link("https://huggingface.co/microsoft/Mage-Flow") == "microsoft/Mage-Flow"

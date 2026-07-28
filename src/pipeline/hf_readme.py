@@ -24,8 +24,11 @@ def _clean_readme(text: str) -> str:
     """去 YAML frontmatter + markdown 图片 + HTML 标签/实体 + 折叠多余空行(纯函数, 无网络)。
     真实 HF README 常见徽章/logo 区块是密集的 <div>/<a>/<img> 加 &nbsp; 类实体
     (2026-07-27 用 unsloth/Kimi-K3 真实数据核实过); 光去标签不够, 还得转义实体、
-    清掉标签删完后留下的纯空白行, 否则 raw_summary 里全是 "&nbsp;" 和空白噪声。"""
-    out = _FRONTMATTER_RE.sub("", text)
+    清掉标签删完后留下的纯空白行, 否则 raw_summary 里全是 "&nbsp;" 和空白噪声。
+    先统一换行符: CRLF 写的 README(Windows 作者上传)不这样处理的话, frontmatter
+    的 \\r\\n---\\r\\n 匹配不上纯 LF 的正则, YAML 会整段漏进正文。"""
+    out = text.replace("\r\n", "\n")
+    out = _FRONTMATTER_RE.sub("", out)
     out = _IMAGE_RE.sub("", out)
     out = _HTML_TAG_RE.sub("", out)
     out = html.unescape(out)
@@ -71,7 +74,8 @@ async def enrich_hf_models_readme(
                 )
                 cleaned[item.link] = None
                 return
-        cleaned[item.link] = _clean_readme(raw) if raw else None
+        # 清洗是纯 CPU 工作, 特意放到 semaphore 外面, 不占并发槽阻塞其它条目的抓取。
+        cleaned[item.link] = _clean_readme(raw)[: config.max_body_chars] if raw else None
 
     await asyncio.gather(*(_fetch_one(it) for it in targets))
 
