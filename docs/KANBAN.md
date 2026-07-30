@@ -2,7 +2,7 @@
 
 > 唯一任务看板 + 进度表（合并自旧 `ROADMAP.md`）。源头意图见 `docs/intent/`，每层契约见 `docs/specs/`。
 > 约定:一次一个子项目、小 PR、issue-per-PR、从真实 `origin/master` 起有意义分支名。
-> 最后更新:2026-07-27。
+> 最后更新:2026-07-29。
 
 ---
 
@@ -50,7 +50,11 @@
 | ☐ | **P1** | **release_importance 判定标准复查** | 2026-07-25(见上 b)。5% 过滤率偏低,怀疑 prompt 对"partner 包级别小改动配大话术"过于宽松。**#80 langchain tag 过滤已上线几天,先看过滤率有没有自然回升,再决定要不要动 prompt/阈值**。 |
 | ☐ | 待决策 | **`writeup`(41) vs `announcement`(58) genre_value 17 分结构性差距** | 2026-07-26 新发现(见上)。同源惩罚豁免(#83)修完后,这是继续压低 X 个人研究者账号(fchollet 这类)分数的最后一个结构性瓶颈。`genre_value` 是全局的,会影响所有 writeup 来源不只 X,**要不要动是设计决策,不要凭自己理解改**。 |
 | ☐ | 待澄清 | **"官方"/"模型" genre 是否该合并** | 2026-07-25 用户提出但意图不明确(是嫌两个分类界限模糊,还是嫌读者一眼看得出不用标注?)。**下次对话先问清楚再动 `genre_value`/`group_by_category`**。 |
-| ☐ | **P0** | **二手媒体/传闻类信源接入** | 用户明确要求全覆盖,直接对应 juya ~17% 的量级差距(Bloomberg/Reuters 报道传闻、政府公文如网信办备案)。**结构性障碍**:现有打分体系"一手性"维度(`genre_value` 里 paper/announcement 一手性权重 20)天然排斥二手转述,需要决定是 (a) 新增 genre/桶专门装"行业动态/传闻"配独立配额+更低真实性门槛,还是 (b) 放宽现有 genre 的一手性权重。**这是设计决策,先 `/brainstorm` 不要直接动 scoring.yaml**。 |
+| ☐ | **P1** | **hf-papers 标题把方法/模型名前置(不需要新数据源)** | 2026-07-29 用户指出论文条目"方法/模型名不突出"。跟"缺机构名"(下面 P1)是两个独立问题——这条**不需要接新数据源**,是提示词层面的事:`src/prompts/interpret_item.md` 加约束,标题必须把论文提出的方法/模型名放在最前面当钩子(参考 SOP 里"0.22B 反超 11.9B"这类样例)。可以直接排期。 |
+| ☐ | 待澄清 | **来源链接改成末尾统一"参考链接"章节** | 2026-07-29 用户提出,格式细节没问清楚:是要脚注式(正文里 `[1]`,文末编号列表),还是只是把现在每条末尾的"来源 [名](链接) · N 分"挪到全文最后汇总(分数还留不留在条目上)?**下次对话先问清楚具体格式再动 `_render_categories`**。 |
+| ☐ | 待澄清 | **GitHub Releases 只放重要仓库/重要版本** | 2026-07-29 用户提出,现有 `release_importance`(#71)tier 判定 + `adapter_quota:{github_releases:2}` 封顶后用户仍觉得门槛太松。**没问清楚**:"重要仓库"是要一份具体名单(比如 vllm/langchain 这类点名关注的),还是完全靠版本重要性(tier)判定、不看仓库是谁?**下次对话先问清楚再动 `release_importance`/`adapter_quota`**。 |
+| ☐ | **P0** | **二手媒体/传闻类信源接入** | 用户明确要求全覆盖,直接对应 juya ~17% 的量级差距(Bloomberg/Reuters 报道传闻、政府公文如网信办备案)。**2026-07-29 用真实数据核实,原假设(缺源)是错的**:`config/sources.yaml` 里已有 10 个 `genre: news` 媒体源(TechCrunch/VentureBeat/The Verge/Ars Technica/MIT Tech Review/MarkTechPost/Wired-AI/the-decoder/smol-ai-news/lastweekin-ai),真实 collect 抓到 64 条候选,但**打分后最高才 62 分、全局第 89 名**,`card_pool_limit=50` 在第 50 名/79 分截断——64 条 news 无一进过发卡池,这也是最近 8 天日报"新闻"分类从未出现过的直接原因(`可见指标` 对 RSS 媒体文章恒为 0,`news` genre_value 基础分也不高,两者叠加把整个 genre 结构性挡在发卡池外)。**这跟"缺二手媒体源"是两个不同的问题**:源和配额都不缺,缺的是这些已经在跑的源永远进不了发卡池——更像一个独立的打分 bug(见下一条同类分析),原 (a)/(b) 两个方案选项暂缓,先看要不要单独修 news 的可见指标/发卡池保护。真正意义上"我们完全没覆盖的二手/传闻类"(财经媒体报道的融资传闻、政府备案文件)跟这 10 个源不是一回事,P0 本身是否还要做、范围是什么,需要用户重新确认。 |
+| ☐ | **P0** | **finalize 报告混入超出目标日期的条目(逻辑漏洞)** | 2026-07-29 用户发现"7-28 日报里有 7-29 的新条目"。**已诊断,真 bug**:`content/posts/2026-07-28.md` 由 2026-07-29 01:00 UTC(北京 09:00)那次 finalize 生成,"晨报总结昨天"的 `date_label = 今天-1天` 设计本身没错;**真正的漏洞是 `collect()` 的时间窗口(`window_hours`/`max_window_hours`)只限制"不能太旧",完全没有"不能比 date_label 覆盖的那天更新"的上界**——finalize 在北京早上跑,能抓到当天已发布的最新内容,这些内容会被塞进标着"昨天"的报告里。修法:给 finalize tick 的 collect 加一道"published_at 不晚于 date_label 当天 23:59(北京时区)"的上界过滤,`collect` tick(非 finalize)不受影响。范围明确,可以直接排期。 |
 | ☐ | **P1** | **扩源探活 + 死源 legacy 化(含"博客全覆盖")** | 用户明说加源**必须先测过稳定提供 AI News**,且博客类信源要求全覆盖。做: (a) 探活脚本 = 该源近 30d yield 是否 >0 且 AI 相关性 > 阈值; (b) 加源门槛: 探活通过才 status=working, 否则 manual; (c) 长期 403 / manual 未维护的自动挂 legacy。**当前 22 死源 (gwern/garymarcus 等 substack 403) 手动挂 manual, 应自动化**,清完死源后再评估是否需要补充新博客源填补"全覆盖"缺口。自动发现新 KOL/repo/subreddit 延后到 P2。 |
 | ☐ | **P1** | **X kol/researcher 名单继续扩充** | `references/x-account-candidates.yaml` 里 kol 目前只有 15 个(目标 50),中文圈仅 3 个明显偏薄;researcher/lab/company/product 相对完整。补充需要具体方向(用户点名关注的中文 AI 博主/研究者),不要凭空编 handle,每个都要 WebSearch 核实真实存在。 |
 | ☐ | **P1** | 故事线合并(其余部分) | 相同事件多源聚合成时间线,提升"信息密度/质感"而非条数;剩余"多家媒体报同一新闻不同措辞"。竞品 `ai-news-radar` 参考。对应用户"更优质信息"诉求。 |
