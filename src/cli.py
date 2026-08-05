@@ -8,7 +8,7 @@ import os
 import sys
 import uuid
 from dataclasses import asdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from src.adapters.decisions.worker import WorkerDecisionStore
 from src.adapters.embedding.modelscope import ModelScopeEmbedder
@@ -486,9 +486,9 @@ def run_tick(
         }
 
     elif tick == "finalize":
-        # 晨报总结"昨天"完整一天(papers/新闻齐、投票稳); cron 跑在 01:00 UTC, now.date()-1 = 昨天。
-        # ponytail: 假设 finalize 跑在北京上午(=UTC 凌晨), UTC 日 == 北京日; 非此时刻手动触发日期可能偏一天。
-        date_label = (now.date() - timedelta(days=1)).isoformat()
+        # 结算当天 23:00 本地(cron 22:00 UTC), 报告标"当天"日期。
+        # 从 now(UTC) 换算到本地再取日期, 手动触发也不会偏一天。
+        date_label = _report_date(now=now)
         result = asyncio.run(
             run_finalize_tick(
                 run_id=ctx.run_id,
@@ -520,13 +520,23 @@ def _latest_run_dir(base=None):
     return max(runs, key=lambda p: p.stat().st_mtime)
 
 
-def _beijing_report_date() -> str:
-    """Report date = Beijing 'yesterday'. finalize.yml publishes content/posts/<yesterday>.md
-    because the morning post summarizes yesterday's complete day (M2 #33). Metrics must
-    align with that same date so /metrics/YYYY-MM-DD pairs with /posts/YYYY-MM-DD."""
+def _report_date(tz: str | None = None, now: datetime | None = None) -> str:
+    """Report date = *today* in the configured local timezone.
+
+    2026-08-01: finalize moved from "next morning, labelled yesterday" to "same
+    day 23:00 local, labelled today" (user relocated to the UK). Running late on
+    the day it reports also removes the old date-boundary hole: same-day items
+    now belong in the same-day report by construction, instead of leaking into a
+    report labelled yesterday. Metrics read the same value so /metrics/X stays
+    paired with /posts/X.
+
+    `now` is injectable so run_tick keeps its deterministic clock — a manual
+    dispatch then lands on the same date the run itself thinks it is."""
     from zoneinfo import ZoneInfo
 
-    return (datetime.now(ZoneInfo("Asia/Shanghai")).date() - timedelta(days=1)).isoformat()
+    tz = tz or load_publish_config("config/publish.yaml").timezone
+    now = now or datetime.now(timezone.utc)
+    return now.astimezone(ZoneInfo(tz)).date().isoformat()
 
 
 def run_metrics(*, dry_run: bool = False, out_dir=None) -> int:
@@ -540,7 +550,7 @@ def run_metrics(*, dry_run: bool = False, out_dir=None) -> int:
         return 0
 
     out_dir = out_dir or Path("content/metrics")
-    date_str = _beijing_report_date()
+    date_str = _report_date()
     funnel = compute_funnel(latest)
     rates = compute_rates(funnel)
     per_genre = compute_per_genre(latest)

@@ -1,3 +1,6 @@
+# 报告日期标签所在时区(IANA 名)。2026-08-01 由 Asia/Shanghai 改为用户所在地 UK。
+# 换地方只改这一行, 不用动代码; 夏令时自动跟随, 所以别写死 UTC 偏移。
+timezone: "Europe/London"
 must_read_count: 3                       # 今日必读取前几条(保留兼容, 渲染层已不使用)
 top_keywords: 4                          # 数据概览高频关键词个数(保留兼容)
 pending_watermark: "草稿待定稿"

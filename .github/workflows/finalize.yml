@@ -2,8 +2,9 @@ name: Finalize (Draft)
 
 on:
   schedule:
-    # 北京时间 09:00 晨报 → UTC 01:00(汇总昨天完整一天)。
-    - cron: "0 1 * * *"
+    # UK 23:00 (BST) 当天结算 → UTC 22:00。报告标"当天"日期, 当天内容进当天报告。
+    # 冬令时(GMT)会落在本地 22:00, 仍是当天, 已接受该漂移。
+    - cron: "0 22 * * *"
   workflow_dispatch:
 
 jobs:
