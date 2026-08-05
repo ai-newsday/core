@@ -363,6 +363,9 @@ class PublishConfig:
     must_read_count: int = 3
     top_keywords: int = 4
     pending_watermark: str = "草稿待定稿"
+    # 报告日期标签所在时区(IANA 名, 不用固定 UTC 偏移 —— 夏令时要自动跟随)。
+    # 2026-08-01: 用户所在地由北京改为 UK; date_label 与 metrics 日期都读这里, 保证一致。
+    timezone: str = "Europe/London"
     min_display_score: int = (
         40  # 人工 keep 条目的质量底(确认门已保证全是 keep; 60 太高会吞 keep 的低分首发)
     )

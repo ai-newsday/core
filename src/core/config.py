@@ -166,6 +166,7 @@ def load_publish_config(path: str) -> PublishConfig:
         total_limit=data.get("total_limit", d.total_limit),
         genre_labels=data.get("genre_labels", d.genre_labels),
         adapter_quota=data.get("adapter_quota", d.adapter_quota),
+        timezone=data.get("timezone", d.timezone),
     )
 
 
