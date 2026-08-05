@@ -266,11 +266,13 @@ def test_render_markdown_full():
     md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
     assert md.startswith("# AI Daily · 2026-05-30")
     assert "> **今日看点**：看点。" in md
-    # new structure: ## {label}, ### {title}, no emoji, no numbering
-    assert "## 模型" in md
+    # 2026-08-05 结构: 条目顺读, 无 genre 大分类标题, 链接收到文末参考章节
     assert "### GLM-5 发布" in md
     assert "开源 MoE。" in md
-    assert "[src](https://a/1)" in md
+    assert "## 模型" not in md  # 大分类标题已去掉
+    assert "[1](https://a/1)" not in md  # 正文里不出现裸链接
+    assert "## 参考链接" in md
+    assert "1. [src](https://a/1)" in md  # 链接只出现在文末编号表
     # no old structure
     assert "今日必读" not in md
     assert "分类速览" not in md
@@ -291,7 +293,7 @@ def test_render_markdown_no_emoji():
 
 
 def test_render_markdown_source_line_last():
-    """Each item's last non-blank line must be 来源 [{source}]({link}) · {score} 分"""
+    """每条正文末行 = 参考编号 + 分数; 链接本身不出现在正文里。"""
     items = [
         _ri(
             "https://a/1",
@@ -303,12 +305,13 @@ def test_render_markdown_source_line_last():
         )
     ]
     md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
-    assert "来源 [src](https://a/1) · 75 分" in md
+    assert "[1] · 75 分" in md
+    assert "https://a/1" not in md.split("## 参考链接")[0]  # 正文段里没有裸 URL
+    assert "1. [src](https://a/1)" in md
 
 
-def test_render_markdown_drops_evidence_line_when_anchors_duplicate_source_link():
-    # 2026-07-25: 依据锚点全部等于来源链接时(同一个 URL 出现 2-4 次), 只留来源一行,
-    # 不重复罗列"依据"。
+def test_render_markdown_evidence_anchors_equal_to_source_link_add_no_extra_ref():
+    # 2026-07-25 的去重规则在编号制下延续: 锚点全等于来源链接时不再多编一个号。
     items = [
         _ri(
             "https://a/1",
@@ -322,11 +325,13 @@ def test_render_markdown_drops_evidence_line_when_anchors_duplicate_source_link(
         )
     ]
     md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
-    assert "依据" not in md
-    assert "来源 [src](https://a/1) · 75 分" in md
+    assert "[1] · 75 分" in md
+    assert "[2]" not in md  # 没有多余编号
+    refs = md.split("## 参考链接")[1]
+    assert refs.count("https://a/1") == 1  # 参考表里只列一次
 
 
-def test_render_markdown_keeps_evidence_line_when_anchor_differs_from_source_link():
+def test_render_markdown_distinct_evidence_anchor_gets_its_own_ref():
     items = [
         _ri(
             "https://a/1",
@@ -341,8 +346,23 @@ def test_render_markdown_keeps_evidence_line_when_anchor_differs_from_source_lin
         )
     ]
     md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
-    assert "依据：" in md
-    assert "事实一" in md and "事实二" in md
+    assert "[1][2] · 75 分" in md
+    refs = md.split("## 参考链接")[1]
+    assert "1. [src](https://a/1)" in refs
+    assert "2. [事实二](https://a/related)" in refs
+
+
+def test_render_markdown_reference_numbering_is_sequential_across_items():
+    items = [
+        _ri("https://a/1", title="T1", body="B1。", genre=Genre.model, score=80),
+        _ri("https://a/2", title="T2", body="B2。", genre=Genre.model, score=70),
+    ]
+    md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
+    assert "[1] · 80 分" in md
+    assert "[2] · 70 分" in md
+    refs = md.split("## 参考链接")[1]
+    assert "1. [src](https://a/1)" in refs
+    assert "2. [src](https://a/2)" in refs
 
 
 def test_render_markdown_pending_watermark():
@@ -377,15 +397,17 @@ def test_render_markdown_score_floor_items_absent():
     assert "低分条目" not in md
 
 
-def test_render_markdown_category_with_all_below_floor_not_rendered():
-    """A genre with all items below floor produces no ## {label} section."""
+def test_render_markdown_below_floor_item_absent_and_leaves_no_gap():
+    """低分条目被地板砍掉后, 正文里不留任何痕迹(编号也不该跳号)。"""
     items = [
         _ri("https://a/1", title="论文A", score=30, genre=Genre.paper),
         _ri("https://a/2", title="模型B", score=80, genre=Genre.model),
     ]
     md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
-    assert "## 论文" not in md
-    assert "## 模型" in md
+    assert "论文A" not in md
+    assert "### 模型B" in md
+    assert "[1] · 80 分" in md  # 编号从 1 起, 不因被砍条目跳号
+    assert "1. [src](https://a/2)" in md.split("## 参考链接")[1]
 
 
 def _ctx():
@@ -477,11 +499,16 @@ def test_publish_markdown_snapshot():
     assert "今日必读" not in res.markdown
     assert "分类速览" not in res.markdown
     assert "数据概览" not in res.markdown
-    assert "## 论文" in res.markdown
-    assert "## 模型" in res.markdown
+    assert "## 论文" not in res.markdown  # 2026-08-05: 去掉 genre 大分类标题
+    assert "## 模型" not in res.markdown
     assert "### GLM-5 发布" in res.markdown
     assert "低分新闻" not in res.markdown  # below floor
-    assert "来源 [src](https://a/1) · 88 分" in res.markdown
+    assert "## 参考链接" in res.markdown
+    # 条目顺序仍按 genre_labels 键序(paper 在 model 前), 所以 88 分那条(model)拿 [2]
+    assert "[2] · 88 分" in res.markdown
+    refs = res.markdown.split("## 参考链接")[1]
+    assert "1. [src](https://a/2)" in refs  # paper 先出现
+    assert "2. [src](https://a/1)" in refs  # model 次之
     if not SNAPSHOT.exists():  # 首次运行固化快照
         SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
         SNAPSHOT.write_text(res.markdown, encoding="utf-8")
