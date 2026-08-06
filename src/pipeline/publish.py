@@ -99,11 +99,28 @@ def build_report(
     )
 
 
-def _render_categories(report: DailyReport) -> list[str]:
+def _render_items(report: DailyReport) -> tuple[list[str], list[tuple[str, str]]]:
+    """条目顺读渲染(2026-08-05 改版)。
+
+    去掉 `## {genre}` 大分类标题: 分类对读者没有导航价值, 同一件事被哪个源先抓到就
+    归哪一类(Mistral 的模型发布走博客 RSS 就成了"官方"), 标题反而误导。条目**顺序**
+    仍按 genre_labels 键序, 只是不再显示分组标题。
+
+    链接全部收进文末"参考链接"章节, 正文只留 `[n]` 编号 —— 正文里不再有裸 URL。
+    返回 (正文行, 参考表), 参考表 = [(展示名, url)] 按首次出现顺序。
+    """
     lines: list[str] = []
+    refs: list[tuple[str, str]] = []
+
+    def _ref(label: str, url: str) -> int:
+        """登记一条参考链接, 返回它的编号(1 起)。同一 URL 复用同一个号。"""
+        for i, (_, existing) in enumerate(refs, start=1):
+            if existing == url:
+                return i
+        refs.append((label, url))
+        return len(refs)
+
     for cat in report.categories:
-        lines.append(f"## {cat.label}")
-        lines.append("")
         for it in cat.items:
             lines.append(f"### {it.title}")
             lines.append("")
@@ -111,12 +128,24 @@ def _render_categories(report: DailyReport) -> list[str]:
             lines.append("")
             if it.tags:
                 lines.append(" ".join(it.tags))
-            # 依据锚点全部等于来源链接时(同一 URL 重复 2-4 次), 只留来源一行不重复罗列。
-            if it.evidence and any(e.anchor != it.link for e in it.evidence):
-                ev = "；".join(f"[{e.claim}]({e.anchor})" for e in it.evidence)
-                lines.append(f"依据：{ev}")
-            lines.append(f"来源 [{it.source}]({it.link}) · {it.score} 分")
+            # 来源恒占一个编号, 用条目标题当参考表显示名(不是源名, 方便读者认出是哪条);
+            # 依据锚点等于来源链接时由 _ref 去重, 不会多编号
+            # (延续 2026-07-25 的"同一 URL 不重复罗列"规则)。
+            nums = [_ref(it.title, it.link)]
+            nums += [_ref(e.claim, e.anchor) for e in it.evidence if e.anchor != it.link]
+            marks = "".join(f"[{n}]" for n in dict.fromkeys(nums))
+            lines.append(f"{marks} · {it.score} 分")
             lines.append("")
+    return lines, refs
+
+
+def _render_references(refs: list[tuple[str, str]]) -> list[str]:
+    """文末参考链接章节。空表不产章节。"""
+    if not refs:
+        return []
+    lines = ["## 参考链接", ""]
+    lines += [f"{i}. [{label}]({url})" for i, (label, url) in enumerate(refs, start=1)]
+    lines.append("")
     return lines
 
 
@@ -165,7 +194,9 @@ def render_markdown(report: DailyReport, config: PublishConfig) -> str:
     if report.daily_take:
         lines.append(f"> **今日看点**：{report.daily_take}")
         lines.append("")
-    lines += _render_categories(report)
+    body_lines, refs = _render_items(report)
+    lines += body_lines
+    lines += _render_references(refs)
     lines.append("---")
     lines.append("RSS · 历史归档 · 主站 ｜ AI News Daily")
     return "\n".join(lines)
