@@ -32,9 +32,9 @@ summary: "看点一句话。"
 
 ## 参考链接
 
-1. [src](https://a/2)
-2. [src](https://a/1)
-3. [src](https://a/3)
+1. [新论文](https://a/2)
+2. [GLM-5 发布](https://a/1)
+3. [社区热帖](https://a/3)
 
 ---
 RSS · 历史归档 · 主站 ｜ AI News Daily

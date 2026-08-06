@@ -272,7 +272,7 @@ def test_render_markdown_full():
     assert "## 模型" not in md  # 大分类标题已去掉
     assert "[1](https://a/1)" not in md  # 正文里不出现裸链接
     assert "## 参考链接" in md
-    assert "1. [src](https://a/1)" in md  # 链接只出现在文末编号表
+    assert "1. [GLM-5 发布](https://a/1)" in md  # 参考表用条目标题, 不用源名
     # no old structure
     assert "今日必读" not in md
     assert "分类速览" not in md
@@ -307,7 +307,7 @@ def test_render_markdown_source_line_last():
     md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
     assert "[1] · 75 分" in md
     assert "https://a/1" not in md.split("## 参考链接")[0]  # 正文段里没有裸 URL
-    assert "1. [src](https://a/1)" in md
+    assert "1. [T](https://a/1)" in md
 
 
 def test_render_markdown_evidence_anchors_equal_to_source_link_add_no_extra_ref():
@@ -348,7 +348,7 @@ def test_render_markdown_distinct_evidence_anchor_gets_its_own_ref():
     md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
     assert "[1][2] · 75 分" in md
     refs = md.split("## 参考链接")[1]
-    assert "1. [src](https://a/1)" in refs
+    assert "1. [T](https://a/1)" in refs
     assert "2. [事实二](https://a/related)" in refs
 
 
@@ -361,8 +361,8 @@ def test_render_markdown_reference_numbering_is_sequential_across_items():
     assert "[1] · 80 分" in md
     assert "[2] · 70 分" in md
     refs = md.split("## 参考链接")[1]
-    assert "1. [src](https://a/1)" in refs
-    assert "2. [src](https://a/2)" in refs
+    assert "1. [T1](https://a/1)" in refs
+    assert "2. [T2](https://a/2)" in refs
 
 
 def test_render_markdown_pending_watermark():
@@ -407,7 +407,7 @@ def test_render_markdown_below_floor_item_absent_and_leaves_no_gap():
     assert "论文A" not in md
     assert "### 模型B" in md
     assert "[1] · 80 分" in md  # 编号从 1 起, 不因被砍条目跳号
-    assert "1. [src](https://a/2)" in md.split("## 参考链接")[1]
+    assert "1. [模型B](https://a/2)" in md.split("## 参考链接")[1]
 
 
 def _ctx():
@@ -507,8 +507,8 @@ def test_publish_markdown_snapshot():
     # 条目顺序仍按 genre_labels 键序(paper 在 model 前), 所以 88 分那条(model)拿 [2]
     assert "[2] · 88 分" in res.markdown
     refs = res.markdown.split("## 参考链接")[1]
-    assert "1. [src](https://a/2)" in refs  # paper 先出现
-    assert "2. [src](https://a/1)" in refs  # model 次之
+    assert "1. [新论文](https://a/2)" in refs  # paper 先出现
+    assert "2. [GLM-5 发布](https://a/1)" in refs  # model 次之
     if not SNAPSHOT.exists():  # 首次运行固化快照
         SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
         SNAPSHOT.write_text(res.markdown, encoding="utf-8")

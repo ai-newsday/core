@@ -128,9 +128,10 @@ def _render_items(report: DailyReport) -> tuple[list[str], list[tuple[str, str]]
             lines.append("")
             if it.tags:
                 lines.append(" ".join(it.tags))
-            # 来源恒占一个编号; 依据锚点等于来源链接时由 _ref 去重, 不会多编号
+            # 来源恒占一个编号, 用条目标题当参考表显示名(不是源名, 方便读者认出是哪条);
+            # 依据锚点等于来源链接时由 _ref 去重, 不会多编号
             # (延续 2026-07-25 的"同一 URL 不重复罗列"规则)。
-            nums = [_ref(it.source, it.link)]
+            nums = [_ref(it.title, it.link)]
             nums += [_ref(e.claim, e.anchor) for e in it.evidence if e.anchor != it.link]
             marks = "".join(f"[{n}]" for n in dict.fromkeys(nums))
             lines.append(f"{marks} · {it.score} 分")
