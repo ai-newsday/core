@@ -143,13 +143,10 @@ async def run_finalize_tick(
 
     ctx = RunContext(run_id=run_id, now=now, logger=logger)
     rcfg = load_review_config("config/review.yaml")
-    # 条目选择: 有决策走确认门(只发 keep/edit); 零决策(没碰 TG / 拉取失败)兜底自动发,
-    # 由 publish 的 relevant+地板(+配额)截 top-N。is_pending 仍 True → 草稿水印 + draft:true。
+    # 确认门: 只有显式 keep/edit 的条目进报告(2026-08-06: 去掉零决策兜底自动发——
+    # 用户没审的内容不结算; decisions={} 时 select_report_items 天然返回空列表)。
     # feedback 仍吃全量(下方)。
-    if decisions:
-        report_items = select_report_items(interpreted_items, decisions)
-    else:
-        report_items = list(interpreted_items)
+    report_items = select_report_items(interpreted_items, decisions)
     # 已发布去重: 排除已在别的 date_label 报告里发过的条目(72h 窗口内同条目跨天复发 → 去重)。
     already = await db.already_published_elsewhere(
         [_item_id(it) for it in report_items], date_label
@@ -165,11 +162,14 @@ async def run_finalize_tick(
         "item_count": pres.report.item_count,
         "url": (site_base_url.rstrip("/") + "/posts/" + date_label + "/") if site_base_url else "",
     }
-    for notifier in notifiers:
-        try:
-            await notifier.send_final_report(pres.markdown, summary)
-        except Exception as e:  # noqa: BLE001 - notifier failure is non-fatal
-            emit(logger, "notifier_final_report_error", error=str(e))
+    # 空报(零决策/全砍)不通知: WebsiteNotifier 会无条件写文件, 空 markdown 写出来
+    # 就是一篇没有 front matter 的空文件; Telegram 也不该发"今天 0 条"的噪音消息。
+    if not pres.is_silent:
+        for notifier in notifiers:
+            try:
+                await notifier.send_final_report(pres.markdown, summary)
+            except Exception as e:  # noqa: BLE001 - notifier failure is non-fatal
+                emit(logger, "notifier_final_report_error", error=str(e))
     emit(
         logger,
         "tick_finalize_done",
