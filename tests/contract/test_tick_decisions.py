@@ -66,7 +66,7 @@ def test_finalize_merges_remote_decision(tmp_path):
 
 
 def test_finalize_decision_fetch_failure_is_non_fatal(tmp_path):
-    """拉取失败非致命: finalize 不崩。失败=零决策 → 兜底自动发(不空报)。"""
+    """拉取失败非致命: finalize 不崩, 但也不兜底发——失败=零决策=空报(2026-08-06)。"""
 
     class BoomStore:
         async def fetch(self):
@@ -88,8 +88,8 @@ def test_finalize_decision_fetch_failure_is_non_fatal(tmp_path):
             decision_store=BoomStore(),
             site_base_url="https://s/",
         )
-        # 非致命: 跑完不抛; 拉取失败 → 零决策 → 兜底发
-        assert out["item_count"] == 1
+        # 非致命: 跑完不抛; 但拉取失败视同零决策, 不再兜底自动发
+        assert out["item_count"] == 0
         assert out["is_pending"] is True
 
     asyncio.run(go())
@@ -156,18 +156,19 @@ def test_finalize_only_ships_confirmed_items(tmp_path):
     asyncio.run(go())
 
 
-def test_finalize_zero_decisions_falls_back_to_auto_publish(tmp_path):
-    """零决策(没碰 TG) → 兜底自动发 top-N 草稿, 而非空报; 标 is_pending。"""
+def test_finalize_zero_decisions_publishes_nothing(tmp_path):
+    """2026-08-06: 零决策(没碰 TG)不再兜底自动发——用户没审的内容不该结算。
+    空报: item_count=0, 且不触发任何 notifier(不写空文件、不发 0 条消息)。"""
 
     async def go():
         db = Database(str(tmp_path / "s.db"))
         await db.init()
-        # 两条不同 genre(各自 quota>=1), 避免 publish per-genre 配额把同类砍掉
         items = [
             _item("https://x/1", "A", genre=Genre.paper),
             _item("https://x/2", "B", genre=Genre.model),
         ]
         await run_collect_tick("r1", NOW, items, "take", db, [FakeNotifier()])
+        notifier = FakeNotifier()
         out = await run_finalize_tick(
             "r2",
             NOW,
@@ -175,12 +176,13 @@ def test_finalize_zero_decisions_falls_back_to_auto_publish(tmp_path):
             items,
             "take",
             db,
-            [FakeNotifier()],
+            [notifier],
             decision_store=FakeDecisionStore({}),
             site_base_url="https://s/",
         )
-        assert out["item_count"] == 2  # 两条都过地板(score=80)且不同 genre, 配额不砍
-        assert out["is_pending"] is True  # 未审 → 草稿水印 + draft:true
+        assert out["item_count"] == 0
+        assert out["is_pending"] is True
+        assert notifier.final_report is None  # 空报不触发通知(不写空文件/不发空消息)
 
     asyncio.run(go())
 
