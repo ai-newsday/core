@@ -539,6 +539,29 @@ def _report_date(tz: str | None = None, now: datetime | None = None) -> str:
     return now.astimezone(ZoneInfo(tz)).date().isoformat()
 
 
+def run_remind(*, db_path: str = "data/state.db") -> int:
+    """22:00 待审提醒 tick。轻量, 不跑 collect/interpret——只读 DB + 拉决策计数。"""
+    from src.pipeline.tick import run_reminder_tick
+
+    ctx, now = _new_ctx()
+    db = Database(db_path)
+    asyncio.run(db.init())
+    dcfg = load_delivery_config("config/delivery.yaml")
+    decision_store = None
+    if dcfg.decisions_api.url and dcfg.decisions_api.secret:
+        decision_store = WorkerDecisionStore(dcfg.decisions_api.url, dcfg.decisions_api.secret)
+    notifiers = []
+    if dcfg.telegram.bot_token:
+        notifiers.append(TelegramPollingNotifier(dcfg.telegram))
+    else:
+        notifiers.append(FakeNotifier())  # 无 token = dry 模式
+    out = asyncio.run(
+        run_reminder_tick(now=now, db=db, decision_store=decision_store, notifiers=notifiers)
+    )
+    print(json.dumps({"run_id": ctx.run_id, **out}, ensure_ascii=False))
+    return 0
+
+
 def run_metrics(*, dry_run: bool = False, out_dir=None) -> int:
     """Compute + render + (optionally) TG-send today's metrics. Returns exit code."""
     from pathlib import Path
@@ -660,13 +683,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument(
         "--tick",
-        choices=["collect", "finalize", "metrics"],
-        help="run collect / finalize / metrics tick (HITL pipeline)",
+        choices=["collect", "finalize", "metrics", "remind"],
+        help="run collect / finalize / metrics / remind tick (HITL pipeline)",
     )
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
     if args.tick == "metrics":
         return run_metrics(dry_run=args.dry_run)
+    if args.tick == "remind":
+        return run_remind()
     if args.tick:
         out = run_tick(tick=args.tick, registry_path=args.registry)
         print(json.dumps(out, ensure_ascii=False, indent=2))

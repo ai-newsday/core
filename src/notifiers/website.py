@@ -13,6 +13,9 @@ class WebsiteNotifier:
     async def send_review_card(self, item_id: str, card: dict) -> None:
         return None
 
+    async def send_reminder(self, undecided_count: int) -> None:
+        return None
+
     async def send_final_report(self, markdown: str, summary: dict) -> None:
         if not self._cfg.enabled:
             return
