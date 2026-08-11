@@ -197,3 +197,41 @@ async def run_finalize_tick(
         "item_count": pres.report.item_count,
         "is_pending": pres.is_pending,
     }
+
+
+def count_undecided(rows: list[dict], decisions_raw: dict[str, str]) -> int:
+    """纯函数: 今天推过的卡片(rows, 每条含 item_id/link)里, 有多少条还没有远端
+    keep/drop 决策。按 item_id 匹配(webhook 决策以 item_id 为键), 非 keep/drop
+    的值(协议外/防御性)一律不算已决策。"""
+    decided_ids = {iid for iid, action in decisions_raw.items() if action in ("keep", "drop")}
+    return sum(1 for r in rows if r["item_id"] not in decided_ids)
+
+
+async def run_reminder_tick(
+    *,
+    now: datetime,
+    db: Database,
+    decision_store: DecisionStore | None,
+    notifiers: list[Notifier],
+) -> dict:
+    """22:00 提醒 tick: 数今天推过的卡片里还有多少条没审, 非零才发一条提醒消息。
+    只报个数, 不列标题(简单够用); 决策拉取失败保守地把当天全部条目算作待审,
+    不假装 0 条从而漏发提醒——错报"还有几条"好过错过一次真实提醒。"""
+    logger = logging.getLogger("ai-newsday")
+    date = now.date().isoformat()
+    rows = await db.get_pending_reviews_for_date(date)
+    decisions_raw: dict[str, str] = {}
+    if decision_store is not None:
+        try:
+            decisions_raw = await decision_store.fetch()
+        except Exception as e:  # noqa: BLE001 - 拉取失败非致命, 保守当全部待审
+            emit(logger, "reminder_decisions_fetch_error", error=str(e))
+    undecided_count = count_undecided(rows, decisions_raw)
+    if undecided_count > 0:
+        for notifier in notifiers:
+            try:
+                await notifier.send_reminder(undecided_count)
+            except Exception as e:  # noqa: BLE001 - notifier failure is non-fatal
+                emit(logger, "notifier_reminder_error", error=str(e))
+    emit(logger, "tick_reminder_done", date=date, undecided_count=undecided_count)
+    return {"date": date, "undecided_count": undecided_count}

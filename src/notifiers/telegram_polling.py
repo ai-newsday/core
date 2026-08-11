@@ -97,6 +97,14 @@ class TelegramPollingNotifier:
             disable_web_page_preview=True,
         )
 
+    async def send_reminder(self, undecided_count: int) -> None:
+        await self._bot.send_message(
+            chat_id=self._cfg.chat_id,
+            text=f"⏰ 今天还有 <b>{undecided_count}</b> 条待审, 22:00 前筛一下",
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+
     async def send_photo(self, photo_path: Path, caption: str) -> None:
         """Send a photo file to the same chat as send_message uses. HTML parse mode."""
         with photo_path.open("rb") as f:

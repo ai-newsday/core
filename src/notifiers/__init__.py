@@ -13,6 +13,10 @@ class Notifier(Protocol):
         """发送定稿日报。summary = {date_label, item_count, must_read_count}。"""
         ...
 
+    async def send_reminder(self, undecided_count: int) -> None:
+        """22:00 待审提醒。只报个数, 由调用方保证 undecided_count > 0 才调用。"""
+        ...
+
 
 class FakeNotifier:
     """测试用的内存实现，记录所有调用。"""
@@ -20,6 +24,7 @@ class FakeNotifier:
     def __init__(self):
         self.sent_cards: list[tuple[str, dict]] = []
         self.final_report: str | None = None
+        self.reminder_count: int | None = None
 
     async def send_review_card(self, item_id: str, card: dict) -> int | None:
         self.sent_cards.append((item_id, card))
@@ -27,3 +32,6 @@ class FakeNotifier:
 
     async def send_final_report(self, markdown: str, summary: dict) -> None:
         self.final_report = markdown
+
+    async def send_reminder(self, undecided_count: int) -> None:
+        self.reminder_count = undecided_count
