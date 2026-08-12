@@ -16,15 +16,25 @@ release_importance:
     agnes:
       base_url: "https://apihub.agnes-ai.com/v1/chat/completions"
       api_key_env: "AGNES_API_KEY"
-  # 分类任务(4 个布尔值), 用 Flash 档足够, 比 interpret 主链更便宜更快
+  # 2026-08-11: 原链(DeepSeek-V4-Flash 主 + Kimi-K2.6 备)在 ModelScope 上已双双下线
+  # ("has no provider supported"), release_importance 一直 fail-open 到 tier=2,
+  # 从没真正判定过。**"活着"不等于"能用"**: 换过 Step-3.7-Flash/Intern-S1-Pro
+  # (不遵守 JSON 输出约束), 又换过 DeepSeek-V4-Pro 当主力(简单 curl 测试正常),
+  # 结果拿真实 release body 跑 12 次调用, DeepSeek-V4-Pro 100% 失败(空内容 /
+  # NoneType), 只有 Qwen3.5-397B-A17B 稳定产出合法 JSON 且 tier 判定有真实区分度
+  # (非全部 fail-open 成同一档)。所以 Qwen3.5-397B-A17B 才是主力, DeepSeek-V4-Pro
+  # 反而不放进这条链(放进来只会拖慢, 不会兜底成功)。
   models:
-    - "modelscope:deepseek-ai/DeepSeek-V4-Flash"
+    - "modelscope:Qwen/Qwen3.5-397B-A17B"
   fallback_models:
-    - "modelscope:moonshotai/Kimi-K2.6"
     - "agnes:agnes-2.0-flash"
   temperature: 0.1        # 分类任务, 低温度求稳定
-  max_tokens: 300          # 只需 4 个布尔 + 一句 reason
-  timeout_s: 30
+  # 2026-08-12: max_tokens=300 时真实数据里出现过 JSON 被截断(Unterminated string),
+  # 提示词只要求 4 布尔 + 一句话 reason, 但真实 reason 常超预估长度, 留够余量。
+  max_tokens: 500
+  # 2026-08-12: 30s 超时下真实 release body 的判定几乎全部 ReadTimeout, 又 fail-open
+  # 回 tier=2, 等于白测。interpret 主链同一 API 用 60s 稳定跑, 分类任务没理由更快, 对齐。
+  timeout_s: 60
   empty_body_min_chars: 30 # 去掉 Full Changelog 链接后正文短于此 -> 短路判 tier 0, 不调 LLM
   hard_filter_max_tier: 1  # tier <= 1 (空转/常规补丁) 从候选池剔除
   tier_score: {2: 4, 3: 9} # tier -> release_tier_score(写入 popularity_weights, sqrt+cap 压缩)
