@@ -137,7 +137,13 @@ async def run_finalize_tick(
                     decisions_raw[link] = action
                     await db.update_decision(item_id, action)  # 记录用, 无行则 no-op
         except Exception as e:  # noqa: BLE001 - 拉取失败非致命
-            emit(logger, "decisions_fetch_error", run_id=run_id, error=str(e))
+            emit(
+                logger,
+                "decisions_fetch_error",
+                run_id=run_id,
+                error_type=type(e).__name__,
+                error=str(e),
+            )
     decisions = {link: ReviewDecision(action=action) for link, action in decisions_raw.items()}
     from src.core.types import RunContext
 
@@ -225,7 +231,12 @@ async def run_reminder_tick(
         try:
             decisions_raw = await decision_store.fetch()
         except Exception as e:  # noqa: BLE001 - 拉取失败非致命, 保守当全部待审
-            emit(logger, "reminder_decisions_fetch_error", error=str(e))
+            emit(
+                logger,
+                "reminder_decisions_fetch_error",
+                error_type=type(e).__name__,
+                error=str(e),
+            )
     undecided_count = count_undecided(rows, decisions_raw)
     if undecided_count > 0:
         for notifier in notifiers:

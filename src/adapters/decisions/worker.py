@@ -27,7 +27,9 @@ class FakeDecisionStore:
 class WorkerDecisionStore:
     """从 Cloudflare Worker 的 GET /decisions 拉决策。"""
 
-    def __init__(self, url: str, secret: str, timeout_s: float = 10.0):
+    # 2026-08-12: 10s 默认值下真实 22:00 提醒 tick 拉决策超时(httpx.ReadTimeout,
+    # str(e)==""), 保守回退把当天全部推送条目算未决, 提醒数字虚高(报了 40, 真实值远小于此)。
+    def __init__(self, url: str, secret: str, timeout_s: float = 30.0):
         self._url = url.rstrip("/") + "/decisions"
         self._secret = secret
         self._timeout = timeout_s
