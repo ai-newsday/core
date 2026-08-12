@@ -27,7 +27,7 @@ release_importance:
   models:
     - "modelscope:Qwen/Qwen3.5-397B-A17B"
   fallback_models:
-    - "agnes:agnes-2.0-flash"
+    - "agnes:agnes-2.5-flash"
   temperature: 0.1        # 分类任务, 低温度求稳定
   # 2026-08-12: max_tokens=300 时真实数据里出现过 JSON 被截断(Unterminated string),
   # 提示词只要求 4 布尔 + 一句话 reason, 但真实 reason 常超预估长度, 留够余量。
