@@ -62,10 +62,12 @@ async function handleDecisions(request, env) {
   let cursor;
   do {
     const page = await env.DECISIONS.list({ prefix: "dec:", cursor });
-    for (const k of page.keys) {
-      const action = await env.DECISIONS.get(k.name);
-      if (action) out[k.name.slice(4)] = action; // 去掉 "dec:" 前缀
-    }
+    // 2026-08-14: 逐个 await .get() 在决策攒多(TTL 7 天)后把这个接口拖到超时,
+    // 导致 finalize/remind tick 拉不到决策、误判"全部未决"、当天不发布。并发拉取同一页。
+    const actions = await Promise.all(page.keys.map((k) => env.DECISIONS.get(k.name)));
+    page.keys.forEach((k, i) => {
+      if (actions[i]) out[k.name.slice(4)] = actions[i]; // 去掉 "dec:" 前缀
+    });
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
   return Response.json(out);
