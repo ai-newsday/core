@@ -57,6 +57,38 @@ async def test_window_filter_drops_old_items(monkeypatch, cfg):
     assert rep.status == "working" and rep.item_count == 1
 
 
+async def test_per_adapter_window_override_applies_tighter_cutoff(monkeypatch, cfg):
+    """github_releases 读者预期'今天/昨天',不该用 paper/blog 那种 72h 慢更新窗口;
+    per-adapter 覆盖收紧到 48h,其余 adapter(如这里的 rss)保持全局 72h 不受影响。"""
+    specs = [
+        SourceSpec(
+            name="gh",
+            url="u",
+            genre=Genre.announcement,
+            publisher=Publisher.lab,
+            adapter="github_releases",
+        ),
+        SourceSpec(
+            name="blog", url="u", genre=Genre.writeup, publisher=Publisher.lab, adapter="rss"
+        ),
+    ]
+    monkeypatch.setattr(collect_mod, "load_registry", lambda p, c: specs)
+    monkeypatch.setattr(
+        collect_mod,
+        "ADAPTERS",
+        {
+            "github_releases": FakeOK([_item("gh-recent", 24), _item("gh-old", 60)]),
+            "rss": FakeOK([_item("blog-recent", 24), _item("blog-old", 60)]),
+        },
+    )
+    res = await collect_mod.collect(cfg, _ctx())
+    kept_links = {it.link for it in res.items}
+    assert "https://e.com/gh-recent-24" in kept_links
+    assert "https://e.com/blog-recent-24" in kept_links
+    assert "https://e.com/gh-old-60" not in kept_links  # 60h > 48h github_releases override
+    assert "https://e.com/blog-old-60" in kept_links  # 60h < 72h global default, unaffected
+
+
 async def test_one_source_failure_does_not_break_chain(monkeypatch, cfg):
     specs = [
         SourceSpec(
