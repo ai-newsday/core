@@ -7,13 +7,13 @@
 
 ## 当前最重要的任务(P0,建议现在做)
 
-### 内部 source slug 泄漏成"事实"——同时是编造 bug 和显示 bug
+### interpret 模型链疑似大范围失灵——2026-08-27 新发现,可能是"未解读"积压的真根因
 
-刚发现(2026-08-15):`src/prompts/interpret_item.md` 把 `item.source`(内部配置名,如 `x-ai-company`)原样喂给 LLM 当"来源"字段,LLM 把 "x-ai-company" 联想成真实公司 "xAI",把 NovelAI(`@novelaiofficial`)的推文写成"xAI发布"——真实发生的一起编造案例,当天日报里就有。同一个字段还被 `src/pipeline/tick.py:54` 直接渲染成审阅卡片上的可见来源链接文字,读者(也就是你审阅时)看到的也是内部 slug,不是真实发布方。
+修完下面 source 泄漏那条时意外撞见:拿真实还原案例跑生产 `interpret.yaml` 完整模型链(7 个模型),**全部依次失败**,兜底到 `extractive_fallback`。查证:①4 个模型是 8-11 已查实的死模型还没清链;②过去的主力 `DeepSeek-V4-Pro`/`Ring-2.6-1T` 这次 `choices: null`,`Qwen3.5-397B-A17B` 超时。更普遍的机制问题:这几个新模型是**推理模型**,`max_tokens` 预算被看不见的 `reasoning_content` 吃掉后真正内容输出为空或响应结构异常——这很可能是 KANBAN 里挂了近一个月的"TG 大量条目未解读"的真根因。**样本量还小(一次真实调用)**,需要更多次真实 tick 数据确认是持续性问题还是那次巧遇,详见 KANBAN 对应条目。
 
-**为什么是当前最重要**:这是主动编造(不是漏写),直接违反 CLAUDE.md"宁可少写不可编造"的红线,而且是系统性的——所有 `x-ai-*` 命名(`x-ai-lab`/`x-ai-company`/`x-ai-product`/`x-ai-researcher`/`x-ai-kol`)都有同样风险,只是这次恰好撞上真实公司名"xAI"才被发现。日更意味着人审频率会降低、每条被你亲自核实的概率下降,这类"信任不了的编造"如果在切日更之后才被发现,代价比现在改要大得多。
+### 内部 source slug 泄漏成"事实"——同时是编造 bug 和显示 bug(已 SHIPPED)
 
-**修法**:interpret 提示词不再把 `item.source` 当事实来源喂给 LLM,改为要求 LLM 从 `raw_summary` 里的 `@handle`(X 来源已带)/正文本身判断真实发布方;审阅卡片链接锚文本同理不用内部 slug 渲染。详见 KANBAN 新增条目。
+2026-08-15 发现,2026-08-27 SHIPPED(#102):`src/prompts/interpret_item.md` 把 `item.source`(内部配置名,如 `x-ai-company`)原样喂给 LLM 当"来源"字段,LLM 把 "x-ai-company" 联想成真实公司 "xAI",把 NovelAI(`@novelaiofficial`)的推文写成"xAI发布"——真实发生的一起编造案例。同一个字段也曾被直接渲染成审阅卡片上的可见来源链接文字。已修:`x_list` 聚合类来源改喂安全通用标签,非聚合来源(本来就是真实机构名)不动;审阅卡片锚文本改用链接域名。拿真实案例过production 模型链验证过,不再泄漏内部 slug。
 
 ---
 
@@ -48,7 +48,8 @@
 
 ## 判断"能不能切日更"的完成标准
 
-- [ ] source 泄漏 P0 已修,且真实验证过至少一天的发布内容没有再出现编造归属
+- [x] source 泄漏 P0 已修(#102),仍需真实验证至少一天的发布内容没有再出现编造归属
+- [ ] interpret 模型链失灵已确认根因(还是死模型/推理模型截断)并修复,未解读积压明显下降
 - [ ] GitHub Releases 时效性(`window_hours` per-genre)已修,几天前的 release 不再当"今天"发
 - [ ] 风格 + fact-check + 故事线合并的 brainstorm 至少有一版方案落地,并经过用户几天真实审阅确认"读得下去、信得过"
 - [ ] 没有新的编造类(P0/P1)问题被用户发现
