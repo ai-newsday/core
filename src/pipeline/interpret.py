@@ -13,6 +13,13 @@ from src.core.types import (
 )
 from src.observability.events import emit
 
+# x_list 抓的是一个 X List(聚合多个真实账号), source 是内部 List slug 不是单一公司名
+# (如 "x-ai-company"), 直接喂给 LLM 当"来源"曾被联想成撞名的真实公司 "xAI" 编造进日报。
+_AGGREGATE_SOURCE_ADAPTERS = {"x_list"}
+_AGGREGATE_SOURCE_LABEL = (
+    "多账号聚合列表(不是单一公司/机构名);真实发布方以原文摘要里的 @handle 为准"
+)
+
 
 def build_item_prompt(item: ScoredItem, template: str, config: InterpretConfig) -> str:
     """Render the per-item prompt by substituting {{name}} placeholders.
@@ -22,9 +29,12 @@ def build_item_prompt(item: ScoredItem, template: str, config: InterpretConfig) 
     fallback (spec §1)."""
     related = "\n".join(item.related_links)
     raw_summary = _trim_to_sentence(item.raw_summary or "", config.raw_summary_max_chars)
+    source_field = (
+        _AGGREGATE_SOURCE_LABEL if item.adapter in _AGGREGATE_SOURCE_ADAPTERS else item.source
+    )
     repl = {
         "{{title_en}}": item.title_en,
-        "{{source}}": item.source,
+        "{{source}}": source_field,
         "{{genre}}": item.genre.value,
         "{{link}}": item.link,
         "{{related_links}}": related,

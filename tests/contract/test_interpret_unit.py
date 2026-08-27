@@ -43,6 +43,21 @@ def test_build_item_prompt_substitutes_double_brace_placeholders():
     assert "ST=model" in out
 
 
+def test_build_item_prompt_passes_through_real_source_for_single_entity_adapters():
+    """非聚合源(单一发布方,如 hf-models/openai 自家 blog)的 source 是真实机构名,原样喂给 LLM。"""
+    out = build_item_prompt(_scored(source="Hugging Face"), "来源: {{source}}", InterpretConfig())
+    assert "来源: Hugging Face" in out
+
+
+def test_build_item_prompt_x_list_source_not_leaked_as_entity_name():
+    """x_list 是聚合多个真实账号的内部 List slug(如 'x-ai-company'),不是单一公司名。
+    直接喂给 LLM 会被联想成撞名的真实公司(实测: 'x-ai-company' -> 被写成 'xAI 发布')。
+    真实发布方在 raw_summary 里的 @handle 前缀, prompt 不该再把 slug 当事实来源。"""
+    item = _scored(source="x-ai-company", adapter="x_list", raw_summary="@novelaiofficial:\n...")
+    out = build_item_prompt(item, "来源: {{source}}", InterpretConfig())
+    assert "x-ai-company" not in out
+
+
 def test_build_item_prompt_handles_empty_summary_and_links():
     out = build_item_prompt(
         _scored(raw_summary=None, related_links=[]),
