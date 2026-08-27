@@ -2,7 +2,8 @@
 
 > 唯一任务看板 + 进度表（合并自旧 `ROADMAP.md`）。源头意图见 `docs/intent/`，每层契约见 `docs/specs/`。
 > 约定:一次一个子项目、小 PR、issue-per-PR、从真实 `origin/master` 起有意义分支名。
-> 最后更新:2026-08-11。
+> **月底日更冲刺的主线聚焦见 `docs/MAINLINE.md`**(2026-08-15 新建,只挑本表里阻塞日更的最小必要集合)。
+> 最后更新:2026-08-15。
 
 ---
 
@@ -56,6 +57,7 @@
 | ☑ | **P0** | **release_importance 模型链全死,fail-open 从未真正判定过** | 2026-08-11 跑配额 dry-run 时意外实锤:`config/enrich.yaml` 的 `release_importance` 链——主模型 `deepseek-ai/DeepSeek-V4-Flash`、备用 `moonshotai/Kimi-K2.6`——**拿真实请求逐个测过,ModelScope 上都已下线**("has no provider supported"),再备用 `agnes` 又没配 `AGNES_API_KEY`。三个全挂 → 每条 GitHub Release 无差别 fail-open 到 tier=2,`release_importance` 这段时间根本没在判定,不是判定标准松。**2026-08-12 SHIPPED**:换模型分三轮才真正修好,记录下"活着≠能用"这个教训——(1) 先换成简单 ping 测活的 `Step-3.7-Flash`/`Intern-S1-Pro`,结果拿真实 release body 跑发现两个都不遵守 JSON 输出约束(空内容/解析不出来);(2) 再换成 curl 单次测试正常的 `DeepSeek-V4-Pro`,结果拿真实 body 连续跑 12 次调用**100% 失败**(空内容/`NoneType`),原来单次 curl 测试和"在完整 pipeline 里反复调用同一提示词"是两回事;(3) 最终定案:`models: [Qwen/Qwen3.5-397B-A17B]` 主力(5/6 次真实调用成功,tier 判定有真实区分度,不再是清一色 fail-open),`fallback_models: [agnes:agnes-2.0-flash]` 兜底;顺手把 `timeout_s` 30→60(对齐 interpret 主链,30s 下真实 body 几乎全 ReadTimeout)、`max_tokens` 300→500(真实 reason 文本比预估长,曾截断出 `Unterminated string`)。验证:真实 collect 出的 6 条 github_releases 过 `judge_release_importance`,5 条真判定(tier_score 4 vs 9 有区分度),1 条被真实判定为 tier≤1 正确硬过滤(不是 fail-open)。**下一步**:重新跑一次配额 dry-run,下面「草稿池/终版配额哲学」的数字是在这个 bug 存在的情况下测的,基线可能会变。 |
 | ☐ | **P1** | **release_importance 判定标准复查(可能已被上一条解释)** | 2026-07-25(见上 b)。5% 过滤率偏低,当时怀疑 prompt 对"partner 包级别小改动配大话术"过于宽松。**2026-08-11 新发现**:更可能的解释是模型链根本没跑起来(见上一条),不是判定松。**等上一条修完、重新观察真实过滤率再看这条是否还成立**,不要在旧假设上继续动 prompt/阈值。 |
 | ☑ | **P0** | **22:00 提醒"还有 N 条待审"数字虚高(报了 40)** | 2026-08-12 用户实测反馈"40 条不是真实数值"。查真实 Remind workflow 当天日志:`{"event": "reminder_decisions_fetch_error", "error": ""}` → `undecided_count: 40`。空字符串 error 是 `httpx.ReadTimeout` 的典型指纹(`str(e)` 默认为空,不是认证失败——403 的 `HTTPStatusError` 有明确消息文本,单独 curl 验证过)。根因:`WorkerDecisionStore` 默认 `timeout_s=10.0` 对 Cloudflare Worker 的真实决策查询不够,超时后 `run_reminder_tick` 按设计保守把当天全部推送条目算未决——40 是真实推送总量,不是真实待审数。SHIPPED:超时 10s→30s(同一个类同时被 finalize/remind 两条 tick 复用,一次修好两处),给两处 fetch-error 日志加 `error_type` 字段(这次靠猜 httpx 内部行为才诊断出来,以后应该直接从日志读)。 |
+| ☐ | **P0** | **`item.source`(内部配置 slug)被当"事实来源"直接喂给 LLM,导致编造归属;同一字段又原样渲染成审阅卡片可见文字** | 2026-08-15 用户逐条 review 发现:一条 NovelAI(`@novelaiofficial`)的超分模型推文,被日报写成"xAI发布新一代超分模型"。查证:`src/prompts/interpret_item.md` 里 `- 来源: {{source}}（类型 {{genre}}）`,`{{source}}` 在 `src/pipeline/interpret.py:27` 直接填 `item.source`——也就是 `config/sources.d/x.yaml` 里的内部配置名 `x-ai-company`(一个聚合多家 AI 公司账号的 X List,不是指 xAI 这一家公司)。LLM 把 "x-ai-company" 联想成真实存在的公司 "xAI",而没有去读 `raw_summary` 里真正的 `@novelaiofficial:` 作者前缀。**这不是孤立事故**:`src/pipeline/tick.py:54` 的 `"source": item.source` 把同一个内部 slug 直接当审阅卡片的链接锚文本渲染给用户看,X 系列全部命名(`x-ai-lab`/`x-ai-company`/`x-ai-product`/`x-ai-researcher`/`x-ai-kol`)都是同一风险,只是这次恰好撞上真实公司名才被发现。**违反 CLAUDE.md"宁可少写不可编造"红线,标为 P0,是 [[docs/MAINLINE.md]] 当前排第一的任务**。修法:interpret 提示词改为要求 LLM 从 `raw_summary` 里的 `@handle`/正文本身判断真实发布方,不把 `item.source` 当事实;审阅卡片锚文本同理换掉。 |
 | ☑ | **P0** | **两天没发草稿链接——真根因是 Worker `/decisions` 串行 KV 读取,不是客户端超时不够** | 2026-08-14 用户反馈"这两天不发草稿的链接了"。查 8-13 22:51 那次 finalize workflow 真实日志:`{"event": "decisions_fetch_error", "error_type": "ReadTimeout", "error": ""}` → `publish_done item_count: 0`——**这条 run 用的就是上一条已经把超时提到 30s 的代码(headSha 对上了),依然超时**,说明上一条修的不是根因,是掩盖了根因。查 `workers/telegram-webhook/src/index.js:57-72` 的 `handleDecisions`:对 KV `list()` 返回的每个 key **串行 await** 一次 `.get()`,决策 TTL 7 天,决策越攒越多这个循环越跑越慢,直到连 30s 都不够。`run_finalize_tick` 拉不到决策时按设计保守当"全部未决"、不擅自发布——这是设计在正确工作,只是它拿不到确认因为 Worker 本身卡住了,不是没生成。SHIPPED:`Promise.all` 并发拉取同一页的 `.get()`,不再逐个等;Worker 自带 vitest 5 个测试全过。 |
 | ☐ | 待决策 | **`writeup`(41) vs `announcement`(58) genre_value 17 分结构性差距** | 2026-07-26 新发现(见上)。同源惩罚豁免(#83)修完后,这是继续压低 X 个人研究者账号(fchollet 这类)分数的最后一个结构性瓶颈。`genre_value` 是全局的,会影响所有 writeup 来源不只 X,**要不要动是设计决策,不要凭自己理解改**。 |
 | ☐ | 待澄清 | **"官方"/"模型" genre 是否该合并** | 2026-07-25 用户提出但意图不明确(是嫌两个分类界限模糊,还是嫌读者一眼看得出不用标注?)。**下次对话先问清楚再动 `genre_value`/`group_by_category`**。 |
@@ -145,6 +147,7 @@
 
 | 文档 | 作用 |
 |---|---|
+| `docs/MAINLINE.md` | **月底日更冲刺主线** — 本表里阻塞日更的最小必要集合,按优先级排 |
 | `docs/PRD.md` / `docs/BRD.md` | 产品需求(V3.0.0)/业务背景 |
 | `docs/specs/<层>.md` | 每层契约(接口/数据/算法/不变量/golden) |
 | `docs/intent/*.md` | interview-me 确认的意图 |
