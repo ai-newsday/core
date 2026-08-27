@@ -48,7 +48,8 @@ async def _run_one(
             name=source.name, status="failed", item_count=0, error=str(e), elapsed_ms=elapsed()
         ), []
 
-    cutoff = ctx.now - timedelta(hours=config.window_hours)
+    window_hours = config.window_hours_by_adapter.get(source.adapter, config.window_hours)
+    cutoff = ctx.now - timedelta(hours=window_hours)
     kept = [it for it in items if it.published_at >= cutoff]
     # 单源条数上限(firehose 阀): 按最新优先, 防 arXiv/HN 一类把池子打爆。
     if source.max_items is not None and len(kept) > source.max_items:

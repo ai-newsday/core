@@ -81,7 +81,12 @@ class SourceSpec(BaseModel):
 class CollectionConfig:
     sources_registry_path: str
     window_hours: int = 72  # 拉宽到 3 天: paper/tool/blog 周更慢更不漏 (原 24 把它们都砍了)
-    max_window_hours: int = 96  # 同步上调; spec §7.1 不变量仍按此参数
+    # per-adapter 覆盖: github_releases 读者预期"今天/昨天", 不该套用慢更新源的 72h 窗口,
+    # 否则 2-3 天前的 release 仍会被当"新"候选采到、审阅、发布 (2026-08-27 用户反馈实锤)。
+    window_hours_by_adapter: dict[str, int] = field(default_factory=lambda: {"github_releases": 48})
+    max_window_hours: int = (
+        96  # 同步上调; spec §7.1 不变量仍按此参数(per-adapter 覆盖只会更紧, 不会突破这个上限)
+    )
     concurrency: int = 10
     timeout_s: int = 15
     firecrawl_enabled: bool = False
