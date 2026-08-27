@@ -110,6 +110,28 @@ def test_card_cover_escapes_link_url():
     assert 'href="https://x/search?a=1&b=2<script>"' not in msg
 
 
+def test_card_cover_link_anchor_uses_link_domain_not_internal_source_slug():
+    """card['source'] 是内部配置名(如聚合多家公司的 X List slug 'x-ai-company'),
+    直接当链接锚文本会让读者以为是真实发布方。锚文本改用 link 的域名, 域名不会跟
+    真实公司名撞在一起, 不管 adapter 是什么都成立。"""
+    from src.notifiers.telegram_polling import _make_card_message
+
+    card = {
+        "title_zh": "T",
+        "title_en": "T",
+        "source_label": "官方",
+        "source": "x-ai-company",
+        "link": "https://x.com/novelaiofficial/status/123",
+        "score": 78,
+        "signals": {},
+        "body": "x",
+        "tags": [],
+    }
+    msg = _make_card_message("id1", card)
+    assert ">x-ai-company<" not in msg
+    assert ">x.com<" in msg
+
+
 def test_card_body_bounded_under_telegram_limit():
     from src.notifiers.telegram_polling import _make_card_message
 
@@ -156,7 +178,7 @@ def test_card_message_contains_cover_body_and_tags():
         "title_en": "English title",
         "source_label": "论文",
         "source": "hf-papers",
-        "link": "https://x/1",
+        "link": "https://arxiv.org/abs/1",
         "score": 88,
         "signals": {"upvotes": 12},
         "body": "正文内容",
@@ -165,7 +187,7 @@ def test_card_message_contains_cover_body_and_tags():
     msg = _make_card_message("id1", card)
     assert "[论文]" in msg and "中文标题" in msg
     assert "English title" in msg
-    assert "88" in msg and "hf-papers" in msg
+    assert "88" in msg and "arxiv.org" in msg
     assert "正文内容" in msg
     assert "#a #b" in msg
 

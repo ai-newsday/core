@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html as html_lib
 from pathlib import Path
+from urllib.parse import urlparse
 
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -31,8 +32,10 @@ def _make_card_message(item_id: str, card: dict) -> str:
     title_zh = esc(card.get("title_zh", ""))
     title_en = esc(card.get("title_en", ""))
     score = card.get("score", 0)
-    source = esc(card.get("source", ""))
     link = card.get("link", "")
+    # card["source"] 是内部配置名(如聚合多家公司的 X List slug "x-ai-company"), 直接当
+    # 链接锚文本会让读者以为是真实发布方; 域名不会跟真实公司名撞在一起, 不管 adapter 是什么都成立。
+    link_domain = esc(urlparse(link).netloc or card.get("source", ""))
     sig_line = _fmt_signals(card.get("signals", {}))
     raw_body = card.get("body", "") or ""
     body = esc(_clip(raw_body)) if raw_body else "(未生成解读，请参见原文链接)"
@@ -43,7 +46,7 @@ def _make_card_message(item_id: str, card: dict) -> str:
         f"<i>{title_en}</i>\n\n"
         f"<b>{score}</b> 分"
         + (f" ｜ {sig_line}" if sig_line else "")
-        + f'\n<a href="{esc(link)}">{source}</a>'
+        + f'\n<a href="{esc(link)}">{link_domain}</a>'
     )
     # 病2: interpret 回退卡 → 加视觉徽章, 用户立刻知道这是降级输出(非翻译模块故障)
     if card.get("status") == "extractive_fallback":
