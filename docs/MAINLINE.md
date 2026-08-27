@@ -38,9 +38,9 @@
 
 跟本次已经查实的 `x-ai-company`→"xAI" 编造是同一类风险的更一般化表述:不只是 source slug 泄漏这一种触发方式,任何模型/公司名判断不确定的场合都需要一道"低置信度就别写死"的机制,而不是等撞名了才发现。这跟 KANBAN #69(内容确定性/信息密度打分维度)是同一根因但目标更明确——#69 原描述偏"给空洞内容降分",用户这次要的是**主动 double-check/fact-check 机制**,让 LLM 对自己不确定的实体名要么不写死、要么有二次校验,而不只是打分降权。两条建议合并到同一次 `/brainstorm` 一起设计。
 
-### 3. GitHub Releases 时效性:几天前的 release 当"今天"发
+### 3. GitHub Releases 时效性:几天前的 release 当"今天"发(已 SHIPPED)
 
-**已用代码验证根因**(不是猜测):`src/core/types.py:83` 的 `CollectionConfig.window_hours` 默认 **72 小时(3 天)**,是全局统一窗口,注释写明是"为了不漏抓 paper/tool/blog 这类慢更新源"才特意拉宽的(原来 24 小时会把它们都砍了)。但 `github_releases` 这个 genre 读者预期是"今天/昨天发生的",跟 paper/blog 的"慢更新可以容忍几天"完全是两种时效性预期,用同一个 72 小时全局窗口削平了,导致 2-3 天前的 release 依然能被当"新"候选采集、审阅、最终发布,读者读到时会觉得"这不是今天的新闻"。修法方向是给 `window_hours` 做 per-genre 或 per-adapter 覆盖(github_releases 收紧到 24-48h,paper/blog 保留 72h),不是简单全局调小(调小会重新引入"慢更新源被漏抓"的原问题)。这条是新发现,还没进 KANBAN 主表,已在下面新增条目。
+**已用代码验证根因**(不是猜测):`CollectionConfig.window_hours` 默认全局 72 小时,是为了不漏抓 paper/tool/blog 这类慢更新源才拉宽的,连带放行了 2-3 天前的 github_releases。**2026-08-27 SHIPPED(#105)**:新增 `window_hours_by_adapter`(默认 `{"github_releases": 48}`),按 adapter 查表取更紧的窗口,其余 adapter(paper/blog 等)不受影响。真实 collect 数据验证:比旧配置少收 11 条 48-72h 前的旧 release,37 条 ≤48h 的条目原样保留。
 
 ---
 
@@ -48,7 +48,7 @@
 
 - [x] source 泄漏 P0 已修(#102),仍需真实验证至少一天的发布内容没有再出现编造归属
 - [x] interpret 模型链健康度已用真实日志核实(~87% 成功率,非大范围失灵),4 个已知死模型清理降级为 P2 顺手做
-- [ ] GitHub Releases 时效性(`window_hours` per-genre)已修,几天前的 release 不再当"今天"发
+- [x] GitHub Releases 时效性已修(#105),几天前的 release 不再当"今天"发,真实数据验证过
 - [ ] 风格 + fact-check + 故事线合并的 brainstorm 至少有一版方案落地,并经过用户几天真实审阅确认"读得下去、信得过"
 - [ ] 没有新的编造类(P0/P1)问题被用户发现
 
