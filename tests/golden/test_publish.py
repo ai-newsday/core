@@ -644,3 +644,161 @@ def test_front_matter_escapes_newline_in_summary():
     assert "\\n" in fm  # 字面 \n 转义
     # front matter 仍是 7 行(未被裸换行撑断)
     assert fm.count("\n") == 6
+
+
+from src.pipeline.publish import merge_story_groups
+
+
+def test_merge_story_groups_passthrough_when_no_story_id():
+    items = [_ri("https://a/1"), _ri("https://a/2")]
+    out = merge_story_groups(items, max_support=3)
+    assert len(out) == 2
+    assert {i.link for i in out} == {"https://a/1", "https://a/2"}
+
+
+def test_merge_story_groups_merges_group_keeps_earliest_as_primary():
+    from datetime import timedelta
+
+    early = _ri("https://a/1", score=70)
+    early = early.model_copy(update={"story_id": "story-1"})
+    late = _ri("https://a/2", score=90)
+    late = late.model_copy(update={"story_id": "story-1", "published_at": NOW + timedelta(hours=2)})
+    out = merge_story_groups([early, late], max_support=3)
+    assert len(out) == 1
+    assert out[0].link == "https://a/1"  # earliest = primary, regardless of score
+
+
+def test_merge_story_groups_appends_support_sentence_to_primary_body():
+    primary = _ri("https://a/1", body="原始正文。").model_copy(update={"story_id": "story-1"})
+    support = _ri("https://a/2", score=90).model_copy(
+        update={"story_id": "story-1", "link": "https://support.example.com/post"}
+    )
+    out = merge_story_groups([primary, support], max_support=3)
+    assert "原始正文。" in out[0].body
+    assert "跟进支持" in out[0].body
+    assert "example.com" in out[0].body  # 域名末两段, 不是内部 source slug
+
+
+def test_merge_story_groups_support_link_registered_as_evidence():
+    primary = _ri("https://a/1").model_copy(update={"story_id": "story-1"})
+    support = _ri("https://a/2").model_copy(
+        update={"story_id": "story-1", "link": "https://support.example.com/post"}
+    )
+    out = merge_story_groups([primary, support], max_support=3)
+    anchors = [e.anchor for e in out[0].evidence]
+    assert "https://support.example.com/post" in anchors
+
+
+def test_merge_story_groups_never_uses_internal_source_as_display_name():
+    primary = _ri("https://a/1").model_copy(update={"story_id": "story-1"})
+    support = _ri("https://a/2").model_copy(
+        update={
+            "story_id": "story-1",
+            "link": "https://support.example.com/post",
+            "source": "x-ai-company",
+        }
+    )
+    out = merge_story_groups([primary, support], max_support=3)
+    assert "x-ai-company" not in out[0].body
+
+
+def test_merge_story_groups_caps_support_at_max_support_by_score():
+    primary = _ri("https://a/1", score=100).model_copy(update={"story_id": "story-1"})
+    supports = [
+        _ri(f"https://s{i}/x", score=s).model_copy(
+            update={"story_id": "story-1", "link": f"https://s{i}.example.com/post"}
+        )
+        for i, s in enumerate([50, 90, 70, 60], start=1)
+    ]
+    out = merge_story_groups([primary, *supports], max_support=2)
+    assert len(out) == 1
+    anchors = [e.anchor for e in out[0].evidence]
+    # top 2 by score among supports: s2 (90), s3 (70)
+    assert "https://s2.example.com/post" in anchors
+    assert "https://s3.example.com/post" in anchors
+    assert "https://s1.example.com/post" not in anchors
+    assert "https://s4.example.com/post" not in anchors
+
+
+def test_merge_story_groups_dropped_members_removed_from_result():
+    primary = _ri("https://a/1", score=100).model_copy(update={"story_id": "story-1"})
+    supports = [
+        _ri(f"https://s{i}/x", score=s).model_copy(
+            update={"story_id": "story-1", "link": f"https://s{i}.example.com/post"}
+        )
+        for i, s in enumerate([50, 90, 70, 60], start=1)
+    ]
+    out = merge_story_groups([primary, *supports], max_support=2)
+    # 5 items in -> 1 out (primary absorbs top-2 support, drops the rest)
+    assert len(out) == 1
+
+
+def test_merge_story_groups_mixed_grouped_and_ungrouped():
+    grouped_a = _ri("https://a/1").model_copy(update={"story_id": "story-1"})
+    grouped_b = _ri("https://a/2").model_copy(update={"story_id": "story-1"})
+    solo = _ri("https://a/3")
+    out = merge_story_groups([grouped_a, grouped_b, solo], max_support=3)
+    assert len(out) == 2
+    assert {i.link for i in out} == {"https://a/1", "https://a/3"}
+
+
+def test_merge_story_groups_tie_on_published_at_picks_stable_primary_regardless_of_input_order():
+    # Same published_at on both members: sort must not depend on stability of input
+    # order alone (upstream order is not guaranteed run to run) -- link is the
+    # deterministic tiebreaker, so the same primary wins no matter the input order.
+    a = _ri("https://a/1", score=50).model_copy(update={"story_id": "story-1"})
+    b = _ri("https://a/2", score=90).model_copy(update={"story_id": "story-1"})
+
+    out_forward = merge_story_groups([a, b], max_support=3)
+    out_reversed = merge_story_groups([b, a], max_support=3)
+
+    assert out_forward[0].link == "https://a/1"
+    assert out_reversed[0].link == "https://a/1"
+
+
+def test_support_display_name_reduces_to_second_level_domain():
+    from src.pipeline.publish import _support_display_name
+
+    assert _support_display_name("https://www.together.ai/post") == "together.ai"
+    assert _support_display_name("https://ollama.com/post") == "ollama.com"
+
+
+def test_support_display_name_never_full_multi_label_host():
+    # 硬约束不能回归: 展示名不能是 item.source 内部 slug, 也不能是未收窄的完整多段 host
+    from src.pipeline.publish import _support_display_name
+
+    assert _support_display_name("https://www.together.ai/post") != "www.together.ai"
+
+
+def test_merge_story_groups_uses_configured_support_template():
+    primary = _ri("https://a/1").model_copy(update={"story_id": "story-1"})
+    support = _ri("https://a/2").model_copy(
+        update={"story_id": "story-1", "link": "https://ollama.com/post"}
+    )
+    out = merge_story_groups(
+        [primary, support], max_support=3, support_template="\n\n[custom] {names} 已支持。"
+    )
+    assert "[custom] ollama.com 已支持。" in out[0].body
+
+
+def test_build_report_story_group_costs_one_quota_slot():
+    """merge_story_groups 必须在 apply_quota 之前跑, 否则故事组会按组内条目数占用
+    多个配额位, 挤掉其它当天条目 —— 这条测试锁住这个顺序(spec 2026-08-28 review)。
+    proof: 临时把 merge_story_groups 挪到 apply_quota 之后, 这条测试会失败。"""
+    from src.core.types import PublishConfig
+
+    cfg = PublishConfig(quota={"model": 3}, total_limit=12)
+    group = [
+        _ri(f"https://g/{i}", genre=Genre.model, score=100 - i).model_copy(
+            update={"story_id": "story-1"}
+        )
+        for i in range(3)
+    ]
+    ungrouped = [
+        _ri("https://u/1", genre=Genre.model, score=50),
+        _ri("https://u/2", genre=Genre.model, score=49),
+    ]
+    rep = build_report(_rr([*group, *ungrouped]), "2026-08-28", cfg)
+    links = {it.link for cat in rep.categories for it in cat.items}
+    assert "https://u/1" in links
+    assert "https://u/2" in links

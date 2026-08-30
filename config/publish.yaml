@@ -7,6 +7,8 @@ pending_watermark: "草稿待定稿"
 min_display_score: 40                    # 人工 keep 条目质量底(确认门已保证全是 keep; 60 会吞 keep 的低分首发)
 quota: {paper: 3, model: 3, announcement: 3, writeup: 2, news: 1}  # per-genre 上限(人 keep 后施加)
 adapter_quota: {github_releases: 2, github_trending: 1}  # 按采集渠道封顶, 不占用 genre 配额名额(spec §5)
+story_merge_max_support: 3               # 故事线合并: 每组最多附带几个"已支持"平台提及(spec 2026-08-28)
+story_merge_support_template: "\n\n目前已知 {names} 等平台跟进支持。"  # 故事线合并支持平台提及文案模板(spec 2026-08-28)
 total_limit: 12                          # 刊物总条目硬上限(2026-07-24: 11→12, 对齐用户定的量级; X 走独立保底通道见 reserved_quota, 不占这里的 genre 配额)
 genre_labels:                            # genre → 中文展示名(键顺序=组间顺序)
   paper: "论文"

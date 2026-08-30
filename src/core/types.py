@@ -111,6 +111,10 @@ class NewsItem(RawItem):
     cluster_id: str = Field(min_length=1)
     related_links: list[str] = Field(default_factory=list)
     embedding_id: str | None = None
+    # 故事线合并 id(同一模型/产品同一轮动态的多条独立发布); None=不属于任何故事组
+    # (绝大多数条目)。由 src/pipeline/storylink.py::link_stories() 写入(score 之后,
+    # interpret 之前); publish.py::merge_story_groups() 在渲染层按此分组合并。
+    story_id: str | None = None
 
 
 @dataclass
@@ -397,6 +401,12 @@ class PublishConfig:
     adapter_quota: dict[str, int] = field(
         default_factory=dict
     )  # 按采集渠道封顶(spec §5), 不占用 genre 配额名额
+    story_merge_max_support: int = (
+        3  # 故事线合并: 每组最多附带几个"已支持"平台提及(spec 2026-08-28)
+    )
+    story_merge_support_template: str = (
+        "\n\n目前已知 {names} 等平台跟进支持。"  # 故事线合并支持平台提及文案模板(spec 2026-08-28)
+    )
 
 
 @dataclass
@@ -445,6 +455,30 @@ class ReleaseImportanceConfig:
     hard_filter_max_tier: int = 1  # tier <= 此值从候选池剔除
     tier_score: dict[int, float] = field(default_factory=lambda: {2: 4.0, 3: 9.0})
     prompt_path: str = "src/prompts/release_importance.md"
+
+
+@dataclass
+class StoryLinkConfig:
+    """故事线合并(spec 2026-08-28): 同一模型/产品当天的"原始发布"+"第三方支持公告"
+    在发布渲染层合并成一条。两阶段: 正则抓 entity token 找候选对, 候选对过一次
+    轻量 LLM 是非确认(不产出新文字)。跟 release_importance 同款多 provider 结构。"""
+
+    enabled: bool = True
+    # 默认: >=3 字母前缀 + 必须的连字符/空格分隔符 + 带小数点的版本号, 覆盖 "GLM-5.3"。
+    # 已知代价: 不匹配纯整数版本号的名称, 如 "Llama 4"(真实 50 条 pool 实测收窄后当日
+    # 候选对从 8 降到 0, 见 config/storylink.yaml 注释)。
+    entity_token_pattern: str = r"\b[A-Za-z]{3,}[-\s]\d+(?:\.\d+)+\b"
+    prompt_path: str = "src/prompts/story_link_confirm.md"
+    model: str = "modelscope:deepseek-ai/DeepSeek-V4-Flash"
+    models: list[str] = field(default_factory=list)
+    fallback_models: list[str] = field(default_factory=list)
+    providers: dict[str, ProviderSpec] = field(
+        default_factory=lambda: {"modelscope": _DEFAULT_MODELSCOPE}
+    )
+    temperature: float = 0.0
+    max_tokens: int = 200
+    timeout_s: int = 30
+    summary_max_chars: int = 500  # 喂给确认 prompt 的摘要截断长度(防超长撑爆)
 
 
 @dataclass
