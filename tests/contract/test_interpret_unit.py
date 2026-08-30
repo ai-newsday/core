@@ -330,6 +330,21 @@ def test_build_ok_item_content_certain_false_score_floors_at_zero():
     assert out.score == 0
 
 
+def test_build_ok_item_content_certain_false_score_caps_at_hundred():
+    it = _scored(score=90, score_breakdown={"机构影响力": 90.0})
+    parsed = {
+        "title": "t",
+        "body": "s。",
+        "tags": ["#a", "#b", "#c"],
+        "evidence": [{"claim": "c", "anchor": "https://hf.co/glm5"}],
+        "content_certain": False,
+    }
+    # misconfigured positive "penalty" (e.g. typo: 15 instead of -15)
+    out = build_ok_item(parsed, it, InterpretConfig(), uncertain_content_penalty=15.0)
+    assert out.score == 100
+    assert out.score_breakdown["内容确定性"] == 15.0
+
+
 def test_build_ok_item_content_certain_true_no_penalty():
     it = _scored(score=80, score_breakdown={"机构影响力": 80.0})
     parsed = {

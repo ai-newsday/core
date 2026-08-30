@@ -108,7 +108,7 @@ def build_ok_item(
     score = item.score
     breakdown = dict(item.score_breakdown)
     if not parsed.get("content_certain", True):
-        score = max(0, score + int(uncertain_content_penalty))
+        score = max(0, min(100, score + round(uncertain_content_penalty)))
         breakdown["内容确定性"] = uncertain_content_penalty
     return InterpretedItem(
         **{**item.model_dump(), "score": score, "score_breakdown": breakdown},

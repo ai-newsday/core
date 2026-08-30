@@ -74,6 +74,16 @@ def build_overview(items: list[ReviewedItem], config: PublishConfig) -> Overview
     return Overview(genre_distribution=dist, keywords=ranked[: config.top_keywords])
 
 
+def _pre_content_certainty_penalty_score(item: ReviewedItem) -> int:
+    """min_display_score 地板检查用: 内容确定性扣分只该让条目在 apply_quota()
+    重排时输给分数更高的同类, 不该把一条人工已 keep 的条目直接从地板下面挤没
+    ——那不是配额位的竞争结果, 是这次扣分单方面造成的(用户已确认: 人工 keep
+    的条目应该保留, 扣分只影响排序, 不影响这层"保护 keep 的低分首发"的地板)。
+    """
+    penalty = item.score_breakdown.get("内容确定性", 0.0)
+    return item.score - round(penalty) if penalty < 0 else item.score
+
+
 def build_report(
     review_result: ReviewResult, date_label: str, config: PublishConfig
 ) -> DailyReport:
@@ -81,7 +91,7 @@ def build_report(
     items = [
         it
         for it in review_result.reviewed_items
-        if it.score >= config.min_display_score and it.relevant
+        if _pre_content_certainty_penalty_score(it) >= config.min_display_score and it.relevant
     ]
     # 采集渠道封顶(spec §5): 先砍 GitHub 超额, 让 genre 配额的剩余名额优先给非 GitHub 条目
     items, _ = apply_adapter_quota(items, config.adapter_quota)
