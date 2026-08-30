@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urlparse
 
 from src.core.types import (
     CategorySection,
     DailyReport,
+    Evidence,
     Overview,
     PublishConfig,
     PublishResult,
@@ -84,6 +86,46 @@ def _pre_content_certainty_penalty_score(item: ReviewedItem) -> int:
     return item.score - round(penalty) if penalty < 0 else item.score
 
 
+def _support_display_name(link: str) -> str:
+    """支持平台的展示名: 用链接域名, 不用 item.source(内部配置 slug)——今天刚修过
+    source 泄漏喂给 LLM 当事实这个坑(#102), 渲染层不能重新踩一遍。跟
+    telegram_polling.py::_make_card_message 的 link_domain 是同一约定。"""
+    return urlparse(link).netloc or link
+
+
+def merge_story_groups(items: list[ReviewedItem], max_support: int = 3) -> list[ReviewedItem]:
+    """按 story_id 分组; 组内按 published_at 升序, 最早=原始发布(留作 primary);
+    其余按 -score 排序取前 max_support 个当"已支持平台", 拼进 primary.body 末尾一句,
+    并把它们的 link 登记进 primary.evidence(复用 _ref() 的既有"anchor -> 参考表"渲染
+    路径, 渲染层不用改)。组内其余条目(含超出 max_support 的部分)从结果中剔除,
+    不再单独占位。story_id 为 None 的条目原样透传。"""
+    groups: dict[str, list[ReviewedItem]] = {}
+    passthrough: list[ReviewedItem] = []
+    for it in items:
+        if it.story_id is None:
+            passthrough.append(it)
+        else:
+            groups.setdefault(it.story_id, []).append(it)
+
+    out: list[ReviewedItem] = list(passthrough)
+    for group in groups.values():
+        ordered = sorted(group, key=lambda it: it.published_at)
+        primary, rest = ordered[0], ordered[1:]
+        support = sorted(rest, key=lambda it: -it.score)[:max_support]
+        if not support:
+            out.append(primary)
+            continue
+        names = [_support_display_name(it.link) for it in support]
+        suffix = f"\n\n目前已知 {'、'.join(names)} 等平台跟进支持。"
+        new_evidence = list(primary.evidence) + [
+            Evidence(claim=name, anchor=it.link) for name, it in zip(names, support)
+        ]
+        out.append(
+            primary.model_copy(update={"body": primary.body + suffix, "evidence": new_evidence})
+        )
+    return out
+
+
 def build_report(
     review_result: ReviewResult, date_label: str, config: PublishConfig
 ) -> DailyReport:
@@ -95,6 +137,10 @@ def build_report(
     ]
     # 采集渠道封顶(spec §5): 先砍 GitHub 超额, 让 genre 配额的剩余名额优先给非 GitHub 条目
     items, _ = apply_adapter_quota(items, config.adapter_quota)
+    # 故事线合并(spec 2026-08-28): 先把同故事的条目收成一条再占配额, 不然故事组
+    # 可能因为占了多个配额位反而把其它公司当天的公告挤掉 —— 合并要先于配额生效
+    # 才能真正省位置。
+    items = merge_story_groups(items, config.story_merge_max_support)
     # per-genre 配额 + total_limit: 人 keep 之后对 kept 集合施加(组成控制, 复用 score 纯函数)
     items, _ = apply_quota(items, config.quota, config.total_limit)
     return DailyReport(
