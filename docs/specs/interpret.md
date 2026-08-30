@@ -81,7 +81,7 @@ class InterpretResult:
    - `title` 截断到 `title_max_chars`（≤64）；`summary` 截断到 `summary_max_chars`（≤120）。
    - `tags`：数量必须**恰好等于** `tags_count`（3）个；`len(tags) != tags_count`（含为空、不足、超出）⇒ 视为解读不达标，触发回退（§5.3），不强行截断/补造。
    - `evidence`：逐条过滤 `anchor ∈ {item.link} ∪ set(item.related_links)`；非法锚点的 evidence **丢弃**（不编造锚点）。
-   - `entity_confident`：若 LLM 返回 `entity_confident==false`（即对源主体判断不确定），创建 `QualityFlag(code="entity_uncertain", severity="warn", field="*", message="...")` 并加入 `quality_flags` 列表。
+   - `entity_confident`：若 LLM 返回 `entity_confident==false`（即对源主体判断不确定），创建 `QualityFlag(code="entity_uncertain", severity="warn", field="title", message="模型/公司归属未完全确定, 请核实后再发布")` 并加入 `quality_flags` 列表；字段缺失或为 true 时不加标记（向后兼容旧 LLM 输出）。
 5. 成功 ⇒ `InterpretedItem(..., interpretation_status="ok")`。
 
 ### 5.3 抽取式回退（PRD §3.4 / §4.4「宁可少写不可编造」）
