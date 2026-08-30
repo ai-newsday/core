@@ -1,0 +1,25 @@
+# 故事线合并层配置(spec 2026-08-28)。同一模型/产品当天的多条独立发布(原始发布 +
+# 第三方支持公告)在发布渲染层合并成一条, 不再各占一个 genre 配额位。
+enabled: true
+
+# entity token 正则: 字母前缀 + 可选连字符/空格 + 数字(可含小数点)。
+# 覆盖 "GLM-5.3" / "v0.28.0" / "Llama 4" 这类"名称+版本号"模式。
+# 真实数据上需要反复调(2026-08-28 brainstorm 给的是示例, 不是最终值)。
+entity_token_pattern: '\b[A-Za-z]+[-\s]?\d+(?:\.\d+)*\b'
+
+providers:
+  modelscope:
+    base_url: "https://api-inference.modelscope.cn/v1/chat/completions"
+    api_key_env: "MODELSCOPE_API_KEY"
+
+models:
+  - "modelscope:deepseek-ai/DeepSeek-V4-Flash"
+
+fallback_models:
+  - "modelscope:Qwen/Qwen3.5-397B-A17B"
+
+temperature: 0.0
+max_tokens: 200
+timeout_s: 30
+summary_max_chars: 500
+prompt_path: "src/prompts/story_link_confirm.md"

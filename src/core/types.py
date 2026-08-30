@@ -452,6 +452,29 @@ class ReleaseImportanceConfig:
 
 
 @dataclass
+class StoryLinkConfig:
+    """故事线合并(spec 2026-08-28): 同一模型/产品当天的"原始发布"+"第三方支持公告"
+    在发布渲染层合并成一条。两阶段: 正则抓 entity token 找候选对, 候选对过一次
+    轻量 LLM 是非确认(不产出新文字)。跟 release_importance 同款多 provider 结构。"""
+
+    enabled: bool = True
+    # 默认: 字母前缀 + 可选连字符/空格 + 数字(可含小数点), 覆盖 "GLM-5.3" / "v0.28.0" / "Llama 4"
+    # 这类"名称+版本号"模式。真实数据上需要反复调(2026-08-28 brainstorm 已知非最终值)。
+    entity_token_pattern: str = r"\b[A-Za-z]+[-\s]?\d+(?:\.\d+)*\b"
+    prompt_path: str = "src/prompts/story_link_confirm.md"
+    model: str = "modelscope:deepseek-ai/DeepSeek-V4-Flash"
+    models: list[str] = field(default_factory=list)
+    fallback_models: list[str] = field(default_factory=list)
+    providers: dict[str, ProviderSpec] = field(
+        default_factory=lambda: {"modelscope": _DEFAULT_MODELSCOPE}
+    )
+    temperature: float = 0.0
+    max_tokens: int = 200
+    timeout_s: int = 30
+    summary_max_chars: int = 500  # 喂给确认 prompt 的摘要截断长度(防超长撑爆)
+
+
+@dataclass
 class HFReadmeConfig:
     """hf-models 条目本身没有描述文本(adapter 只调用模型列表 API, raw_summary 恒为 None)。
     抓取模型的 HF README 作为 interpret 的素材来源; 抓不到/清洗后内容太短的条目直接从候选
