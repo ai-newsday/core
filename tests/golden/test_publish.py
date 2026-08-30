@@ -740,3 +740,17 @@ def test_merge_story_groups_mixed_grouped_and_ungrouped():
     out = merge_story_groups([grouped_a, grouped_b, solo], max_support=3)
     assert len(out) == 2
     assert {i.link for i in out} == {"https://a/1", "https://a/3"}
+
+
+def test_merge_story_groups_tie_on_published_at_picks_stable_primary_regardless_of_input_order():
+    # Same published_at on both members: sort must not depend on stability of input
+    # order alone (upstream order is not guaranteed run to run) -- link is the
+    # deterministic tiebreaker, so the same primary wins no matter the input order.
+    a = _ri("https://a/1", score=50).model_copy(update={"story_id": "story-1"})
+    b = _ri("https://a/2", score=90).model_copy(update={"story_id": "story-1"})
+
+    out_forward = merge_story_groups([a, b], max_support=3)
+    out_reversed = merge_story_groups([b, a], max_support=3)
+
+    assert out_forward[0].link == "https://a/1"
+    assert out_reversed[0].link == "https://a/1"

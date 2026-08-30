@@ -109,16 +109,21 @@ def merge_story_groups(items: list[ReviewedItem], max_support: int = 3) -> list[
 
     out: list[ReviewedItem] = list(passthrough)
     for group in groups.values():
-        ordered = sorted(group, key=lambda it: it.published_at)
+        # published_at 相同时(同秒/同批常见), 单靠时间戳排序不确定——补 link 当第二键,
+        # 保证同一组数据无论输入顺序如何, primary 都稳定选中同一条(重跑不该换脸)。
+        ordered = sorted(group, key=lambda it: (it.published_at, it.link))
         primary, rest = ordered[0], ordered[1:]
         support = sorted(rest, key=lambda it: -it.score)[:max_support]
         if not support:
             out.append(primary)
             continue
+        existing_anchors = {e.anchor for e in primary.evidence}
         names = [_support_display_name(it.link) for it in support]
         suffix = f"\n\n目前已知 {'、'.join(names)} 等平台跟进支持。"
         new_evidence = list(primary.evidence) + [
-            Evidence(claim=name, anchor=it.link) for name, it in zip(names, support)
+            Evidence(claim=name, anchor=it.link)
+            for name, it in zip(names, support)
+            if it.link not in existing_anchors and not existing_anchors.add(it.link)
         ]
         out.append(
             primary.model_copy(update={"body": primary.body + suffix, "evidence": new_evidence})
