@@ -94,3 +94,38 @@ def test_sourcespec_accepts_hn_and_filter_fields():
     )
     assert s.adapter == "hn"
     assert s.min_score == 100 and s.keywords == ["AI", "LLM"]
+
+
+def test_news_item_story_id_defaults_none():
+    from datetime import datetime, timezone
+
+    from src.core.types import Genre, NewsItem, Publisher
+
+    it = NewsItem(
+        title_en="x",
+        link="https://x/1",
+        source="s",
+        genre=Genre.model,
+        publisher=Publisher.company,
+        published_at=datetime(2026, 6, 26, tzinfo=timezone.utc),
+        cluster_id="evt-1",
+    )
+    assert it.story_id is None
+
+
+def test_news_item_story_id_settable():
+    from datetime import datetime, timezone
+
+    from src.core.types import Genre, NewsItem, Publisher
+
+    it = NewsItem(
+        title_en="x",
+        link="https://x/1",
+        source="s",
+        genre=Genre.model,
+        publisher=Publisher.company,
+        published_at=datetime(2026, 6, 26, tzinfo=timezone.utc),
+        cluster_id="evt-1",
+        story_id="story-2026-06-26-001",
+    )
+    assert it.story_id == "story-2026-06-26-001"

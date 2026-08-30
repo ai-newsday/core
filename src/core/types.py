@@ -111,6 +111,10 @@ class NewsItem(RawItem):
     cluster_id: str = Field(min_length=1)
     related_links: list[str] = Field(default_factory=list)
     embedding_id: str | None = None
+    # 故事线合并 id(同一模型/产品同一轮动态的多条独立发布); None=不属于任何故事组
+    # (绝大多数条目)。由 src/pipeline/storylink.py::link_stories() 写入(score 之后,
+    # interpret 之前); publish.py::merge_story_groups() 在渲染层按此分组合并。
+    story_id: str | None = None
 
 
 @dataclass
