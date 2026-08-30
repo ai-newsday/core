@@ -393,3 +393,52 @@ def test_extractive_fallback_unaffected_by_content_certain():
     it = _scored(score=80, score_breakdown={"机构影响力": 80.0})
     out = extractive_fallback(it, InterpretConfig())
     assert out.score == 80  # no penalty logic runs on the fallback path
+
+
+def test_build_ok_item_entity_confident_false_appends_quality_flag():
+    it = _scored()
+    parsed = {
+        "title": "t",
+        "body": "s。",
+        "tags": ["#a", "#b", "#c"],
+        "evidence": [{"claim": "c", "anchor": "https://hf.co/glm5"}],
+        "entity_confident": False,
+    }
+    out = build_ok_item(parsed, it, InterpretConfig())
+    assert len(out.quality_flags) == 1
+    flag = out.quality_flags[0]
+    assert flag.code == "entity_uncertain"
+    assert flag.severity == "warn"
+    assert flag.field == "title"
+    assert flag.message
+
+
+def test_build_ok_item_entity_confident_true_no_flag():
+    it = _scored()
+    parsed = {
+        "title": "t",
+        "body": "s。",
+        "tags": ["#a", "#b", "#c"],
+        "evidence": [{"claim": "c", "anchor": "https://hf.co/glm5"}],
+        "entity_confident": True,
+    }
+    out = build_ok_item(parsed, it, InterpretConfig())
+    assert out.quality_flags == []
+
+
+def test_build_ok_item_entity_confident_missing_defaults_no_flag():
+    it = _scored()
+    parsed = {
+        "title": "t",
+        "body": "s。",
+        "tags": ["#a", "#b", "#c"],
+        "evidence": [{"claim": "c", "anchor": "https://hf.co/glm5"}],
+    }
+    out = build_ok_item(parsed, it, InterpretConfig())
+    assert out.quality_flags == []
+
+
+def test_extractive_fallback_has_no_quality_flags():
+    it = _scored()
+    out = extractive_fallback(it, InterpretConfig())
+    assert out.quality_flags == []

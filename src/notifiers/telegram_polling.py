@@ -51,6 +51,9 @@ def _make_card_message(item_id: str, card: dict) -> str:
     # 病2: interpret 回退卡 → 加视觉徽章, 用户立刻知道这是降级输出(非翻译模块故障)
     if card.get("status") == "extractive_fallback":
         cover = "⚠️ [未解读] " + cover
+    # 实体归属不确定 → 独立徽章, 提示人工核实后再采信(可与"未解读"共存, 互不影响)
+    if card.get("entity_uncertain"):
+        cover = "🔎 [待核实] " + cover
     return cover + "\n\n" + body + (f"\n\n{tags}" if tags else "")
 
 

@@ -75,3 +75,10 @@ def test_release_importance_prompt_has_four_dimension_schema():
     t = load_prompt("src/prompts/release_importance.md")
     for key in ('"scale"', '"refactor"', '"new_concept"', '"bugfix_only"', '"reason"'):
         assert key in t
+
+
+def test_interpret_prompt_has_entity_confident_field():
+    t = load_prompt("src/prompts/interpret_item.md")
+    assert "entity_confident" in t
+    assert '"entity_confident"' in t
+    assert "宁可标 false" in t

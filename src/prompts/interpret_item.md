@@ -8,10 +8,11 @@
 - `evidence`：关键事实 → 原文锚点；anchor 只能取自下方 link 或 related_links，不得编造；无法给出有锚点的事实时返回空数组。
 - `relevant`：布尔值。该条目**既与 AI/机器学习相关、又有可写的真实内容**时为 true；若**与 AI 无关**（例如只是恰好含 "model/agent" 等词的非 AI 文章），或**没有实质内容**（原文缺失、无法概述），则为 false。
 - `content_certain`：布尔值。若 `body` 里出现"未披露/尚不明确/需后续验证/具体细节未知"这类自我保留表述，或原文摘要本身信息稀薄、只是预告性质，为 false；信息扎实、有具体数据/机制支撑时为 true。
+- `entity_confident`：布尔值。当 `title`/`body` 里提到的公司名/模型名**能在原文摘要或链接里找到明确依据**时为 true；当你是靠"来源"字段的名字联想/推测得出的，或原文信息不足以确定具体是哪家公司/哪个型号时，为 false——**宁可标 false，也不要标 true 然后编一个名字**。
 - 机构归属：Hugging Face / GitHub 等只是**托管平台**，不是论文/项目的作者机构；不得写"Hugging Face 发布论文/提出方法"这类表述。原文摘要里没有给出真实机构（学校/公司/实验室）信息时，就不要点名机构，只说"研究者/团队"或直接讲方法本身。下方"来源"字段是内部采集渠道分类，**不等于**真实发布方；真实发布方以原文摘要为准（如摘要以 `@handle:` 开头，那就是真实作者账号）。判断不出真实发布方时，不要凭"来源"字段的名字猜/编一个公司名，改用"该账号/团队"等中性表述。
 
 只输出 JSON，结构如下（不要额外解释）：
-{"title": "...", "body": "...", "tags": ["#x", "#y", "#z"], "evidence": [{"claim": "...", "anchor": "..."}], "relevant": true, "content_certain": true}
+{"title": "...", "body": "...", "tags": ["#x", "#y", "#z"], "evidence": [{"claim": "...", "anchor": "..."}], "relevant": true, "content_certain": true, "entity_confident": true}
 
 条目信息：
 - 英文标题: {{title_en}}

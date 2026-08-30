@@ -8,6 +8,7 @@ from src.core.types import (
     InterpretConfig,
     InterpretedItem,
     InterpretResult,
+    QualityFlag,
     RunContext,
     ScoredItem,
 )
@@ -110,6 +111,16 @@ def build_ok_item(
     if not parsed.get("content_certain", True):
         score = max(0, min(100, score + round(uncertain_content_penalty)))
         breakdown["内容确定性"] = uncertain_content_penalty
+    quality_flags: list[QualityFlag] = []
+    if not parsed.get("entity_confident", True):
+        quality_flags.append(
+            QualityFlag(
+                code="entity_uncertain",
+                severity="warn",
+                field="title",
+                message="模型/公司归属未完全确定, 请核实后再发布",
+            )
+        )
     return InterpretedItem(
         **{**item.model_dump(), "score": score, "score_breakdown": breakdown},
         title=title,
@@ -119,6 +130,7 @@ def build_ok_item(
         interpretation_status="ok",
         eligible_for_must_read=eligible,
         relevant=relevant,
+        quality_flags=quality_flags,
     )
 
 
