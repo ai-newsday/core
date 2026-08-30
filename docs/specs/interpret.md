@@ -51,6 +51,7 @@ class InterpretedItem(ScoredItem):       # ScoredItem 的下游演进; 本圈加
     evidence: list[Evidence] = []        # 证据链; anchor 已过滤为合法锚点
     interpretation_status: str           # "ok" | "extractive_fallback"
     eligible_for_must_read: bool         # 派生(§5.4)
+    quality_flags: list[QualityFlag] = [] # 质量标记(如 entity_uncertain 等)
 
 class InterpretResult:
     interpreted_items: list[InterpretedItem]  # 按 score 降序(继承上游序, tie-break 同 §5.5)
@@ -73,13 +74,14 @@ class InterpretResult:
 
 对每个 `ScoredItem`：
 
-1. `build_item_prompt(item, config)` —— 用 `src/prompts/interpret_item.md` 模板 + 注入 `title_en` / `raw_summary` / `source` / `genre` / `link` / `related_links`。提示词要求 LLM **先抽取事实、再成文**（PRD §4.4 生成纪律），输出固定结构 JSON：`{title, summary, takeaway, hot_take, tags: [..], evidence: [{claim, anchor}, ..]}`。
+1. `build_item_prompt(item, config)` —— 用 `src/prompts/interpret_item.md` 模板 + 注入 `title_en` / `raw_summary` / `source` / `genre` / `link` / `related_links`。提示词要求 LLM **先抽取事实、再成文**（PRD §4.4 生成纪律），输出固定结构 JSON：`{title, summary, takeaway, hot_take, tags: [..], evidence: [{claim, anchor}, ..], entity_confident?}`。
 2. `raw = llm.complete_json(prompt, ...)` —— 唯一外部调用。
 3. `parse_and_validate(raw, config)` —— JSON 解析 + pydantic 校验字段类型/必填。
 4. `enforce_constraints(parsed, item, config)`（纯函数）：
    - `title` 截断到 `title_max_chars`（≤64）；`summary` 截断到 `summary_max_chars`（≤120）。
    - `tags`：数量必须**恰好等于** `tags_count`（3）个；`len(tags) != tags_count`（含为空、不足、超出）⇒ 视为解读不达标，触发回退（§5.3），不强行截断/补造。
    - `evidence`：逐条过滤 `anchor ∈ {item.link} ∪ set(item.related_links)`；非法锚点的 evidence **丢弃**（不编造锚点）。
+   - `entity_confident`：若 LLM 返回 `entity_confident==false`（即对源主体判断不确定），创建 `QualityFlag(code="entity_uncertain", severity="warn", field="*", message="...")` 并加入 `quality_flags` 列表。
 5. 成功 ⇒ `InterpretedItem(..., interpretation_status="ok")`。
 
 ### 5.3 抽取式回退（PRD §3.4 / §4.4「宁可少写不可编造」）
