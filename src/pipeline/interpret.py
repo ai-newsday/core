@@ -89,7 +89,12 @@ def _trim_to_sentence(text: str, n: int) -> str:
     return text[: n - 1] + "…"
 
 
-def build_ok_item(parsed: dict, item: ScoredItem, config: InterpretConfig) -> InterpretedItem:
+def build_ok_item(
+    parsed: dict,
+    item: ScoredItem,
+    config: InterpretConfig,
+    uncertain_content_penalty: float = -15.0,
+) -> InterpretedItem:
     """Enforce field constraints (spec §5.2) and build an 'ok' InterpretedItem.
     Raises ValueError if tags count != config.tags_count (caller falls back)."""
     tags = parsed.get("tags")
@@ -100,8 +105,13 @@ def build_ok_item(parsed: dict, item: ScoredItem, config: InterpretConfig) -> In
     relevant = bool(parsed.get("relevant", True))
     evidence = _filter_evidence(parsed.get("evidence"), item)
     eligible = bool(body) and len(evidence) >= config.min_evidence
+    score = item.score
+    breakdown = dict(item.score_breakdown)
+    if not parsed.get("content_certain", True):
+        score = max(0, score + int(uncertain_content_penalty))
+        breakdown["内容确定性"] = uncertain_content_penalty
     return InterpretedItem(
-        **item.model_dump(),
+        **{**item.model_dump(), "score": score, "score_breakdown": breakdown},
         title=title,
         body=body,
         tags=[str(t) for t in tags],
@@ -131,7 +141,12 @@ def extractive_fallback(
 
 
 def interpret_item(
-    item: ScoredItem, item_template: str, config: InterpretConfig, llm, logger=None
+    item: ScoredItem,
+    item_template: str,
+    config: InterpretConfig,
+    llm,
+    logger=None,
+    uncertain_content_penalty: float = -15.0,
 ) -> InterpretedItem:
     """One item: prompt -> LLM chain (each with parse validation) -> enforce.
 
@@ -152,7 +167,7 @@ def interpret_item(
             validator=_validate,
         )
         parsed = parsed_holder["parsed"]
-        return build_ok_item(parsed, item, config)
+        return build_ok_item(parsed, item, config, uncertain_content_penalty)
     except Exception as e:
         if logger is not None:
             emit(
@@ -194,7 +209,11 @@ def generate_daily_take(
 
 
 def interpret(
-    items: list[ScoredItem], config: InterpretConfig, ctx: RunContext, llm
+    items: list[ScoredItem],
+    config: InterpretConfig,
+    ctx: RunContext,
+    llm,
+    uncertain_content_penalty: float = -15.0,
 ) -> InterpretResult:
     """Orchestrate per-item interpretation + daily take (spec §3, §5, §11).
     Only side effect is the injected llm; everything else is pure/testable."""
@@ -220,7 +239,14 @@ def interpret(
     item_tpl = load_prompt(config.item_prompt_path)
     out: list[InterpretedItem] = []
     for it in items:
-        res = interpret_item(it, item_tpl, config, llm, logger=ctx.logger)
+        res = interpret_item(
+            it,
+            item_tpl,
+            config,
+            llm,
+            logger=ctx.logger,
+            uncertain_content_penalty=uncertain_content_penalty,
+        )
         emit(
             ctx.logger,
             "item_interpreted",

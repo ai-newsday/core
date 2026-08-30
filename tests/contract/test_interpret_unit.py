@@ -301,3 +301,80 @@ def test_build_ok_item_reads_relevant_and_defaults_true():
     assert build_ok_item(parsed, item, cfg).relevant is False
     parsed.pop("relevant")
     assert build_ok_item(parsed, item, cfg).relevant is True
+
+
+def test_build_ok_item_content_certain_false_applies_penalty():
+    it = _scored(score=80, score_breakdown={"机构影响力": 80.0})
+    parsed = {
+        "title": "t",
+        "body": "s。",
+        "tags": ["#a", "#b", "#c"],
+        "evidence": [{"claim": "c", "anchor": "https://hf.co/glm5"}],
+        "content_certain": False,
+    }
+    out = build_ok_item(parsed, it, InterpretConfig(), uncertain_content_penalty=-15.0)
+    assert out.score == 65
+    assert out.score_breakdown["内容确定性"] == -15.0
+
+
+def test_build_ok_item_content_certain_false_score_floors_at_zero():
+    it = _scored(score=5, score_breakdown={"机构影响力": 5.0})
+    parsed = {
+        "title": "t",
+        "body": "s。",
+        "tags": ["#a", "#b", "#c"],
+        "evidence": [{"claim": "c", "anchor": "https://hf.co/glm5"}],
+        "content_certain": False,
+    }
+    out = build_ok_item(parsed, it, InterpretConfig(), uncertain_content_penalty=-15.0)
+    assert out.score == 0
+
+
+def test_build_ok_item_content_certain_true_no_penalty():
+    it = _scored(score=80, score_breakdown={"机构影响力": 80.0})
+    parsed = {
+        "title": "t",
+        "body": "s。",
+        "tags": ["#a", "#b", "#c"],
+        "evidence": [{"claim": "c", "anchor": "https://hf.co/glm5"}],
+        "content_certain": True,
+    }
+    out = build_ok_item(parsed, it, InterpretConfig(), uncertain_content_penalty=-15.0)
+    assert out.score == 80
+    assert "内容确定性" not in out.score_breakdown
+
+
+def test_build_ok_item_content_certain_missing_defaults_no_penalty():
+    it = _scored(score=80, score_breakdown={"机构影响力": 80.0})
+    parsed = {
+        "title": "t",
+        "body": "s。",
+        "tags": ["#a", "#b", "#c"],
+        "evidence": [{"claim": "c", "anchor": "https://hf.co/glm5"}],
+    }
+    out = build_ok_item(parsed, it, InterpretConfig())
+    assert out.score == 80
+    assert "内容确定性" not in out.score_breakdown
+
+
+def test_interpret_item_threads_uncertain_content_penalty():
+    it = _scored(score=80, score_breakdown={"机构影响力": 80.0})
+    tpl = load_prompt("src/prompts/interpret_item.md")
+    json_body = json.dumps(
+        {
+            "title": "t",
+            "body": "s。",
+            "tags": ["#a", "#b", "#c"],
+            "evidence": [{"claim": "c", "anchor": "https://hf.co/glm5"}],
+            "content_certain": False,
+        }
+    )
+    llm = FakeLLMProvider({"https://hf.co/glm5": json_body})
+    out = interpret_item(it, tpl, InterpretConfig(), llm, uncertain_content_penalty=-15.0)
+    assert out.score == 65
+
+
+def test_extractive_fallback_unaffected_by_content_certain():
+    it = _scored(score=80, score_breakdown={"机构影响力": 80.0})
+    out = extractive_fallback(it, InterpretConfig())
+    assert out.score == 80  # no penalty logic runs on the fallback path
