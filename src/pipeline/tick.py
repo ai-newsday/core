@@ -58,6 +58,7 @@ def _build_card(item: InterpretedItem) -> dict:
         "body": item.body,
         "tags": item.tags,
         "status": item.interpretation_status,
+        "entity_uncertain": any(f.code == "entity_uncertain" for f in item.quality_flags),
     }
 
 

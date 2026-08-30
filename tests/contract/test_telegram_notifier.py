@@ -259,3 +259,127 @@ def test_build_card_includes_interpretation_status():
     )
     card = _build_card(item)
     assert card["status"] == "extractive_fallback"
+
+
+def test_card_entity_uncertain_shows_badge():
+    from src.notifiers.telegram_polling import _make_card_message
+
+    card = {
+        "title_zh": "某公司发布新模型",
+        "title_en": "Some Company releases new model",
+        "source_label": "官方",
+        "source": "x-ai-company",
+        "link": "https://x/1",
+        "score": 90,
+        "signals": {},
+        "body": "正文",
+        "tags": [],
+        "status": "ok",
+        "entity_uncertain": True,
+    }
+    msg = _make_card_message("id1", card)
+    assert msg.startswith("🔎 [待核实] ")
+
+
+def test_card_entity_confident_no_badge():
+    from src.notifiers.telegram_polling import _make_card_message
+
+    card = {
+        "title_zh": "中文标题",
+        "title_en": "Title",
+        "source_label": "论文",
+        "source": "hf-papers",
+        "link": "https://x/1",
+        "score": 88,
+        "signals": {},
+        "body": "正文",
+        "tags": [],
+        "status": "ok",
+        "entity_uncertain": False,
+    }
+    msg = _make_card_message("id1", card)
+    assert "待核实" not in msg
+
+
+def test_card_entity_uncertain_coexists_with_fallback_badge():
+    from src.notifiers.telegram_polling import _make_card_message
+
+    card = {
+        "title_zh": "标题",
+        "title_en": "Title",
+        "source_label": "博客 / 工具",
+        "source": "gh-trending-ai",
+        "link": "https://x/1",
+        "score": 95,
+        "signals": {},
+        "body": "正文",
+        "tags": [],
+        "status": "extractive_fallback",
+        "entity_uncertain": True,
+    }
+    msg = _make_card_message("id1", card)
+    assert "⚠️ [未解读]" in msg
+    assert "🔎 [待核实]" in msg
+
+
+def test_build_card_includes_entity_uncertain_flag():
+    import hashlib
+    from datetime import datetime, timezone
+
+    from src.core.types import Evidence, Genre, InterpretedItem, Publisher, QualityFlag
+    from src.pipeline.tick import _build_card
+
+    item = InterpretedItem(
+        title_en="x",
+        link="https://x/1",
+        source="s",
+        genre=Genre.announcement,
+        publisher=Publisher.company,
+        published_at=datetime(2026, 6, 26, tzinfo=timezone.utc),
+        signals={},
+        cluster_id=hashlib.sha256(b"x").hexdigest()[:16],
+        related_links=[],
+        score=80,
+        score_breakdown={"技术价值": 80.0},
+        title="x",
+        body="b",
+        tags=["#a"],
+        evidence=[Evidence(claim="c", anchor="https://x/1")],
+        interpretation_status="ok",
+        eligible_for_must_read=True,
+        quality_flags=[
+            QualityFlag(code="entity_uncertain", severity="warn", field="title", message="待核实")
+        ],
+    )
+    card = _build_card(item)
+    assert card["entity_uncertain"] is True
+
+
+def test_build_card_no_entity_uncertain_flag_when_confident():
+    import hashlib
+    from datetime import datetime, timezone
+
+    from src.core.types import Evidence, Genre, InterpretedItem, Publisher
+    from src.pipeline.tick import _build_card
+
+    item = InterpretedItem(
+        title_en="x",
+        link="https://x/1",
+        source="s",
+        genre=Genre.announcement,
+        publisher=Publisher.company,
+        published_at=datetime(2026, 6, 26, tzinfo=timezone.utc),
+        signals={},
+        cluster_id=hashlib.sha256(b"x").hexdigest()[:16],
+        related_links=[],
+        score=80,
+        score_breakdown={"技术价值": 80.0},
+        title="x",
+        body="b",
+        tags=["#a"],
+        evidence=[Evidence(claim="c", anchor="https://x/1")],
+        interpretation_status="ok",
+        eligible_for_must_read=True,
+    )
+    card = _build_card(item)
+    assert card["entity_uncertain"] is False
