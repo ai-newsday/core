@@ -173,6 +173,7 @@ class ScoringConfig:
     stale_penalty: float = -10
     same_source_penalty: float = -5
     firehose_penalty: float = -20.0  # 信号闸: 个人+零人气的 model/writeup 扣分(压 firehose 噪声)
+    uncertain_content_penalty: float = -15.0  # body 自我保留/信息稀薄时的固定扣分(不是加权维度)
     # 可见指标 = sum(weight * sqrt(signals[key]))  → 接 popularity 信号到 "可见指标" 维度。
     # 缺省空 = 0 (向后兼容)。production yaml 里配上 weights 才激活。
     popularity_weights: dict[str, float] = field(default_factory=dict)
