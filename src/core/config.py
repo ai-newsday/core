@@ -198,6 +198,7 @@ def load_publish_config(path: str) -> PublishConfig:
         genre_labels=data.get("genre_labels", d.genre_labels),
         adapter_quota=data.get("adapter_quota", d.adapter_quota),
         timezone=data.get("timezone", d.timezone),
+        story_merge_max_support=data.get("story_merge_max_support", d.story_merge_max_support),
     )
 
 

@@ -401,6 +401,9 @@ class PublishConfig:
     adapter_quota: dict[str, int] = field(
         default_factory=dict
     )  # 按采集渠道封顶(spec §5), 不占用 genre 配额名额
+    story_merge_max_support: int = (
+        3  # 故事线合并: 每组最多附带几个"已支持"平台提及(spec 2026-08-28)
+    )
 
 
 @dataclass
