@@ -182,7 +182,13 @@ def _dry_run_prefix(
         icfg = load_interpret_config("config/interpret.yaml")
         if llm is None:
             llm = _make_llm(icfg)
-        ires = interpret(sres.selected_items, icfg, ctx, llm)
+        ires = interpret(
+            sres.selected_items,
+            icfg,
+            ctx,
+            llm,
+            uncertain_content_penalty=scfg.uncertain_content_penalty,
+        )
 
     return coll, dres, sres, ires, llm
 
@@ -461,7 +467,13 @@ def run_tick(
         sres = score(dres.deduped_items, scfg, ctx, quality_of=quality_of)
         icfg = load_interpret_config("config/interpret.yaml")
         _llm = llm or _make_llm(icfg)
-        ires = interpret(sres.selected_items, icfg, ctx, _llm)
+        ires = interpret(
+            sres.selected_items,
+            icfg,
+            ctx,
+            _llm,
+            uncertain_content_penalty=scfg.uncertain_content_penalty,
+        )
         return ires
 
     ires = asyncio.run(_collect_and_interpret())
