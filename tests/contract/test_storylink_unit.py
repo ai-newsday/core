@@ -174,6 +174,19 @@ def test_confirm_pair_fail_closed_on_bad_json():
     assert confirm_pair(a, b, TEMPLATE, llm, CFG) is False
 
 
+def test_confirm_pair_fail_closed_on_non_bool_same_story():
+    a = _item("https://a/1", "Company A releases GLM-5.3", DAY1)
+    b = _item("https://a/2", "Platform B supports GLM-5.3", DAY1_LATE)
+
+    llm_string_true = FakeLLMProvider(
+        {"Company A": json.dumps({"same_story": "true", "reason": "x"})}
+    )
+    assert confirm_pair(a, b, TEMPLATE, llm_string_true, CFG) is False
+
+    llm_int_1 = FakeLLMProvider({"Company A": json.dumps({"same_story": 1, "reason": "x"})})
+    assert confirm_pair(a, b, TEMPLATE, llm_int_1, CFG) is False
+
+
 def test_link_stories_disabled_returns_items_unchanged():
     items = [
         _item("https://a/1", "GLM-5.3", DAY1),

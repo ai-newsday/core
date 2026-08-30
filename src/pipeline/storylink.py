@@ -75,7 +75,9 @@ def _parse_same_story(raw: str) -> bool:
     data = json.loads(raw)
     if not isinstance(data, dict) or "same_story" not in data:
         raise ValueError("missing same_story key")
-    return bool(data["same_story"])
+    if not isinstance(data["same_story"], bool):
+        raise ValueError("same_story not bool")
+    return data["same_story"]
 
 
 def confirm_pair(
