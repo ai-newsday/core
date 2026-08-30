@@ -29,6 +29,7 @@ from src.core.config import (
     load_review_decisions,
     load_scoring_config,
     load_selfcheck_config,
+    load_storylink_config,
 )
 from src.core.types import (
     CollectionConfig,
@@ -36,6 +37,7 @@ from src.core.types import (
     ProviderSpec,
     ReleaseImportanceConfig,
     RunContext,
+    StoryLinkConfig,
 )
 from src.notifiers import FakeNotifier
 from src.notifiers.telegram_polling import TelegramPollingNotifier
@@ -62,6 +64,7 @@ from src.pipeline.release_importance import judge_release_importance
 from src.pipeline.review import review
 from src.pipeline.score import score
 from src.pipeline.selfcheck import self_check
+from src.pipeline.storylink import link_stories
 from src.pipeline.tick import run_collect_tick, run_finalize_tick
 from src.state.db import Database
 
@@ -82,6 +85,21 @@ def _make_llm(icfg: InterpretConfig) -> OpenAICompatLLM:
 
 
 def _make_release_importance_llm(cfg: ReleaseImportanceConfig) -> OpenAICompatLLM:
+    if cfg.models:
+        primary = cfg.models[0]
+        fallbacks = cfg.models[1:] + cfg.fallback_models
+    else:
+        primary = cfg.model
+        fallbacks = cfg.fallback_models
+    return OpenAICompatLLM(
+        providers=cfg.providers,
+        model=primary,
+        timeout_s=cfg.timeout_s,
+        fallback_models=fallbacks,
+    )
+
+
+def _make_storylink_llm(cfg: StoryLinkConfig) -> OpenAICompatLLM:
     if cfg.models:
         primary = cfg.models[0]
         fallbacks = cfg.models[1:] + cfg.fallback_models
@@ -179,11 +197,15 @@ def _dry_run_prefix(
         sres = score(dres.deduped_items, scfg, ctx)
 
     if want >= _STAGES.index("interpret"):
+        slcfg = load_storylink_config("config/storylink.yaml")
+        sl_llm = _make_storylink_llm(slcfg)
+        linked_items = link_stories(sres.selected_items, sl_llm, slcfg, ctx)
+
         icfg = load_interpret_config("config/interpret.yaml")
         if llm is None:
             llm = _make_llm(icfg)
         ires = interpret(
-            sres.selected_items,
+            linked_items,
             icfg,
             ctx,
             llm,
@@ -465,10 +487,15 @@ def run_tick(
         scfg.sources_registry_path = registry_path
         quality_of = await db.get_quality_weights()
         sres = score(dres.deduped_items, scfg, ctx, quality_of=quality_of)
+
+        slcfg = load_storylink_config("config/storylink.yaml")
+        sl_llm = _make_storylink_llm(slcfg)
+        linked_items = link_stories(sres.selected_items, sl_llm, slcfg, ctx)
+
         icfg = load_interpret_config("config/interpret.yaml")
         _llm = llm or _make_llm(icfg)
         ires = interpret(
-            sres.selected_items,
+            linked_items,
             icfg,
             ctx,
             _llm,
