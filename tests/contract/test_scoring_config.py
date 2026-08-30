@@ -104,3 +104,19 @@ def test_card_pool_limit_default_and_override(tmp_path):
     p = tmp_path / "s.yaml"
     p.write_text("card_pool_limit: 40\n", encoding="utf-8")
     assert load_scoring_config(str(p)).card_pool_limit == 40
+
+
+def test_loads_uncertain_content_penalty(tmp_path):
+    p = tmp_path / "scoring.yaml"
+    p.write_text("penalty:\n  uncertain_content: -20\n", encoding="utf-8")
+    c = load_scoring_config(str(p))
+    assert c.uncertain_content_penalty == -20
+
+
+def test_uncertain_content_penalty_default():
+    assert ScoringConfig().uncertain_content_penalty == -15.0
+
+
+def test_production_config_has_uncertain_content_penalty():
+    c = load_scoring_config("config/scoring.yaml")
+    assert c.uncertain_content_penalty == -15.0

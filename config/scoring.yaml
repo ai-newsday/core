@@ -42,6 +42,7 @@ topic_boost:
 penalty:
   same_source: -5                 # 同源第2+条各扣 (spec §5.3)
   firehose: -20                   # 信号闸: 个人+零人气的 model/writeup 扣分(压 gemma 类噪声)
+  uncertain_content: -15          # body 自我保留("未披露/需后续验证")或信息稀薄时扣分, 不再无区分拿满分
 
 # "可见指标" = sum(weight * sqrt(signals[key]))  → cap (spec §5.1 PRD §5.5 该维度的接入)
 # - hf-papers.upvotes 范围常见 0-300 → sqrt 后 0-17, 大头都在 5-12

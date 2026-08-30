@@ -104,7 +104,7 @@ eligible_for_must_read = (interpretation_status == "ok")
 
 ### 5.5 排序与确定性
 
-`interpreted_items` 保持上游 `score` 降序；同分用 `published_at` 升序、再 `link` 升序兜底（与打分层 §5.4 tie-break 一致）。同一输入 + 同一 `FakeLLMProvider` 返回 ⇒ 同字段 / 同顺序 / 同 status（确定性，注入固定 JSON 离线可测）。
+`interpreted_items` 保持**上游输入顺序**（不在本层重排）；`content_certain=false` 的扣分（`ScoringConfig.uncertain_content_penalty`）逐条应用在 `build_ok_item` 内，不触发重排序，因此输出顺序不再等价于 `score` 降序——按 `score` 排序是下游发布层 `apply_quota()` 的职责，不是本层的不变量。同一输入 + 同一 `FakeLLMProvider` 返回 ⇒ 同字段 / 同顺序 / 同 status（确定性，注入固定 JSON 离线可测）。
 
 ### 5.6 今日看点（`daily_take`，PRD §5.2）
 
@@ -170,9 +170,9 @@ class LLMProvider(Protocol):
 4. **字段约束**：`status=="ok"` 时 `len(title)≤title_max_chars`、`len(summary)≤summary_max_chars`、`len(tags)==tags_count`。
 5. **不丢条**：`interpreted_count + fallback_count == input_count == len(interpreted_items)`。
 6. **确定性**：同一输入 + 同一注入 LLM 返回 ⇒ 同字段 / 同顺序 / 同 status / 同 `daily_take`。
-7. **排序**：`interpreted_items` 按 `score` 降序（同分 `published_at` 升序、`link` 升序兜底）。
+7. **顺序**：`interpreted_items` 保持上游输入顺序，**不**按 `score` 重排（含内容确定性扣分在内的每条打分调整都是就地应用，不触发排序；按 `score` 降序是下游发布层 `apply_quota()` 的职责）。
 8. 入参 `[]` → 空 `InterpretResult`、`is_silent=True`、`daily_take=None`、**不调用 LLM**、不抛异常。
-9. 每个 `InterpretedItem` 继承全部 `ScoredItem`/`NewsItem`/`RawItem` 不变量（score∈[0,100]、breakdown 9 键、cluster_id 非空等）。
+9. 每个 `InterpretedItem` 继承全部 `ScoredItem`/`NewsItem`/`RawItem` 不变量（score∈[0,100]、breakdown ≥9 键（interpret 层可能追加 内容确定性）、cluster_id 非空等）。
 
 ## 9. golden 用例（fixtures 驱动，≥6）
 

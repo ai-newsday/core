@@ -48,6 +48,24 @@ def test_interpret_prompt_forbids_misattributing_hosting_platform():
     assert "Hugging Face" in t and "托管" in t
 
 
+def test_interpret_prompt_has_content_certain_field():
+    t = load_prompt("src/prompts/interpret_item.md")
+    assert "content_certain" in t
+    assert '"content_certain"' in t
+
+
+def test_interpret_prompt_has_title_action_word_guard():
+    t = load_prompt("src/prompts/interpret_item.md")
+    assert "动作词" in t
+    assert "依据" in t
+
+
+def test_interpret_prompt_has_paper_title_hook_rule():
+    t = load_prompt("src/prompts/interpret_item.md")
+    assert "paper" in t
+    assert "方法名" in t or "模型名" in t
+
+
 def test_release_importance_prompt_exists_and_has_placeholders():
     t = load_prompt("src/prompts/release_importance.md")
     assert "{{title}}" in t and "{{body}}" in t

@@ -188,6 +188,38 @@ def test_build_report_score_floor_filters_weak_items():
     assert "https://a/2" not in all_links
 
 
+def test_build_report_content_certainty_penalty_does_not_drop_kept_item_below_floor():
+    """human-keep 的条目原始分(去掉'内容确定性'扣分)达标时, 即使扣分后 < min_display_score(40)
+    也不该被地板过滤掉——扣分只该影响 apply_quota() 排序, 不该造成硬性剔除。"""
+    penalized = _ri("https://a/1", score=50).model_copy(
+        update={"score": 35, "score_breakdown": {"机构影响力": 50.0, "内容确定性": -15.0}}
+    )
+    items = [penalized]
+    rep = build_report(_rr(items), "2026-05-30", CFG)
+    assert rep.item_count == 1
+    all_links = [it.link for cat in rep.categories for it in cat.items]
+    assert "https://a/1" in all_links
+
+
+def test_build_report_ordinary_low_score_without_penalty_still_filtered():
+    """没有'内容确定性'扣分、原本就低于 40 分的条目, 地板行为不受本次改动影响。"""
+    items = [_ri("https://a/1", score=25)]
+    rep = build_report(_rr(items), "2026-05-30", CFG)
+    assert rep.item_count == 0
+    assert rep.categories == []
+
+
+def test_build_report_penalty_does_not_exempt_item_below_floor_before_penalty():
+    """扣分前分数本来就没达标(< 40)的条目仍被过滤——豁免只保护"扣分前本可通过地板"的条目。"""
+    penalized = _ri("https://a/1", score=30).model_copy(
+        update={"score": 15, "score_breakdown": {"机构影响力": 30.0, "内容确定性": -15.0}}
+    )
+    items = [penalized]
+    rep = build_report(_rr(items), "2026-05-30", CFG)
+    assert rep.item_count == 0
+    assert rep.categories == []
+
+
 def test_build_report_all_items_below_floor_gives_empty_categories():
     items = [
         _ri("https://a/1", score=30),

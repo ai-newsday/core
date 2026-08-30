@@ -62,6 +62,7 @@ def load_scoring_config(path: str) -> ScoringConfig:
         stale_penalty=recency.get("stale_penalty", d.stale_penalty),
         same_source_penalty=penalty.get("same_source", d.same_source_penalty),
         firehose_penalty=penalty.get("firehose", d.firehose_penalty),
+        uncertain_content_penalty=penalty.get("uncertain_content", d.uncertain_content_penalty),
         popularity_weights=data.get("popularity_weights", d.popularity_weights),
         popularity_cap=data.get("popularity_cap", d.popularity_cap),
         card_pool_limit=data.get("card_pool_limit", d.card_pool_limit),
