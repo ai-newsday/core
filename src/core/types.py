@@ -404,6 +404,9 @@ class PublishConfig:
     story_merge_max_support: int = (
         3  # 故事线合并: 每组最多附带几个"已支持"平台提及(spec 2026-08-28)
     )
+    story_merge_support_template: str = (
+        "\n\n目前已知 {names} 等平台跟进支持。"  # 故事线合并支持平台提及文案模板(spec 2026-08-28)
+    )
 
 
 @dataclass
@@ -461,9 +464,10 @@ class StoryLinkConfig:
     轻量 LLM 是非确认(不产出新文字)。跟 release_importance 同款多 provider 结构。"""
 
     enabled: bool = True
-    # 默认: 字母前缀 + 可选连字符/空格 + 数字(可含小数点), 覆盖 "GLM-5.3" / "v0.28.0" / "Llama 4"
-    # 这类"名称+版本号"模式。真实数据上需要反复调(2026-08-28 brainstorm 已知非最终值)。
-    entity_token_pattern: str = r"\b[A-Za-z]+[-\s]?\d+(?:\.\d+)*\b"
+    # 默认: >=3 字母前缀 + 必须的连字符/空格分隔符 + 带小数点的版本号, 覆盖 "GLM-5.3"。
+    # 已知代价: 不匹配纯整数版本号的名称, 如 "Llama 4"(真实 50 条 pool 实测收窄后当日
+    # 候选对从 8 降到 0, 见 config/storylink.yaml 注释)。
+    entity_token_pattern: str = r"\b[A-Za-z]{3,}[-\s]\d+(?:\.\d+)+\b"
     prompt_path: str = "src/prompts/story_link_confirm.md"
     model: str = "modelscope:deepseek-ai/DeepSeek-V4-Flash"
     models: list[str] = field(default_factory=list)

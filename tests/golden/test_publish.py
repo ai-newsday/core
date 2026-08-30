@@ -676,7 +676,7 @@ def test_merge_story_groups_appends_support_sentence_to_primary_body():
     out = merge_story_groups([primary, support], max_support=3)
     assert "原始正文。" in out[0].body
     assert "跟进支持" in out[0].body
-    assert "support.example.com" in out[0].body  # domain, not internal source slug
+    assert "example.com" in out[0].body  # 域名末两段, 不是内部 source slug
 
 
 def test_merge_story_groups_support_link_registered_as_evidence():
@@ -754,3 +754,51 @@ def test_merge_story_groups_tie_on_published_at_picks_stable_primary_regardless_
 
     assert out_forward[0].link == "https://a/1"
     assert out_reversed[0].link == "https://a/1"
+
+
+def test_support_display_name_reduces_to_second_level_domain():
+    from src.pipeline.publish import _support_display_name
+
+    assert _support_display_name("https://www.together.ai/post") == "together.ai"
+    assert _support_display_name("https://ollama.com/post") == "ollama.com"
+
+
+def test_support_display_name_never_full_multi_label_host():
+    # 硬约束不能回归: 展示名不能是 item.source 内部 slug, 也不能是未收窄的完整多段 host
+    from src.pipeline.publish import _support_display_name
+
+    assert _support_display_name("https://www.together.ai/post") != "www.together.ai"
+
+
+def test_merge_story_groups_uses_configured_support_template():
+    primary = _ri("https://a/1").model_copy(update={"story_id": "story-1"})
+    support = _ri("https://a/2").model_copy(
+        update={"story_id": "story-1", "link": "https://ollama.com/post"}
+    )
+    out = merge_story_groups(
+        [primary, support], max_support=3, support_template="\n\n[custom] {names} 已支持。"
+    )
+    assert "[custom] ollama.com 已支持。" in out[0].body
+
+
+def test_build_report_story_group_costs_one_quota_slot():
+    """merge_story_groups 必须在 apply_quota 之前跑, 否则故事组会按组内条目数占用
+    多个配额位, 挤掉其它当天条目 —— 这条测试锁住这个顺序(spec 2026-08-28 review)。
+    proof: 临时把 merge_story_groups 挪到 apply_quota 之后, 这条测试会失败。"""
+    from src.core.types import PublishConfig
+
+    cfg = PublishConfig(quota={"model": 3}, total_limit=12)
+    group = [
+        _ri(f"https://g/{i}", genre=Genre.model, score=100 - i).model_copy(
+            update={"story_id": "story-1"}
+        )
+        for i in range(3)
+    ]
+    ungrouped = [
+        _ri("https://u/1", genre=Genre.model, score=50),
+        _ri("https://u/2", genre=Genre.model, score=49),
+    ]
+    rep = build_report(_rr([*group, *ungrouped]), "2026-08-28", cfg)
+    links = {it.link for cat in rep.categories for it in cat.items}
+    assert "https://u/1" in links
+    assert "https://u/2" in links

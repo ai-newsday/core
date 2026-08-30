@@ -89,11 +89,22 @@ def _pre_content_certainty_penalty_score(item: ReviewedItem) -> int:
 def _support_display_name(link: str) -> str:
     """支持平台的展示名: 用链接域名, 不用 item.source(内部配置 slug)——今天刚修过
     source 泄漏喂给 LLM 当事实这个坑(#102), 渲染层不能重新踩一遍。跟
-    telegram_polling.py::_make_card_message 的 link_domain 是同一约定。"""
-    return urlparse(link).netloc or link
+    telegram_polling.py::_make_card_message 的 link_domain 是同一约定。
+    # ponytail: 取末两段够用(together.ai/ollama.com); example.co.uk 这类多段公共后缀会退化成 co.uk, 等做了平台名映射表再换
+    """
+    host = urlparse(link).netloc or link
+    labels = host.split(".")
+    return ".".join(labels[-2:]) if len(labels) > 2 else host
 
 
-def merge_story_groups(items: list[ReviewedItem], max_support: int = 3) -> list[ReviewedItem]:
+_DEFAULT_SUPPORT_TEMPLATE = "\n\n目前已知 {names} 等平台跟进支持。"
+
+
+def merge_story_groups(
+    items: list[ReviewedItem],
+    max_support: int = 3,
+    support_template: str = _DEFAULT_SUPPORT_TEMPLATE,
+) -> list[ReviewedItem]:
     """按 story_id 分组; 组内按 published_at 升序, 最早=原始发布(留作 primary);
     其余按 -score 排序取前 max_support 个当"已支持平台", 拼进 primary.body 末尾一句,
     并把它们的 link 登记进 primary.evidence(复用 _ref() 的既有"anchor -> 参考表"渲染
@@ -119,12 +130,13 @@ def merge_story_groups(items: list[ReviewedItem], max_support: int = 3) -> list[
             continue
         existing_anchors = {e.anchor for e in primary.evidence}
         names = [_support_display_name(it.link) for it in support]
-        suffix = f"\n\n目前已知 {'、'.join(names)} 等平台跟进支持。"
-        new_evidence = list(primary.evidence) + [
-            Evidence(claim=name, anchor=it.link)
-            for name, it in zip(names, support)
-            if it.link not in existing_anchors and not existing_anchors.add(it.link)
-        ]
+        suffix = support_template.format(names="、".join(names))
+        new_evidence = list(primary.evidence)
+        for name, it in zip(names, support):
+            if it.link in existing_anchors:
+                continue
+            existing_anchors.add(it.link)
+            new_evidence.append(Evidence(claim=name, anchor=it.link))
         out.append(
             primary.model_copy(update={"body": primary.body + suffix, "evidence": new_evidence})
         )
@@ -145,7 +157,9 @@ def build_report(
     # 故事线合并(spec 2026-08-28): 先把同故事的条目收成一条再占配额, 不然故事组
     # 可能因为占了多个配额位反而把其它公司当天的公告挤掉 —— 合并要先于配额生效
     # 才能真正省位置。
-    items = merge_story_groups(items, config.story_merge_max_support)
+    items = merge_story_groups(
+        items, config.story_merge_max_support, config.story_merge_support_template
+    )
     # per-genre 配额 + total_limit: 人 keep 之后对 kept 集合施加(组成控制, 复用 score 纯函数)
     items, _ = apply_quota(items, config.quota, config.total_limit)
     return DailyReport(

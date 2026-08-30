@@ -488,9 +488,14 @@ def run_tick(
         quality_of = await db.get_quality_weights()
         sres = score(dres.deduped_items, scfg, ctx, quality_of=quality_of)
 
-        slcfg = load_storylink_config("config/storylink.yaml")
-        sl_llm = _make_storylink_llm(slcfg)
-        linked_items = link_stories(sres.selected_items, sl_llm, slcfg, ctx)
+        if tick == "finalize":
+            slcfg = load_storylink_config("config/storylink.yaml")
+            sl_llm = _make_storylink_llm(slcfg)
+            linked_items = link_stories(sres.selected_items, sl_llm, slcfg, ctx)
+        else:
+            # collect tick 从不发布(只写 DB 列 + 推 review 卡, 都不读 story_id),
+            # 故事线合并的 LLM 调用留给 finalize 一次就够, 这里跑纯属浪费(spec 2026-08-28 review)。
+            linked_items = sres.selected_items
 
         icfg = load_interpret_config("config/interpret.yaml")
         _llm = llm or _make_llm(icfg)

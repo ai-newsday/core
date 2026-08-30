@@ -77,3 +77,19 @@ def test_load_publish_config_story_merge_max_support_override(tmp_path):
 def test_production_config_has_story_merge_max_support():
     c = load_publish_config("config/publish.yaml")
     assert c.story_merge_max_support == 3
+
+
+def test_story_merge_support_template_default():
+    assert PublishConfig().story_merge_support_template == "\n\n目前已知 {names} 等平台跟进支持。"
+
+
+def test_load_publish_config_story_merge_support_template_override(tmp_path):
+    p = tmp_path / "publish.yaml"
+    p.write_text('story_merge_support_template: "custom: {names}"\n', encoding="utf-8")
+    cfg = load_publish_config(str(p))
+    assert cfg.story_merge_support_template == "custom: {names}"
+
+
+def test_production_config_has_story_merge_support_template():
+    c = load_publish_config("config/publish.yaml")
+    assert c.story_merge_support_template == "\n\n目前已知 {names} 等平台跟进支持。"

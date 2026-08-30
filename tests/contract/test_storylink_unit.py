@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from src.core.types import Genre, Publisher, ScoredItem
 from src.pipeline.storylink import extract_entity_tokens, find_candidate_pairs
 
-DEFAULT_PATTERN = r"\b[A-Za-z]+[-\s]?\d+(?:\.\d+)*\b"
+DEFAULT_PATTERN = r"\b[A-Za-z]{3,}[-\s]\d+(?:\.\d+)+\b"
 
 DAY1 = datetime(2026, 8, 27, 9, tzinfo=timezone.utc)
 DAY1_LATE = datetime(2026, 8, 27, 20, tzinfo=timezone.utc)
@@ -29,12 +29,14 @@ def test_extract_entity_tokens_hyphenated_version():
     assert extract_entity_tokens("GLM-5.3 released today", DEFAULT_PATTERN) == {"GLM-5.3"}
 
 
-def test_extract_entity_tokens_attached_version():
-    assert extract_entity_tokens("Upgrade to v0.28.0 now", DEFAULT_PATTERN) == {"V0.28.0"}
+def test_extract_entity_tokens_short_prefix_not_matched():
+    """已知代价: 前缀 < 3 字母不匹配, 如 "v0.28.0"(单字母前缀)。"""
+    assert extract_entity_tokens("Upgrade to v0.28.0 now", DEFAULT_PATTERN) == set()
 
 
-def test_extract_entity_tokens_spaced_version():
-    assert extract_entity_tokens("Llama 4 is here", DEFAULT_PATTERN) == {"LLAMA-4"}
+def test_extract_entity_tokens_integer_only_version_not_matched():
+    """已知代价: 纯整数版本号(无小数点)不匹配, 如 "Llama 4"。"""
+    assert extract_entity_tokens("Llama 4 is here", DEFAULT_PATTERN) == set()
 
 
 def test_extract_entity_tokens_normalizes_case_and_separator():
@@ -46,7 +48,7 @@ def test_extract_entity_tokens_normalizes_case_and_separator():
 def test_extract_entity_tokens_multiple_hits():
     text = "GLM-5.3 now supported alongside Llama 4 in v0.28.0 of the toolkit"
     tokens = extract_entity_tokens(text, DEFAULT_PATTERN)
-    assert tokens == {"GLM-5.3", "LLAMA-4", "V0.28.0"}
+    assert tokens == {"GLM-5.3"}
 
 
 def test_extract_entity_tokens_no_hits_returns_empty_set():
@@ -58,6 +60,16 @@ def test_extract_entity_tokens_no_hits_returns_empty_set():
 
 def test_extract_entity_tokens_empty_text():
     assert extract_entity_tokens("", DEFAULT_PATTERN) == set()
+
+
+def test_extract_entity_tokens_two_letter_prefix_not_matched():
+    """已知代价: 2 字母前缀不满足 >=3 字母要求。"""
+    assert extract_entity_tokens("GL-5.3 dropped", DEFAULT_PATTERN) == set()
+
+
+def test_extract_entity_tokens_requires_separator():
+    """已知代价: 没有连字符/空格分隔符(名称与版本号直接相连)不匹配。"""
+    assert extract_entity_tokens("GLM5.3 dropped", DEFAULT_PATTERN) == set()
 
 
 def test_find_candidate_pairs_same_day_overlapping_tokens():
@@ -236,19 +248,15 @@ def test_link_stories_transitive_grouping():
     -> all three in one connected component via union-find."""
     items = [
         _item("https://a/1", "Company A releases GLM-5.3", DAY1, raw_summary="GLM-5.3 only"),
-        _item("https://a/2", "Platform B supports GLM-5.3 and Llama 4", DAY1_LATE),
-        _item("https://a/3", "Platform C supports Llama 4", DAY1_LATE, raw_summary="Llama 4 only"),
+        _item("https://a/2", "Platform B supports GLM-5.3 and Qwen-9.1", DAY1_LATE),
+        _item(
+            "https://a/3", "Platform C supports Qwen-9.1", DAY1_LATE, raw_summary="Qwen-9.1 only"
+        ),
     ]
     llm = FakeLLMProvider(
         {
-            "https://a/1": "",  # placeholder, overwritten below by substring match on titles
-        }
-    )
-    # FakeLLMProvider matches by substring of the *prompt*; use title text instead
-    llm = FakeLLMProvider(
-        {
             "Company A releases GLM-5.3": json.dumps({"same_story": True, "reason": "x"}),
-            "Platform C supports Llama 4": json.dumps({"same_story": True, "reason": "x"}),
+            "Platform C supports Qwen-9.1": json.dumps({"same_story": True, "reason": "x"}),
         }
     )
     out = link_stories(items, llm, CFG, _ctx(now=DAY1))
