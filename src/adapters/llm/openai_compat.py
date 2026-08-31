@@ -58,8 +58,21 @@ class OpenAICompatLLM:
         with httpx.Client(timeout=self._timeout) as client:
             r = client.post(spec.base_url, headers=headers, json=body)
             r.raise_for_status()
-            content = r.json()["choices"][0]["message"]["content"]
+            data = r.json()
+            choice = data["choices"][0]
+            content = choice["message"]["content"]
             if not content:
+                # 推理模型(agnes-*)的 reasoning_tokens 计入 max_tokens: 预算烧完时
+                # finish_reason="length" 且一个正文 token 都没产出。这跟"模型没话说"
+                # 是两种毛病, 修法也不同(前者调大 max_tokens), 报错必须能区分
+                # (2026-08-30 实测 max_tokens=800: reasoning_tokens=800, text_tokens=0)。
+                if choice.get("finish_reason") == "length":
+                    details = (data.get("usage") or {}).get("completion_tokens_details") or {}
+                    used = details.get("reasoning_tokens")
+                    raise ValueError(
+                        f"model {model_ref} produced no content within max_tokens={max_tokens}"
+                        f" (reasoning_tokens={used}); raise max_tokens"
+                    )
                 raise ValueError(f"model {model_ref} returned empty content")
             return content
 

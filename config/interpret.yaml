@@ -9,8 +9,14 @@ providers:
     base_url: "https://apihub.agnes-ai.com/v1/chat/completions"
     api_key_env: "AGNES_API_KEY"
 
-# 主模型链 (2026-07-11 探活证实 alive)
+# 主模型链。2026-08-30: agnes 提到首位。ModelScope 在生产上已 100% 不可用
+# (当天 collect run 实测 chat/completions 153 次请求 0 次成功, 全部 429; embeddings
+# 同样 429), 而 429 是按账号限流不是按模型——原来 4 个 ModelScope 主模型 + 3 个备用
+# 共用同一个额度, 一挂全挂, 每条目要先撞 7 次必死请求才轮到 agnes。agnes 同期 49 次
+# 调用全部 HTTP 200, 实际是它一个人在扛整条流水线。ModelScope 保留在后面, 额度恢复
+# 后自动重新参与, 不用改配置。
 models:
+  - "agnes:agnes-2.0-flash"
   - "modelscope:deepseek-ai/DeepSeek-V4-Pro"
   - "modelscope:inclusionAI/Ring-2.6-1T"
   - "modelscope:deepseek-ai/DeepSeek-V4-Flash"
@@ -24,7 +30,13 @@ fallback_models:
   - "agnes:agnes-2.0-flash"
 
 temperature: 0.3
-max_tokens: 1500                     # 从 800 上调, 治 DeepSeek verbose 截断
+# 2026-08-30: 1500 → 4000。agnes 是推理模型, reasoning_tokens 计入 max_tokens 且
+# 波动极大(同一条 prompt 实测 600 / 695 / 1127)。1500 的预算里推理已占 66%
+# (782 推理 vs 406 正文), 推理一旦冲高就在写完 JSON 前撞顶——这正是线上
+# "returned empty content"(推理吃光, text_tokens=0)和 "Unterminated string"
+# (正文写一半被截)两种失败的同一个根因。实测 max_tokens=800 时 finish=length、
+# reasoning_tokens=800、正文 0 字。
+max_tokens: 4000
 timeout_s: 60
 title_max_chars: 64
 body_max_chars: 240
