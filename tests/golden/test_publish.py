@@ -337,7 +337,7 @@ def test_render_markdown_source_line_last():
         )
     ]
     md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
-    assert "[1] · 75 分" in md
+    assert "\n[1]\n" in md
     assert "https://a/1" not in md.split("## 参考链接")[0]  # 正文段里没有裸 URL
     assert "1. [T](https://a/1)" in md
 
@@ -357,7 +357,7 @@ def test_render_markdown_evidence_anchors_equal_to_source_link_add_no_extra_ref(
         )
     ]
     md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
-    assert "[1] · 75 分" in md
+    assert "\n[1]\n" in md
     assert "[2]" not in md  # 没有多余编号
     refs = md.split("## 参考链接")[1]
     assert refs.count("https://a/1") == 1  # 参考表里只列一次
@@ -378,7 +378,7 @@ def test_render_markdown_distinct_evidence_anchor_gets_its_own_ref():
         )
     ]
     md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
-    assert "[1][2] · 75 分" in md
+    assert "\n[1][2]\n" in md
     refs = md.split("## 参考链接")[1]
     assert "1. [T](https://a/1)" in refs
     assert "2. [事实二](https://a/related)" in refs
@@ -390,8 +390,8 @@ def test_render_markdown_reference_numbering_is_sequential_across_items():
         _ri("https://a/2", title="T2", body="B2。", genre=Genre.model, score=70),
     ]
     md = render_markdown(build_report(_rr(items), "d", CFG), CFG)
-    assert "[1] · 80 分" in md
-    assert "[2] · 70 分" in md
+    assert "\n[1]\n" in md
+    assert "\n[2]\n" in md
     refs = md.split("## 参考链接")[1]
     assert "1. [T1](https://a/1)" in refs
     assert "2. [T2](https://a/2)" in refs
@@ -438,7 +438,7 @@ def test_render_markdown_below_floor_item_absent_and_leaves_no_gap():
     md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
     assert "论文A" not in md
     assert "### 模型B" in md
-    assert "[1] · 80 分" in md  # 编号从 1 起, 不因被砍条目跳号
+    assert "\n[1]\n" in md  # 编号从 1 起, 不因被砍条目跳号
     assert "1. [模型B](https://a/2)" in md.split("## 参考链接")[1]
 
 
@@ -537,7 +537,7 @@ def test_publish_markdown_snapshot():
     assert "低分新闻" not in res.markdown  # below floor
     assert "## 参考链接" in res.markdown
     # 条目顺序仍按 genre_labels 键序(paper 在 model 前), 所以 88 分那条(model)拿 [2]
-    assert "[2] · 88 分" in res.markdown
+    assert "\n[2]\n" in res.markdown
     refs = res.markdown.split("## 参考链接")[1]
     assert "1. [新论文](https://a/2)" in refs  # paper 先出现
     assert "2. [GLM-5 发布](https://a/1)" in refs  # model 次之
@@ -545,6 +545,33 @@ def test_publish_markdown_snapshot():
         SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
         SNAPSHOT.write_text(res.markdown, encoding="utf-8")
     assert res.markdown == SNAPSHOT.read_text(encoding="utf-8")
+
+
+def test_generated_title_reaches_front_matter_and_h1():
+    items = [_ri("https://a/1", score=80)]
+    rr = _rr(items, daily_take="今日亮点：甲发布 X。详见正文，参考链接见文末。")
+    rr.wechat_title = "甲发布X | 乙提出Y【AI日报】"
+    res = publish(rr, "2026-05-30", CFG, _ctx())
+    assert 'title: "甲发布X | 乙提出Y【AI日报】"' in res.markdown
+    assert "# 甲发布X | 乙提出Y【AI日报】" in res.markdown
+    assert "# AI Daily · 2026-05-30" not in res.markdown
+
+
+def test_missing_generated_title_falls_back_to_the_dated_one():
+    res = publish(
+        _rr([_ri("https://a/1", score=80)], daily_take="看点。"), "2026-05-30", CFG, _ctx()
+    )
+    assert 'title: "AI Daily · 2026-05-30"' in res.markdown
+    assert "# AI Daily · 2026-05-30" in res.markdown
+
+
+def test_no_score_in_rendered_items():
+    """分数对读者零区分度(实测一期九条全在 94-100), 且暴露内部打分。"""
+    res = publish(
+        _rr([_ri("https://a/1", score=80)], daily_take="看点。"), "2026-05-30", CFG, _ctx()
+    )
+    assert " 分" not in res.markdown
+    assert "80" not in res.markdown.split("## 参考链接")[0]
 
 
 def test_front_matter_draft_true():
@@ -576,12 +603,23 @@ def test_front_matter_empty_daily_take():
     assert 'summary: ""' in fm
 
 
-def test_front_matter_truncates_summary_to_140():
+def test_front_matter_caps_summary_length():
     long = "看" * 200
     rep = build_report(_rr([_ri("https://a/1", score=80)], daily_take=long), "2026-05-30", CFG)
     fm = render_front_matter(rep, CFG, draft=True)
-    assert "看" * 140 in fm
     assert "看" * 141 not in fm
+
+
+def test_front_matter_summary_cuts_at_a_sentence_not_mid_word():
+    """回归: 硬切 140 曾把 "DeepSeek" 切成 "De" 露在站点 meta / 社交预览里
+    (2026-09-01 线上实测)。超长时应截到句末, 不在词中间下刀。"""
+    long = "今日亮点：甲方发布了模型。" * 20 + "尾句 DeepSeek 很长。"
+    rep = build_report(_rr([_ri("https://a/1", score=80)], daily_take=long), "2026-05-30", CFG)
+    fm = render_front_matter(rep, CFG, draft=True)
+    summary = fm.split("summary: ")[1].split("\n")[0].strip('"')
+    assert len(summary) <= 140
+    assert summary.endswith("。")
+    assert "De" not in summary or "DeepSeek" in summary
 
 
 def test_front_matter_escapes_double_quotes():

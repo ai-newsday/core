@@ -281,6 +281,9 @@ class InterpretResult:
     interpreted_count: int
     fallback_count: int
     is_silent: bool
+    # 公众号文章标题(spec 2026-08-31-wechat-format-design §2)。LLM 与 daily_take
+    # 一次调用同时产出; 失败或不合规时是 "AI Daily · <date>" 这个朴素标题, 不会是 None。
+    wechat_title: str | None = None
 
 
 @dataclass
@@ -343,6 +346,7 @@ class ReviewResult:
     is_reviewed: bool
     is_pending: bool
     is_silent: bool
+    wechat_title: str | None = None
 
 
 # --- publish layer (Circle 6) ---
@@ -360,6 +364,7 @@ class CategorySection(BaseModel):
 class DailyReport(BaseModel):
     date_label: str
     daily_take: str | None
+    wechat_title: str | None = None
     must_read: list[ReviewedItem] = Field(default_factory=list)
     categories: list[CategorySection] = Field(default_factory=list)
     overview: Overview

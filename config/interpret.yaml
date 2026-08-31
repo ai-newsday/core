@@ -36,7 +36,9 @@ temperature: 0.3
 # "returned empty content"(推理吃光, text_tokens=0)和 "Unterminated string"
 # (正文写一半被截)两种失败的同一个根因。实测 max_tokens=800 时 finish=length、
 # reasoning_tokens=800、正文 0 字。
-max_tokens: 4000
+# 2026-09-01: 4000 → 8000。线上仍有条目报 "produced no content within
+# max_tokens=4000"(当天 3 条回退里 2 条是它), 说明推理预算在某些输入上还会烧穿。
+max_tokens: 8000
 timeout_s: 60
 title_max_chars: 64
 body_max_chars: 240
