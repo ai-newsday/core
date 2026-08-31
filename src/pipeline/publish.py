@@ -15,6 +15,7 @@ from src.core.types import (
     RunContext,
 )
 from src.observability.events import emit
+from src.pipeline.interpret import _trim_to_sentence
 from src.pipeline.score import apply_adapter_quota, apply_quota
 
 
@@ -165,6 +166,7 @@ def build_report(
     return DailyReport(
         date_label=date_label,
         daily_take=review_result.daily_take,
+        wechat_title=review_result.wechat_title,
         must_read=[],
         categories=group_by_category(items, config),
         overview=Overview(genre_distribution={}, keywords=[]),
@@ -208,8 +210,10 @@ def _render_items(report: DailyReport) -> tuple[list[str], list[tuple[str, str]]
             # (延续 2026-07-25 的"同一 URL 不重复罗列"规则)。
             nums = [_ref(it.title, it.link)]
             nums += [_ref(e.claim, e.anchor) for e in it.evidence if e.anchor != it.link]
+            # 不再输出分数: 实测一期九条评分全挤在 94-100, 对读者零区分度,
+            # 还把内部打分暴露出去(用户 2026-08-31 决定去掉)。
             marks = "".join(f"[{n}]" for n in dict.fromkeys(nums))
-            lines.append(f"{marks} · {it.score} 分")
+            lines.append(marks)
             lines.append("")
     return lines, refs
 
@@ -240,10 +244,13 @@ def render_front_matter(report: DailyReport, config: PublishConfig, draft: bool)
     m = re.match(r"\d{4}-\d{2}-\d{2}", report.date_label)
     iso_date = m.group(0) if m else report.date_label
     tags = ", ".join(_yaml_quote(c.label) for c in report.categories)
-    summary = (report.daily_take or "")[:140]
+    # 截到句末而不是硬切: 硬切 140 曾把 "DeepSeek" 切成 "De" 出现在站点 meta /
+    # 社交预览里(2026-09-01 实测)。daily_take 现在本身已被 enforce_digest 卡在
+    # 120 字内, 这层只是兜底, 但兜底也不该切在词中间。
+    summary = _trim_to_sentence(report.daily_take or "", 140)
     lines = [
         "---",
-        f"title: {_yaml_quote('AI Daily · ' + report.date_label)}",
+        f"title: {_yaml_quote(report.wechat_title or 'AI Daily · ' + report.date_label)}",
         f"date: {iso_date}T08:00:00+08:00",
         f"draft: {'true' if draft else 'false'}",
         f"tags: [{tags}]",
@@ -262,7 +269,7 @@ def flip_draft(text: str) -> str:
 
 def render_markdown(report: DailyReport, config: PublishConfig) -> str:
     """把 DailyReport 渲染成 Markdown(确定性, 无 now)。"""
-    lines: list[str] = [f"# AI Daily · {report.date_label}", ""]
+    lines: list[str] = [f"# {report.wechat_title or 'AI Daily · ' + report.date_label}", ""]
     if report.is_pending:
         lines.append(f"> {config.pending_watermark}")
         lines.append("")

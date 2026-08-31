@@ -46,7 +46,8 @@ def _ok_json(anchor):
 def test_golden_happy_full_fields():
     items = [_scored("https://a/1")]
     llm = FakeLLMProvider(
-        {"https://a/1": _ok_json("https://a/1")}, default=json.dumps({"highlights": "看点。"})
+        {"https://a/1": _ok_json("https://a/1")},
+        default=json.dumps({"title": "甲发布X | 乙提出Y【AI日报】", "digest": "看点。"}),
     )
     res = interpret(items, InterpretConfig(), _ctx(), llm)
     one = res.interpreted_items[0]
@@ -67,7 +68,10 @@ def test_golden_wrong_tags_falls_back():
         }
     )
     items = [_scored("https://a/1")]
-    llm = FakeLLMProvider({"https://a/1": bad}, default=json.dumps({"highlights": "h"}))
+    llm = FakeLLMProvider(
+        {"https://a/1": bad},
+        default=json.dumps({"title": "甲发布X | 乙提出Y【AI日报】", "digest": "h"}),
+    )
     res = interpret(items, InterpretConfig(), _ctx(), llm)
     assert res.interpreted_items[0].interpretation_status == "extractive_fallback"
     assert res.interpreted_items[0].tags == []
@@ -100,7 +104,10 @@ def test_golden_empty_evidence_not_must_read():
         }
     )
     items = [_scored("https://a/1")]
-    llm = FakeLLMProvider({"https://a/1": j}, default=json.dumps({"highlights": "h"}))
+    llm = FakeLLMProvider(
+        {"https://a/1": j},
+        default=json.dumps({"title": "甲发布X | 乙提出Y【AI日报】", "digest": "h"}),
+    )
     res = interpret(items, InterpretConfig(), _ctx(), llm)
     assert res.interpreted_items[0].interpretation_status == "ok"
     assert res.interpreted_items[0].eligible_for_must_read is False
@@ -119,11 +126,17 @@ def test_golden_empty_input_silent_no_llm_call():
 def test_golden_illegal_anchor_dropped_and_deterministic():
     j = _ok_json("https://evil/x")  # anchor not in link∪related
     items = [_scored("https://a/1", related=["https://r/1"])]
-    llm = FakeLLMProvider({"https://a/1": j}, default=json.dumps({"highlights": "h"}))
+    llm = FakeLLMProvider(
+        {"https://a/1": j},
+        default=json.dumps({"title": "甲发布X | 乙提出Y【AI日报】", "digest": "h"}),
+    )
     res1 = interpret(items, InterpretConfig(), _ctx(), llm)
     assert res1.interpreted_items[0].evidence == []
     assert res1.interpreted_items[0].eligible_for_must_read is False
-    llm2 = FakeLLMProvider({"https://a/1": j}, default=json.dumps({"highlights": "h"}))
+    llm2 = FakeLLMProvider(
+        {"https://a/1": j},
+        default=json.dumps({"title": "甲发布X | 乙提出Y【AI日报】", "digest": "h"}),
+    )
     res2 = interpret(items, InterpretConfig(), _ctx(), llm2)
     assert [e.model_dump() for e in res2.interpreted_items[0].evidence] == []
     assert res1.interpreted_items[0].title == res2.interpreted_items[0].title
@@ -141,7 +154,10 @@ def test_golden_relevant_false_propagates():
         }
     )
     items = [_scored("https://a/1")]
-    llm = FakeLLMProvider({"https://a/1": j}, default=json.dumps({"highlights": "h"}))
+    llm = FakeLLMProvider(
+        {"https://a/1": j},
+        default=json.dumps({"title": "甲发布X | 乙提出Y【AI日报】", "digest": "h"}),
+    )
     res = interpret(items, InterpretConfig(), _ctx(), llm)
     assert res.interpreted_items[0].interpretation_status == "ok"
     assert res.interpreted_items[0].relevant is False

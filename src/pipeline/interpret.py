@@ -220,6 +220,63 @@ def generate_daily_take(
         return None
 
 
+_TITLE_MAX = 64
+_DIGEST_MAX = 120
+_TITLE_SUFFIX = "【AI日报】"
+
+
+def plain_title(date_label: str) -> str:
+    return f"AI Daily · {date_label}"
+
+
+def enforce_title(title: str, date_label: str) -> str:
+    """标题必须 ≤64 字且带固定后缀; 不合规就回退成朴素标题。
+
+    刻意不截断: 截断会切掉 `【AI日报】` 后缀, 留下半截标题, 比朴素标题更糟。"""
+    t = (title or "").strip()
+    if not t or not t.endswith(_TITLE_SUFFIX) or len(t) > _TITLE_MAX:
+        return plain_title(date_label)
+    return t
+
+
+def enforce_digest(digest: str) -> str:
+    """摘要截到 ≤120 字的句末。
+
+    长度必须在代码里卡: 2026-08-31 spike 实测, prompt 明写"必须 ≤120 字",
+    模型仍产出 145 字——prompt 约不住长度。"""
+    return _trim_to_sentence((digest or "").strip(), _DIGEST_MAX)
+
+
+def generate_daily_head(
+    items: list[InterpretedItem],
+    daily_template: str,
+    config: InterpretConfig,
+    llm,
+    date_label: str,
+    logger=None,
+) -> tuple[str, str | None]:
+    """一次 LLM 调用同时产出公众号标题与摘要 (spec 2026-08-31-wechat-format-design)。
+
+    任何失败 -> (朴素标题, None), 不编造。"""
+    try:
+        prompt = build_daily_prompt(items, daily_template)
+        raw = llm.complete_json(
+            prompt, temperature=config.temperature, max_tokens=config.max_tokens
+        )
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError("daily head output is not a JSON object")
+        title = data.get("title")
+        digest = data.get("digest")
+        if not isinstance(title, str) or not isinstance(digest, str):
+            raise ValueError("title/digest missing or not a string")
+        return enforce_title(title, date_label), (enforce_digest(digest) or None)
+    except Exception as e:
+        if logger is not None:
+            emit(logger, "daily_head_error", error_type=type(e).__name__, error=str(e)[:200])
+        return plain_title(date_label), None
+
+
 def interpret(
     items: list[ScoredItem],
     config: InterpretConfig,
@@ -271,8 +328,14 @@ def interpret(
         out.append(res)
 
     daily_tpl = load_prompt(config.daily_prompt_path)
-    daily = generate_daily_take(out, daily_tpl, config, llm, logger=ctx.logger)
-    emit(ctx.logger, "daily_take_done", ok=daily is not None)
+    date_label = ctx.now.strftime("%Y-%m-%d")
+    title, daily = generate_daily_head(out, daily_tpl, config, llm, date_label, logger=ctx.logger)
+    emit(
+        ctx.logger,
+        "daily_take_done",
+        ok=daily is not None,
+        title_generated=title != plain_title(date_label),
+    )
 
     interpreted_count = sum(1 for r in out if r.interpretation_status == "ok")
     fallback_count = len(out) - interpreted_count
@@ -287,6 +350,7 @@ def interpret(
     return InterpretResult(
         interpreted_items=out,
         daily_take=daily,
+        wechat_title=title,
         input_count=len(items),
         interpreted_count=interpreted_count,
         fallback_count=fallback_count,

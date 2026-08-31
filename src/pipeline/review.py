@@ -90,6 +90,7 @@ def review(
     decisions: dict[str, ReviewDecision],
     config: ReviewConfig,
     ctx: RunContext,
+    wechat_title: str | None = None,
 ) -> ReviewResult:
     """审阅 orchestrator(spec §3, §5)。纯函数: 无 LLM / 网络副作用。"""
     emit(ctx.logger, "review_start", run_id=ctx.run_id, input_count=len(items))
@@ -107,6 +108,7 @@ def review(
         return ReviewResult(
             reviewed_items=[],
             daily_take=daily_take,
+            wechat_title=wechat_title,
             input_count=0,
             kept_count=0,
             dropped_count=0,
@@ -160,6 +162,7 @@ def review(
     return ReviewResult(
         reviewed_items=ordered,
         daily_take=out_daily,
+        wechat_title=wechat_title,
         input_count=len(items),
         kept_count=kept_count,
         dropped_count=dropped_count,
