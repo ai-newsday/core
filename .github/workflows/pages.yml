@@ -35,8 +35,13 @@ jobs:
           extended: true
       - uses: actions/configure-pages@v5
         id: pages           # 必须在 build 之前: build 用其 base_url 输出
-      - name: Build (include drafts for preview)
-        run: hugo --gc --minify -D --baseURL "${{ steps.pages.outputs.base_url }}/"
+      # -D 收草稿, -F 收「未来日期」文章。两个是独立开关, 只加 -D 治不了下面这个问题:
+      # finalize 把报告标成 <date>T08:00:00+08:00, 即 <date>T00:00:00Z; 而 finalize 的
+      # cron 是 22:00 UTC、报告标次日, 所以构建时刻常常早于文章自己的时间戳——2026-08-31
+      # 手动触发实测: 构建跑在 23:26Z, 文章标 2026-09-01T00:00Z, 早了 34 分钟, Hugo 直接
+      # 把它当未来文章跳过, 站点首页最新还停在 08-27, 草稿页 404。这是个 race, 不是偶发。
+      - name: Build (include drafts and future-dated posts for preview)
+        run: hugo --gc --minify -D -F --baseURL "${{ steps.pages.outputs.base_url }}/"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./public
