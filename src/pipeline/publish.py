@@ -176,6 +176,17 @@ def build_report(
     )
 
 
+def _escape_math_delimiters(text: str) -> str:
+    """转义正文里的 `$`。成对的 `$` 会被 Markdown 当成行内数学定界符, 把中间的文字
+    吃掉、把周围拆成零散的强调标记——2026-09-01 实测 `最佳模型成本低于 $6.9K，性能
+    逼近 Qwen2.5-1.5B` 渲染成了 `***，*** **性** **能** **逼** **近**`。
+
+    prompt 已要求金额写「6900 美元」而不是 `$6900`(#131), 这里是兜底: 硬约束不能
+    只靠 prompt(同期教训: prompt 写「必须 ≤120 字」实测产出 145 字)。CommonMark 的
+    `\\$` 转义渲染成字面 `$`, 且不会触发数学模式。"""
+    return text.replace("$", "\\$")
+
+
 def _render_items(report: DailyReport) -> tuple[list[str], list[tuple[str, str]]]:
     """条目顺读渲染(2026-08-05 改版)。
 
@@ -201,7 +212,7 @@ def _render_items(report: DailyReport) -> tuple[list[str], list[tuple[str, str]]
         for it in cat.items:
             lines.append(f"### {it.title}")
             lines.append("")
-            lines.append(it.body)
+            lines.append(_escape_math_delimiters(it.body))
             lines.append("")
             if it.tags:
                 lines.append(" ".join(it.tags))

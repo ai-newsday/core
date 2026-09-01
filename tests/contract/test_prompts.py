@@ -82,3 +82,25 @@ def test_interpret_prompt_has_entity_confident_field():
     assert "entity_confident" in t
     assert '"entity_confident"' in t
     assert "宁可标 false" in t
+
+
+def test_interpret_prompt_forbids_dollar_sign_in_body():
+    """2026-09-01 实测: 正文里的 `$5090`/`$6.9K`/`$4.4K` 被 Markdown 当成成对的
+    行内数学定界符, 把文字渲染成 `**性** **能** **逼** **近**`。AI 新闻里价格/
+    成本/融资很常见, 会反复出现。"""
+    t = load_prompt("src/prompts/interpret_item.md")
+    assert "美元" in t
+    assert "$" in t  # 规则里要举出反例才说得清
+
+
+def test_interpret_prompt_bans_boilerplate_closers():
+    """2026-09-01 实测: 7 条里 2 条以近乎相同的「对从业者而言, 这意味着…」收尾。"""
+    t = load_prompt("src/prompts/interpret_item.md")
+    assert "对从业者而言" in t
+    assert "这意味着" in t
+
+
+def test_interpret_prompt_requires_chinese_body():
+    """2026-09-01 实测: 正文里混着未翻译的 `practitioners`。"""
+    t = load_prompt("src/prompts/interpret_item.md")
+    assert "专有名词" in t or "术语" in t

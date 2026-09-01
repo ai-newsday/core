@@ -842,3 +842,31 @@ def test_build_report_story_group_costs_one_quota_slot():
     links = {it.link for cat in rep.categories for it in cat.items}
     assert "https://u/1" in links
     assert "https://u/2" in links
+
+
+def test_dollar_signs_in_body_are_escaped():
+    """回归(#131): 正文里成对的 `$` 被 Markdown 当行内数学定界符, 2026-09-01 实测
+    把 `最佳模型成本低于 $6.9K，性能逼近` 渲染成 `***，*** **性** **能** **逼** **近**`。
+    prompt 层已要求写「美元」, 但硬约束不能只靠 prompt(长度那次写 ≤120 实测 145),
+    渲染层再兜一道: CommonMark 的 `\\$` 转义渲染成字面 `$` 且不触发数学。"""
+    body = "成本低于 $6.9K，约 $4.4K 即可达到同等水平。"
+    res = publish(
+        _rr([_ri("https://a/1", score=80, body=body)], daily_take="看点。"),
+        "2026-05-30",
+        CFG,
+        _ctx(),
+    )
+    assert "\\$6.9K" in res.markdown
+    assert "\\$4.4K" in res.markdown
+    assert " $6.9K" not in res.markdown
+
+
+def test_body_without_dollar_is_untouched():
+    res = publish(
+        _rr([_ri("https://a/1", score=80, body="成本约 6900 美元。")], daily_take="看点。"),
+        "2026-05-30",
+        CFG,
+        _ctx(),
+    )
+    assert "成本约 6900 美元。" in res.markdown
+    assert "\\" not in res.markdown.split("## 参考链接")[0].split("### ")[1]
