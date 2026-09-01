@@ -151,7 +151,12 @@ def build_report(
     items = [
         it
         for it in review_result.reviewed_items
-        if _pre_content_certainty_penalty_score(it) >= config.min_display_score and it.relevant
+        if _pre_content_certainty_penalty_score(it) >= config.min_display_score
+        and it.relevant
+        # 2026-09-02 实测: agnes 推理预算烧穿时, 解读失败 + 原文摘要本身也是空的
+        # 两个条件叠加, 会产出一条 body 完全空白的卡片——比英文回退条目更差,
+        # 读者看到的是标题下面什么都没有。宁可少发一条, 不发一张空卡片。
+        and it.body.strip()
     ]
     # 采集渠道封顶(spec §5): 先砍 GitHub 超额, 让 genre 配额的剩余名额优先给非 GitHub 条目
     items, _ = apply_adapter_quota(items, config.adapter_quota)
