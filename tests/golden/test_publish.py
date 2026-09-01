@@ -870,3 +870,18 @@ def test_body_without_dollar_is_untouched():
     )
     assert "成本约 6900 美元。" in res.markdown
     assert "\\" not in res.markdown.split("## 参考链接")[0].split("### ")[1]
+
+
+def test_build_report_drops_items_with_empty_body():
+    """回归(2026-09-02): agnes 推理预算烧穿时, 解读失败 + 原文摘要本身也是空的
+    两个条件叠加, 会产出一个 body 完全为空的条目——比"英文回退"更差, 是一条
+    彻底空白的卡片, 不该出现在最终报告里。"""
+    items = [
+        _ri("https://a/1", score=80, body="正常正文。"),
+        _ri("https://a/2", score=90, body=""),
+        _ri("https://a/3", score=70, body="   "),  # 纯空白也算空
+    ]
+    rep = build_report(_rr(items), "2026-05-30", CFG)
+    all_links = [it.link for cat in rep.categories for it in cat.items]
+    assert all_links == ["https://a/1"]
+    assert rep.item_count == 1
