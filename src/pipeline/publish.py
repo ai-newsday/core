@@ -274,7 +274,10 @@ def render_markdown(report: DailyReport, config: PublishConfig) -> str:
         lines.append(f"> {config.pending_watermark}")
         lines.append("")
     if report.daily_take:
-        lines.append(f"> **今日看点**：{report.daily_take}")
+        # 不再硬编码 `**今日看点**：` 前缀: 摘要自身的固定格式已经以 `今日亮点：`
+        # 开头(spec 2026-08-31), 两者叠加会渲染成 `今日看点：今日亮点：…`
+        # (2026-09-01 线上实测)。摘要自带标签, 渲染层只负责引用块。
+        lines.append(f"> {report.daily_take}")
         lines.append("")
     body_lines, refs = _render_items(report)
     lines += body_lines
