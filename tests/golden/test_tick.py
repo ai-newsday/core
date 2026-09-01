@@ -218,3 +218,61 @@ def test_finalize_tick_persists_feedback_and_is_idempotent(tmp_path):
         assert n == 1
 
     asyncio.run(go())
+
+
+def test_finalize_tick_carries_the_generated_title_into_the_report(tmp_path):
+    """回归(#130): #129 把 wechat_title 一路穿过类型, 却漏改 cli/tick 里 review()
+    的调用点——参数有默认值 None 于是静默用了默认, 结果 2026-09-01 线上
+    daily_take_done 报 title_generated: true, 成品标题却仍是 "AI Daily · <date>"。
+
+    此前的单测直接构造 ReviewResult 赋值 wechat_title, 正好绕过 review() 调用点,
+    所以全绿也没抓到。这条必须走 run_finalize_tick 真实路径。"""
+
+    async def go():
+        db = Database(str(tmp_path / "state.db"))
+        await db.init()
+        notifier = FakeNotifier()
+        items = [_make_item("https://a/1", source="openai", st=Genre.announcement, signals={})]
+        keep_id = hashlib.sha256(b"https://a/1").hexdigest()[:16]
+        await run_finalize_tick(
+            run_id="r3",
+            now=NOW,
+            date_label=TODAY,
+            interpreted_items=items,
+            daily_take="今日亮点：甲发布 X。详见正文，参考链接见文末。",
+            wechat_title="甲发布X | 乙提出Y【AI日报】",
+            db=db,
+            notifiers=[notifier],
+            decision_store=FakeDecisionStore({keep_id: "keep"}),
+        )
+        assert notifier.final_report is not None
+        assert "甲发布X | 乙提出Y【AI日报】" in notifier.final_report
+        assert f"AI Daily · {TODAY}" not in notifier.final_report
+
+    asyncio.run(go())
+
+
+def test_daily_take_is_not_double_prefixed(tmp_path):
+    """回归(#130): 渲染器硬编码 `> **今日看点**：`, 而新摘要自带 `今日亮点：`,
+    2026-09-01 成品里出现 `今日看点：今日亮点：`。"""
+
+    async def go():
+        db = Database(str(tmp_path / "state.db"))
+        await db.init()
+        notifier = FakeNotifier()
+        items = [_make_item("https://a/1", source="openai", st=Genre.announcement, signals={})]
+        keep_id = hashlib.sha256(b"https://a/1").hexdigest()[:16]
+        await run_finalize_tick(
+            run_id="r4",
+            now=NOW,
+            date_label=TODAY,
+            interpreted_items=items,
+            daily_take="今日亮点：甲发布 X。详见正文，参考链接见文末。",
+            db=db,
+            notifiers=[notifier],
+            decision_store=FakeDecisionStore({keep_id: "keep"}),
+        )
+        assert "今日看点：今日亮点：" not in notifier.final_report
+        assert "今日亮点：" in notifier.final_report
+
+    asyncio.run(go())

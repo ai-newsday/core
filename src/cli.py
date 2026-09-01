@@ -316,7 +316,14 @@ def run_dry_review(
 
     rcfg = load_review_config("config/review.yaml")
     decisions = load_review_decisions(decisions_path or rcfg.decisions_path)
-    rres = review(ires.interpreted_items, ires.daily_take, decisions, rcfg, ctx)
+    rres = review(
+        ires.interpreted_items,
+        ires.daily_take,
+        decisions,
+        rcfg,
+        ctx,
+        wechat_title=ires.wechat_title,
+    )
     return _envelope(
         ctx,
         now,
@@ -340,7 +347,14 @@ def run_dry_publish(
 
     rcfg = load_review_config("config/review.yaml")
     decisions = load_review_decisions(decisions_path or rcfg.decisions_path)
-    rres = review(ires.interpreted_items, ires.daily_take, decisions, rcfg, ctx)
+    rres = review(
+        ires.interpreted_items,
+        ires.daily_take,
+        decisions,
+        rcfg,
+        ctx,
+        wechat_title=ires.wechat_title,
+    )
 
     pcfg = load_publish_config("config/publish.yaml")
     date_label = now.date().isoformat()
@@ -544,6 +558,7 @@ def run_tick(
                 notifiers=notifiers,
                 decision_store=decision_store,
                 site_base_url=dcfg.website.site_base_url,
+                wechat_title=ires.wechat_title,
             )
         )
         result["tick"] = "finalize"

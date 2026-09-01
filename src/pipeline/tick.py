@@ -120,6 +120,7 @@ async def run_finalize_tick(
     notifiers: list[Notifier],
     decision_store: DecisionStore | None = None,
     site_base_url: str = "",
+    wechat_title: str | None = None,
 ) -> dict:
     """定稿 tick: 读决策 → review → publish → send_final_report。"""
     logger = logging.getLogger("ai-newsday")
@@ -159,7 +160,7 @@ async def run_finalize_tick(
         [_item_id(it) for it in report_items], date_label
     )
     report_items = [it for it in report_items if _item_id(it) not in already]
-    rres = review(report_items, daily_take, decisions, rcfg, ctx)
+    rres = review(report_items, daily_take, decisions, rcfg, ctx, wechat_title=wechat_title)
     pcfg = load_publish_config("config/publish.yaml")
     pres = publish(rres, date_label, pcfg, ctx)
     # 记录本报已发布条目(按 date_label), 供后续 tick 跨天去重。首发 label 固定。

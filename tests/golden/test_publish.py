@@ -297,7 +297,9 @@ def test_render_markdown_full():
     ]
     md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
     assert md.startswith("# AI Daily · 2026-05-30")
-    assert "> **今日看点**：看点。" in md
+    # 摘要自带 `今日亮点：` 标签, 渲染层不再叠加 `**今日看点**：`(#130)
+    assert "> 看点。" in md
+    assert "今日看点" not in md
     # 2026-08-05 结构: 条目顺读, 无 genre 大分类标题, 链接收到文末参考章节
     assert "### GLM-5 发布" in md
     assert "开源 MoE。" in md
