@@ -271,6 +271,9 @@ class InterpretConfig:
     min_evidence: int = 1
     item_prompt_path: str = "src/prompts/interpret_item.md"
     daily_prompt_path: str = "src/prompts/daily_take.md"
+    # 只对最终发布条目里仍是 extractive_fallback 的做纯翻译, 不解读不补充信息
+    # (2026-09-02 用户要求: 英文回退条目对公众号读者不友好, 但不能借机编造)
+    translate_fallback_prompt_path: str = "src/prompts/translate_fallback.md"
 
 
 @dataclass
@@ -504,6 +507,25 @@ class HFReadmeConfig:
 
 
 @dataclass
+class ItemImageConfig:
+    """逐条配图(spec 2026-08-31-per-item-images-design)。只对最终发布条目跑
+    (由 tick.py 在 build_report() 之后调用), 不对发卡池全量跑——最终只发
+    几条, 全池抓图是几倍浪费。抓不到/校验不通过 -> image_url 留 None, 条目
+    照常发布, 绝不因为没图卡住或剔除条目。"""
+
+    enabled: bool = True
+    timeout_s: int = 8
+    concurrency: int = 5
+    # GitHub 的 og:image 是自动生成的仓库卡片, 每条同构、零信息量——留白比放它好
+    skip_adapters: list[str] = field(default_factory=lambda: ["github_releases", "github_trending"])
+    # 新闻媒体的 og:image 是有版权的新闻摄影, 默认不取(风险类问题, 不是缺陷类问题);
+    # 用户可自行开启, 不是本层能替用户做的判断
+    allow_news_media: bool = False
+    news_media_adapters: list[str] = field(default_factory=list)
+    max_bytes: int = 2_000_000  # 实测 arXiv 图有到 1.6MB 的
+
+
+@dataclass
 class EnrichConfig:
     """RSS 类源天然无 popularity, 用 HN Algolia by URL 反查补 signals.hn_*。"""
 
@@ -514,6 +536,7 @@ class EnrichConfig:
     skip_genres: list[str] = field(default_factory=lambda: ["paper", "model"])
     release_importance: ReleaseImportanceConfig = field(default_factory=ReleaseImportanceConfig)
     hf_readme: HFReadmeConfig = field(default_factory=HFReadmeConfig)
+    item_image: ItemImageConfig = field(default_factory=ItemImageConfig)
 
 
 @dataclass

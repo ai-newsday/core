@@ -14,6 +14,7 @@ from src.adapters.decisions.worker import WorkerDecisionStore
 from src.adapters.embedding.modelscope import ModelScopeEmbedder
 from src.adapters.enrich.hf_readme import HFReadmeClient
 from src.adapters.enrich.hn_algolia import HNAlgoliaClient
+from src.adapters.enrich.item_image import ItemImageClient
 from src.adapters.llm.openai_compat import OpenAICompatLLM
 from src.adapters.vectorstore.memory import InMemoryVectorStore
 from src.core.config import (
@@ -48,7 +49,8 @@ from src.pipeline.dedup import dedup
 from src.pipeline.enrich import enrich_with_hn
 from src.pipeline.feedback import derive_events, feedback
 from src.pipeline.hf_readme import enrich_hf_models_readme
-from src.pipeline.interpret import interpret
+from src.pipeline.interpret import interpret, translate_fallback_items
+from src.pipeline.item_image import enrich_item_images
 from src.pipeline.metrics import (
     compute_fallback_breakdown,
     compute_funnel,
@@ -59,7 +61,7 @@ from src.pipeline.metrics import (
     load_trend_7d,
 )
 from src.pipeline.metrics_render import render_caption, render_md, render_png
-from src.pipeline.publish import publish
+from src.pipeline.publish import build_report, publish, render
 from src.pipeline.release_importance import judge_release_importance
 from src.pipeline.review import review
 from src.pipeline.score import score
@@ -362,8 +364,22 @@ def run_dry_publish(
     # 的全量解读池——dry-run 里同样会渲染真实 markdown 给用户看, 不能留这个坑。
     icfg = load_interpret_config("config/interpret.yaml")
     head_llm = llm or _make_llm(icfg)
-    rres = regenerate_wechat_head(rres, date_label, pcfg, icfg, head_llm, ctx)
-    pres = publish(rres, date_label, pcfg, ctx)
+    if not rres.reviewed_items:
+        pres = publish(rres, date_label, pcfg, ctx)
+    else:
+        report = build_report(rres, date_label, pcfg)
+        translate_fallback_items(
+            [it for cat in report.categories for it in cat.items], icfg, head_llm, logger=ctx.logger
+        )
+        report = regenerate_wechat_head(report, date_label, icfg, head_llm, ctx)
+        ecfg = load_enrich_config("config/enrich.yaml")
+        if ecfg.item_image.enabled:
+            final_items = [it for cat in report.categories for it in cat.items]
+            image_client = ItemImageClient(
+                timeout_s=ecfg.item_image.timeout_s, max_bytes=ecfg.item_image.max_bytes
+            )
+            asyncio.run(enrich_item_images(final_items, image_client, ecfg.item_image, ctx))
+        pres = render(report, pcfg, ctx)
 
     # 落盘各层产物 (signals 都在 RawItem.signals 中带着, 跨层透传)
     rd = run_dir(ctx.run_id)
@@ -573,6 +589,10 @@ def run_tick(
                 wechat_title=ires.wechat_title,
                 llm=head_llm_holder.get("llm"),
                 interpret_config=head_llm_holder.get("icfg"),
+                image_client=ItemImageClient(
+                    timeout_s=ecfg.item_image.timeout_s, max_bytes=ecfg.item_image.max_bytes
+                ),
+                item_image_config=ecfg.item_image,
             )
         )
         result["tick"] = "finalize"

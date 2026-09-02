@@ -50,3 +50,14 @@ hf_readme:
   concurrency: 5
   min_body_chars: 80  # 占位值, Task 5 用真实数据核实后可能调整
   max_body_chars: 2500  # 2026-07-27 真实数据核实: 不封顶会把 10k+ 字符的 README 带进 dedup embedding
+
+# 逐条配图(spec 2026-08-31-per-item-images-design)。只对最终发布条目跑(由
+# tick.py 在 build_report() 之后调用), 不对发卡池全量跑。
+item_image:
+  enabled: true
+  timeout_s: 8
+  concurrency: 5
+  skip_adapters: ["github_releases", "github_trending"]  # 自动生成的仓库卡片, 留白更好
+  allow_news_media: false  # 新闻站 og:image 是有版权的新闻摄影, 默认不取(风险类问题)
+  news_media_adapters: []  # allow_news_media=true 时才生效的白名单
+  max_bytes: 2000000  # 实测 arXiv 图有到 1.6MB 的

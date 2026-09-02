@@ -2,23 +2,23 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from dataclasses import replace
 from datetime import datetime
 
 from src.adapters.decisions.worker import DecisionStore
 from src.core.config import load_publish_config, load_review_config
 from src.core.prompts import load_prompt
 from src.core.types import (
+    DailyReport,
     InterpretConfig,
     InterpretedItem,
-    PublishConfig,
+    ItemImageConfig,
     ReviewDecision,
-    ReviewResult,
 )
 from src.notifiers import Notifier
 from src.observability.events import emit
-from src.pipeline.interpret import generate_daily_head
-from src.pipeline.publish import build_report, publish
+from src.pipeline.interpret import generate_daily_head, translate_fallback_items
+from src.pipeline.item_image import enrich_item_images
+from src.pipeline.publish import build_report, publish, render
 from src.pipeline.review import review
 from src.state.db import Database
 
@@ -29,25 +29,24 @@ def _item_id(item: InterpretedItem) -> str:
 
 
 def regenerate_wechat_head(
-    rres: ReviewResult,
+    report: DailyReport,
     date_label: str,
-    publish_config: PublishConfig,
     interpret_config: InterpretConfig,
     llm,
     ctx,
-) -> ReviewResult:
+) -> DailyReport:
     """标题/摘要必须基于最终发布条目生成, 不能用配额筛选前的全量解读池
     (#139: 2026-09-02 实测标题引用了 ChatGPT Ads/Qwen3.8-Flash-Next, 但这两条
     从未出现在最终发布的六条正文里——旧实现在 interpret() 阶段就生成了标题,
     早于 build_report() 的地板/adapter 配额/故事线合并/genre 配额过滤)。
 
-    先跑一次 build_report() 拿到过滤后的最终列表(纯函数, 重复调用零副作用,
-    publish() 内部本来就会再跑一次), 用这份列表重新生成标题/摘要, 再把新值
-    写回 ReviewResult 让 publish() 正常渲染。全部条目都被过滤掉时原样返回,
-    不浪费一次 LLM 调用。"""
-    report = build_report(rres, date_label, publish_config)
+    接收调用方已经跑过 build_report() 得到的最终 report(而不是自己再跑一次
+    build_report() 然后指望调用方第二次调用 publish() 时还能看到这次修改——
+    故事线合并会给主条目 model_copy() 出新对象, 那样两次独立的 build_report()
+    互不相干, 第一次的修改会在第二次重新构建时凭空消失)。全部条目都被过滤
+    掉时原样返回, 不浪费一次 LLM 调用。"""
     if not report.item_count:
-        return rres
+        return report
     final_items = [it for cat in report.categories for it in cat.items]
     daily_tpl = load_prompt(interpret_config.daily_prompt_path)
     title, digest = generate_daily_head(
@@ -59,8 +58,11 @@ def regenerate_wechat_head(
         final_item_count=len(final_items),
         ok=digest is not None,
     )
-    return replace(
-        rres, wechat_title=title, daily_take=digest if digest is not None else rres.daily_take
+    return report.model_copy(
+        update={
+            "wechat_title": title,
+            "daily_take": digest if digest is not None else report.daily_take,
+        }
     )
 
 
@@ -168,6 +170,8 @@ async def run_finalize_tick(
     wechat_title: str | None = None,
     llm=None,
     interpret_config: InterpretConfig | None = None,
+    image_client=None,
+    item_image_config: ItemImageConfig | None = None,
 ) -> dict:
     """定稿 tick: 读决策 → review → publish → send_final_report。"""
     logger = logging.getLogger("ai-newsday")
@@ -209,9 +213,22 @@ async def run_finalize_tick(
     report_items = [it for it in report_items if _item_id(it) not in already]
     rres = review(report_items, daily_take, decisions, rcfg, ctx, wechat_title=wechat_title)
     pcfg = load_publish_config("config/publish.yaml")
-    if llm is not None and interpret_config is not None:
-        rres = regenerate_wechat_head(rres, date_label, pcfg, interpret_config, llm, ctx)
-    pres = publish(rres, date_label, pcfg, ctx)
+    if not rres.reviewed_items:
+        # 空报(零决策/全砍): 走 publish() 自己的静默短路, 不必生成标题或抓图。
+        pres = publish(rres, date_label, pcfg, ctx)
+    else:
+        report = build_report(rres, date_label, pcfg)
+        if llm is not None and interpret_config is not None:
+            # 英文回退条目纯翻译(2026-09-02 用户要求, 只在最终条目上跑, 同
+            # 逐条配图一个道理); 在标题/摘要重生成之前做, 但 generate_daily_head
+            # 对未解读条目本来就读 title_en 不读 title, 顺序其实不影响它。
+            final_items = [it for cat in report.categories for it in cat.items]
+            translate_fallback_items(final_items, interpret_config, llm, logger=ctx.logger)
+            report = regenerate_wechat_head(report, date_label, interpret_config, llm, ctx)
+        if image_client is not None and item_image_config is not None:
+            final_items = [it for cat in report.categories for it in cat.items]
+            await enrich_item_images(final_items, image_client, item_image_config, ctx)
+        pres = render(report, pcfg, ctx)
     # 记录本报已发布条目(按 date_label), 供后续 tick 跨天去重。首发 label 固定。
     await db.mark_published([_item_id(it) for it in report_items], date_label)
     summary = {

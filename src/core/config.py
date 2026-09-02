@@ -135,6 +135,9 @@ def load_interpret_config(path: str) -> InterpretConfig:
         min_evidence=data.get("min_evidence", d.min_evidence),
         item_prompt_path=data.get("item_prompt_path", d.item_prompt_path),
         daily_prompt_path=data.get("daily_prompt_path", d.daily_prompt_path),
+        translate_fallback_prompt_path=data.get(
+            "translate_fallback_prompt_path", d.translate_fallback_prompt_path
+        ),
     )
 
 
@@ -210,6 +213,7 @@ def load_enrich_config(path: str) -> EnrichConfig:
     缺文件 -> 默认。"""
     from src.core.types import (  # local import to avoid cycles
         HFReadmeConfig,
+        ItemImageConfig,
         ProviderSpec,
         ReleaseImportanceConfig,
     )
@@ -249,6 +253,17 @@ def load_enrich_config(path: str) -> EnrichConfig:
         min_body_chars=hr_data.get("min_body_chars", hr_d.min_body_chars),
         max_body_chars=hr_data.get("max_body_chars", hr_d.max_body_chars),
     )
+    ii_data = data.get("item_image", {})
+    ii_d = ItemImageConfig()
+    item_image = ItemImageConfig(
+        enabled=ii_data.get("enabled", ii_d.enabled),
+        timeout_s=ii_data.get("timeout_s", ii_d.timeout_s),
+        concurrency=ii_data.get("concurrency", ii_d.concurrency),
+        skip_adapters=ii_data.get("skip_adapters", ii_d.skip_adapters),
+        allow_news_media=ii_data.get("allow_news_media", ii_d.allow_news_media),
+        news_media_adapters=ii_data.get("news_media_adapters", ii_d.news_media_adapters),
+        max_bytes=ii_data.get("max_bytes", ii_d.max_bytes),
+    )
     return EnrichConfig(
         enabled=data.get("enabled", d.enabled),
         concurrency=data.get("concurrency", d.concurrency),
@@ -256,6 +271,7 @@ def load_enrich_config(path: str) -> EnrichConfig:
         skip_genres=data.get("skip_genres", d.skip_genres),
         release_importance=release_importance,
         hf_readme=hf_readme,
+        item_image=item_image,
     )
 
 
