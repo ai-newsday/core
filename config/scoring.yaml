@@ -64,6 +64,10 @@ popularity_cap: 15.0              # 单条最高 +15 分, 防异常超大数值
 # 进发卡池, 明显欠采样; 50 条兼顾覆盖率与人工审阅量。
 # per-genre 配额 + total_limit 已移到 config/publish.yaml(人 keep 后施加)。
 card_pool_limit: 50
+# X 发卡池保底(2026-09-02 恢复+用户拍板): 纯按分数硬切 top-50 时, X 中位分虽不低
+# 但类目分数天花板低于论文/模型的长尾, 181 条候选实测只有 2 条挤进池——用户压根
+# 看不到、审阅不到其余的。20 条 ≈ 用户要求的量级(发卡池 50 条里 X 候选常年占一半)。
+card_pool_reserved_quota: {x_list: 20}
 
 sources_registry_path: "config/sources.yaml"
 

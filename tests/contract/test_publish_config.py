@@ -51,6 +51,14 @@ def test_production_config_raises_total_limit():
     assert c.total_limit == 12
 
 
+def test_production_config_has_reserved_quota_for_x():
+    # 2026-09-02 恢复: 本字段(连同 score 层的 card_pool_reserved_quota)在某次
+    # 未留痕迹的重构里连代码带配置整个消失, 只剩这条测试文件旁边一句孤立注释
+    # 还在提它——本测试就是防止它再次无声消失的契约。
+    c = load_publish_config("config/publish.yaml")
+    assert c.reserved_quota == {"x_list": 4}
+
+
 def test_load_publish_config_adapter_quota_default_empty():
     cfg = load_publish_config("does/not/exist.yaml")
     assert cfg.adapter_quota == {}

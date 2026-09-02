@@ -209,6 +209,36 @@ def apply_adapter_quota(
     return selected, report
 
 
+def apply_reserved_quota(
+    scored: list[ScoredItem], reserved: dict[str, int]
+) -> tuple[list[ScoredItem], list[ScoredItem]]:
+    """按 item.adapter 保底选 top-N(纯按 score 排序)。用户明确要求 X 基本不筛
+    (只卡 min_display_score 底线+去重), 不跟其它 genre 一起抢 apply_quota 的配额
+    名额。与 apply_adapter_quota(封顶)方向相反: 这里是保证进, 不是限制进。
+
+    2026-09-02 恢复: 本函数(连同 config/publish.yaml 的 reserved_quota 键)在
+    2026-07-25 的 PR #76 上线后, 在某次未留痕迹的重构里连代码带配置整个消失了,
+    只剩 publish.yaml 里一句指向它的孤立注释——真实数据里 181 条 X 候选(中位分
+    71, 高于非 X 的 62)因此只有 2 条挤进最终 50 条发卡池的 top-N 硬切。
+
+    返回 (reserved_items, remaining_items); remaining 交给后续 apply_quota 照常
+    竞争(含被保底截掉的同 adapter 条目——没进保底不代表没资格进 genre 配额)。
+    空 dict -> reserved 为空, remaining 原样返回。"""
+    reserved_items: list[ScoredItem] = []
+    remaining = list(scored)
+    for adapter, n in reserved.items():
+        pool = sorted(
+            (s for s in remaining if s.adapter == adapter),
+            key=lambda s: (-s.score, s.published_at, s.link),
+        )
+        take = pool[:n]
+        reserved_items.extend(take)
+        taken_links = {s.link for s in take}
+        remaining = [s for s in remaining if s.link not in taken_links]
+    reserved_items.sort(key=lambda s: (-s.score, s.published_at, s.link))
+    return reserved_items, remaining
+
+
 def score(
     items: list[NewsItem],
     config: ScoringConfig,
@@ -235,7 +265,15 @@ def score(
         emit(ctx.logger, "item_scored", link=s.link, genre=s.genre.value, score=s.score)
 
     # 发卡候选池: 按 score top-N(成本上界); per-genre 配额已移到 publish 阶段(人 keep 后施加)。
-    selected = scored[: config.card_pool_limit]
+    # 按 adapter 保底(2026-09-02 恢复, 同 PublishConfig.reserved_quota 一个机制的
+    # 姊妹字段但作用在发卡池而不是最终报告): 纯按分数的硬切会把 X 这类分数天花板
+    # 较低但中位分其实不差的类目整体压没, 用户压根看不到、审阅不到那些条目——
+    # 空 dict 时这里是纯 no-op, 行为与恢复前完全一致。
+    reserved, remaining = apply_reserved_quota(scored, config.card_pool_reserved_quota)
+    fill_n = max(config.card_pool_limit - len(reserved), 0)
+    selected = sorted(
+        reserved + remaining[:fill_n], key=lambda s: (-s.score, s.published_at, s.link)
+    )
     for s in selected:
         emit(ctx.logger, "item_selected", link=s.link, genre=s.genre.value, score=s.score)
 

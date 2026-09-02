@@ -184,6 +184,12 @@ class ScoringConfig:
     popularity_cap: float = 15.0  # 单条最高加 15 分, 防异常超大数值
     # 发卡候选池: 按 score 取 top-N 进 interpret(成本上界)。per-genre 配额/总量已移到 PublishConfig。
     card_pool_limit: int = 25
+    # 按 adapter 在发卡池里保底 top-N(实测 2026-09-02: card_pool_limit 是纯按分数的
+    # 硬切, X announcement 类目分数上限低于论文/模型的长尾, 181 条 X 候选中位分 71
+    # 高于非 X 的 62, 却只有 2 条挤进发卡池——用户根本没机会在 TG 里看到、审阅其余
+    # 179 条。空 dict = 不保底, 维持现状。PublishConfig.reserved_quota 是同名机制
+    # 在发布层的姊妹字段, 两处都要配置才能既让 X 进审阅、又让 X 进最终报告。)
+    card_pool_reserved_quota: dict[str, int] = field(default_factory=dict)
     sources_registry_path: str = "config/sources.yaml"
     topic_keywords: list[str] = field(default_factory=list)
     topic_bonus: float = 5.0
@@ -409,6 +415,10 @@ class PublishConfig:
     adapter_quota: dict[str, int] = field(
         default_factory=dict
     )  # 按采集渠道封顶(spec §5), 不占用 genre 配额名额
+    # 按采集渠道保底(方向与 adapter_quota 相反, PR #76): 指定 adapter 的 top-N 直接进,
+    # 不跟其它 genre 抢 apply_quota 的配额名额。2026-09-02 恢复(曾在未留痕迹的重构中
+    # 连代码带配置一起消失, 只剩这条注释的姊妹条目还在)。
+    reserved_quota: dict[str, int] = field(default_factory=dict)
     story_merge_max_support: int = (
         3  # 故事线合并: 每组最多附带几个"已支持"平台提及(spec 2026-08-28)
     )

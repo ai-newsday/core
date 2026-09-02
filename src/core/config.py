@@ -67,6 +67,7 @@ def load_scoring_config(path: str) -> ScoringConfig:
         popularity_weights=data.get("popularity_weights", d.popularity_weights),
         popularity_cap=data.get("popularity_cap", d.popularity_cap),
         card_pool_limit=data.get("card_pool_limit", d.card_pool_limit),
+        card_pool_reserved_quota=data.get("card_pool_reserved_quota", d.card_pool_reserved_quota),
         sources_registry_path=data.get("sources_registry_path", d.sources_registry_path),
         topic_keywords=data.get("topic_boost", {}).get("keywords", d.topic_keywords),
         topic_bonus=data.get("topic_boost", {}).get("bonus", d.topic_bonus),
@@ -200,6 +201,7 @@ def load_publish_config(path: str) -> PublishConfig:
         total_limit=data.get("total_limit", d.total_limit),
         genre_labels=data.get("genre_labels", d.genre_labels),
         adapter_quota=data.get("adapter_quota", d.adapter_quota),
+        reserved_quota=data.get("reserved_quota", d.reserved_quota),
         timezone=data.get("timezone", d.timezone),
         story_merge_max_support=data.get("story_merge_max_support", d.story_merge_max_support),
         story_merge_support_template=data.get(
