@@ -6,6 +6,7 @@ from src.adapters.decisions.worker import FakeDecisionStore
 from src.core.types import (
     Evidence,
     Genre,
+    InterpretConfig,
     InterpretedItem,
 )
 from src.notifiers import FakeNotifier
@@ -274,5 +275,89 @@ def test_daily_take_is_not_double_prefixed(tmp_path):
         )
         assert "今日看点：今日亮点：" not in notifier.final_report
         assert "今日亮点：" in notifier.final_report
+
+    asyncio.run(go())
+
+
+def test_finalize_title_reflects_only_items_that_survive_quota(tmp_path):
+    """回归(#139): 2026-09-02 线上标题引用了 ChatGPT Ads / Qwen3.8-Flash-Next,
+    但那两条从未出现在最终发布的六条正文里——generate_daily_head 此前在
+    interpret() 阶段用全量解读池生成, 早于 build_report() 的地板/配额/故事线
+    合并过滤。这里用真实 config/publish.yaml 的 min_display_score(40) 地板
+    天然制造一次淘汰: 两条都 keep, 一条 90 分幸存、一条 10 分被地板砍掉,
+    断言喂给 LLM 的 prompt 只包含幸存条目的标题, 被砍条目的标题绝不出现。"""
+
+    class _CapturingLLM:
+        def __init__(self):
+            self.prompts: list[str] = []
+
+        def complete_json(self, prompt, *, temperature, max_tokens, validator=None):
+            self.prompts.append(prompt)
+            return (
+                '{"title": "生成的标题【AI日报】", '
+                '"digest": "今日亮点：生成的摘要。详见正文，参考链接见文末。"}'
+            )
+
+    async def go():
+        db = Database(str(tmp_path / "state.db"))
+        await db.init()
+        notifier = FakeNotifier()
+        survivor = _make_item("https://a/1", st=Genre.announcement).model_copy(
+            update={"title": "幸存条目标题", "score": 90}
+        )
+        dropped = _make_item("https://a/2", st=Genre.announcement).model_copy(
+            update={"title": "被地板砍掉的条目标题", "score": 10}
+        )
+        decisions = {
+            hashlib.sha256(b"https://a/1").hexdigest()[:16]: "keep",
+            hashlib.sha256(b"https://a/2").hexdigest()[:16]: "keep",
+        }
+        llm = _CapturingLLM()
+        icfg = InterpretConfig()
+        result = await run_finalize_tick(
+            run_id="r6",
+            now=NOW,
+            date_label=TODAY,
+            interpreted_items=[survivor, dropped],
+            daily_take=None,
+            db=db,
+            notifiers=[notifier],
+            decision_store=FakeDecisionStore(decisions),
+            llm=llm,
+            interpret_config=icfg,
+        )
+        assert result["item_count"] == 1, "两条都 keep, 但地板下的那条不该进最终报告"
+        assert len(llm.prompts) == 1, "标题/摘要只应生成一次"
+        prompt = llm.prompts[0]
+        assert "幸存条目标题" in prompt
+        assert "被地板砍掉的条目标题" not in prompt
+        assert notifier.final_report is not None
+        assert "生成的标题【AI日报】" in notifier.final_report
+
+    asyncio.run(go())
+
+
+def test_finalize_without_llm_keeps_prior_behavior(tmp_path):
+    """未传 llm(如现有旧调用点)时行为不变: 用调用方给的 wechat_title/daily_take,
+    不尝试重新生成——向后兼容, 不强迫每个调用点都升级。"""
+
+    async def go():
+        db = Database(str(tmp_path / "state.db"))
+        await db.init()
+        notifier = FakeNotifier()
+        items = [_make_item("https://a/1", st=Genre.announcement)]
+        keep_id = hashlib.sha256(b"https://a/1").hexdigest()[:16]
+        await run_finalize_tick(
+            run_id="r7",
+            now=NOW,
+            date_label=TODAY,
+            interpreted_items=items,
+            daily_take="旧摘要。",
+            wechat_title="旧标题【AI日报】",
+            db=db,
+            notifiers=[notifier],
+            decision_store=FakeDecisionStore({keep_id: "keep"}),
+        )
+        assert "旧标题【AI日报】" in notifier.final_report
 
     asyncio.run(go())
