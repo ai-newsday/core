@@ -2,9 +2,12 @@ name: Collect
 
 on:
   schedule:
-    # UK 08:00/11:00/14:00/17:00/20:00 (BST) → UTC 07/10/13/16/19。
-    # Actions cron 只认 UTC; 冬令时(GMT)整体早 1 小时(本地 07:00-19:00), 已接受该漂移。
-    - cron: "0 7,10,13,16,19 * * *"
+    # 2026-09-03: 5x/天(每 3h)→ 8x/天(每 2h), 用户要求配合 card_pool_limit 50→100
+    # 一起提高覆盖率(config/scoring.yaml)。
+    # UK 07/09/11/13/15/17/19/21 (BST) → UTC 06/08/10/12/14/16/18/20。
+    # Actions cron 只认 UTC; 冬令时(GMT)整体早 1 小时(本地 06:00-20:00), 已接受该漂移
+    # (沿用旧 5x 排期的既有约定, 见 git blame)。
+    - cron: "0 6,8,10,12,14,16,18,20 * * *"
   workflow_dispatch:
 
 jobs:
