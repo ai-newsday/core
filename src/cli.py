@@ -65,7 +65,7 @@ from src.pipeline.review import review
 from src.pipeline.score import score
 from src.pipeline.selfcheck import self_check
 from src.pipeline.storylink import link_stories
-from src.pipeline.tick import run_collect_tick, run_finalize_tick
+from src.pipeline.tick import regenerate_wechat_head, run_collect_tick, run_finalize_tick
 from src.state.db import Database
 
 
@@ -358,6 +358,11 @@ def run_dry_publish(
 
     pcfg = load_publish_config("config/publish.yaml")
     date_label = now.date().isoformat()
+    # #139: 标题/摘要要用配额过滤后的最终条目重新生成, 不能用 interpret() 阶段
+    # 的全量解读池——dry-run 里同样会渲染真实 markdown 给用户看, 不能留这个坑。
+    icfg = load_interpret_config("config/interpret.yaml")
+    head_llm = llm or _make_llm(icfg)
+    rres = regenerate_wechat_head(rres, date_label, pcfg, icfg, head_llm, ctx)
     pres = publish(rres, date_label, pcfg, ctx)
 
     # 落盘各层产物 (signals 都在 RawItem.signals 中带着, 跨层透传)
@@ -482,6 +487,11 @@ def run_tick(
     coll_cfg = CollectionConfig(sources_registry_path=registry_path)
     ecfg = load_enrich_config("config/enrich.yaml")
 
+    # #139: 标题/摘要必须用 build_report() 过滤后的最终条目重新生成, 不能用
+    # interpret() 阶段的全量解读池——闭包内造好的 llm/icfg 借这个可写容器带到
+    # run_finalize_tick 调用点。
+    head_llm_holder: dict = {}
+
     async def _collect_and_interpret():
         c = await collect(coll_cfg, ctx)
         if ecfg.enabled and c.items:
@@ -513,6 +523,8 @@ def run_tick(
 
         icfg = load_interpret_config("config/interpret.yaml")
         _llm = llm or _make_llm(icfg)
+        head_llm_holder["llm"] = _llm
+        head_llm_holder["icfg"] = icfg
         ires = interpret(
             linked_items,
             icfg,
@@ -559,6 +571,8 @@ def run_tick(
                 decision_store=decision_store,
                 site_base_url=dcfg.website.site_base_url,
                 wechat_title=ires.wechat_title,
+                llm=head_llm_holder.get("llm"),
+                interpret_config=head_llm_holder.get("icfg"),
             )
         )
         result["tick"] = "finalize"
