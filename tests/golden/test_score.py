@@ -55,6 +55,38 @@ def test_score_card_pool_keeps_all_when_under_limit():
     assert res.selected_items == res.all_scored
 
 
+# Case 2b (2026-09-02 恢复): card_pool_reserved_quota 保底低分 adapter 也能进发卡池
+def test_score_card_pool_reserved_quota_guarantees_adapter_slots():
+    """回归: 纯按分数硬切 top-N 时, 一个类目分数上限较低但候选量大的 adapter
+    (如 X)会被高分类目的长尾整体挤出发卡池, 即使它自己的中位分并不差。"""
+    cfg = _cfg()
+    cfg.card_pool_limit = 2
+    cfg.card_pool_reserved_quota = {"x_list": 1}
+    items = [
+        _ni("p1", "https://p/1", "s1", Genre.paper, NOW),  # 高分, 挤满两个名额里的一个
+        _ni("p2", "https://p/2", "s2", Genre.paper, NOW - timedelta(hours=1)),  # 高分
+        _ni("x1", "https://x/1", "s3", Genre.announcement, NOW - timedelta(hours=2)).model_copy(
+            update={"adapter": "x_list"}
+        ),  # 分数最低, 纯硬切下会被砍掉
+    ]
+    res = score(items, cfg, _ctx())
+    links = {s.link for s in res.selected_items}
+    assert "https://x/1" in links  # 保底生效, 没被砍
+    assert res.selected_count == 2  # card_pool_limit 仍然是硬上限, 不因保底而放宽
+
+
+def test_score_card_pool_reserved_quota_empty_is_noop():
+    cfg = _cfg()
+    cfg.card_pool_limit = 2
+    items = [
+        _ni("p1", "https://p/1", "s1", Genre.paper, NOW),
+        _ni("p2", "https://p/2", "s2", Genre.paper, NOW - timedelta(hours=1)),
+        _ni("p3", "https://p/3", "s3", Genre.paper, NOW - timedelta(hours=2)),
+    ]
+    res = score(items, cfg, _ctx())
+    assert res.selected_items == res.all_scored[:2]  # 行为跟恢复前完全一致
+
+
 # Case 3 (spec §9.3): recency bands
 def test_golden_recency_bands():
     items = [

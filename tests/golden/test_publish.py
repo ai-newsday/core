@@ -39,6 +39,7 @@ def _ri(
     eligible=True,
     is_explore=False,
     status="ok",
+    image_url=None,
 ):
     return ReviewedItem(
         title_en="X released",
@@ -53,6 +54,7 @@ def _ri(
         score=score,
         score_breakdown={"机构影响力": float(score)},
         is_explore=is_explore,
+        image_url=image_url,
         title=title,
         body=body,
         tags=tags if tags is not None else ["#a", "#b", "#c"],
@@ -301,7 +303,7 @@ def test_render_markdown_full():
     assert "> 看点。" in md
     assert "今日看点" not in md
     # 2026-08-05 结构: 条目顺读, 无 genre 大分类标题, 链接收到文末参考章节
-    assert "### GLM-5 发布" in md
+    assert "## GLM-5 发布" in md
     assert "开源 MoE。" in md
     assert "## 模型" not in md  # 大分类标题已去掉
     assert "[1](https://a/1)" not in md  # 正文里不出现裸链接
@@ -439,7 +441,7 @@ def test_render_markdown_below_floor_item_absent_and_leaves_no_gap():
     ]
     md = render_markdown(build_report(_rr(items), "2026-05-30", CFG), CFG)
     assert "论文A" not in md
-    assert "### 模型B" in md
+    assert "## 模型B" in md
     assert "\n[1]\n" in md  # 编号从 1 起, 不因被砍条目跳号
     assert "1. [模型B](https://a/2)" in md.split("## 参考链接")[1]
 
@@ -535,7 +537,7 @@ def test_publish_markdown_snapshot():
     assert "数据概览" not in res.markdown
     assert "## 论文" not in res.markdown  # 2026-08-05: 去掉 genre 大分类标题
     assert "## 模型" not in res.markdown
-    assert "### GLM-5 发布" in res.markdown
+    assert "## GLM-5 发布" in res.markdown
     assert "低分新闻" not in res.markdown  # below floor
     assert "## 参考链接" in res.markdown
     # 条目顺序仍按 genre_labels 键序(paper 在 model 前), 所以 88 分那条(model)拿 [2]
@@ -565,6 +567,44 @@ def test_missing_generated_title_falls_back_to_the_dated_one():
     )
     assert 'title: "AI Daily · 2026-05-30"' in res.markdown
     assert "# AI Daily · 2026-05-30" in res.markdown
+
+
+def test_item_headings_are_h2():
+    """2026-09-02 用户要求: 小标题改用二级标题(##), 与文末"## 参考链接"同级。"""
+    res = publish(
+        _rr([_ri("https://a/1", score=80, title="示例标题")], daily_take="看点。"),
+        "2026-05-30",
+        CFG,
+        _ctx(),
+    )
+    assert "## 示例标题" in res.markdown
+    assert "### 示例标题" not in res.markdown
+
+
+def test_item_with_image_url_renders_image_line_after_heading():
+    res = publish(
+        _rr(
+            [_ri("https://a/1", score=80, title="配图条目", image_url="https://x/pic.png")],
+            daily_take="看点。",
+        ),
+        "2026-05-30",
+        CFG,
+        _ctx(),
+    )
+    assert "## 配图条目\n\n![](https://x/pic.png)\n\n正文一段。" in res.markdown
+
+
+def test_item_without_image_url_renders_no_image_line():
+    """spec 2026-08-31-per-item-images-design: 抓不到图就留白, 不留占位符/空行——
+    没有图不该在标题和正文之间多出任何东西。"""
+    res = publish(
+        _rr([_ri("https://a/1", score=80, title="无图条目")], daily_take="看点。"),
+        "2026-05-30",
+        CFG,
+        _ctx(),
+    )
+    assert "## 无图条目\n\n正文一段。" in res.markdown
+    assert "![](" not in res.markdown
 
 
 def test_no_score_in_rendered_items():
@@ -869,7 +909,7 @@ def test_body_without_dollar_is_untouched():
         _ctx(),
     )
     assert "成本约 6900 美元。" in res.markdown
-    assert "\\" not in res.markdown.split("## 参考链接")[0].split("### ")[1]
+    assert "\\" not in res.markdown.split("## 参考链接")[0].split("## ")[1]
 
 
 def test_build_report_drops_items_with_empty_body():

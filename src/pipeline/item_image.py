@@ -10,8 +10,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from urllib.parse import urljoin
+
+from src.core.types import ItemImageConfig, RunContext, ScoredItem
+from src.observability.events import emit
 
 # og:image 的两种属性顺序都要认: content 可能在 property/name 之前或之后
 _OG_ATTR_FIRST = re.compile(
@@ -82,3 +86,90 @@ def extract_image(html: str, url: str) -> str | None:
         cands = extract_image_candidates(html, url)
         return cands[0] if cands else None
     return _og_image(html)
+
+
+_ARXIV_ID_RE = re.compile(r"papers/([\d.]+)")
+
+
+def _arxiv_html_urls(link: str) -> list[str]:
+    """hf-papers 的 link 形如 https://huggingface.co/papers/<id>; 论文正文页在
+    arXiv 而不是 HF——HF 页面的 og:image 是三篇共用的渐变占位图(spec 已验证)。
+    版本号大多是 v1, 但有论文只发过 v2, 两个都试。"""
+    m = _ARXIV_ID_RE.search(link)
+    if not m:
+        return []
+    pid = m.group(1)
+    return [f"https://arxiv.org/html/{pid}v1", f"https://arxiv.org/html/{pid}v2"]
+
+
+async def _resolve_one(item: ScoredItem, client, config: ItemImageConfig, ctx: RunContext) -> None:
+    """给单个条目找一张能真正打开的图, 写进 item.image_url; 找不到就保持 None。
+    任何异常都不外抛——一条抓图失败绝不能连累其它条目或整个 tick。"""
+    try:
+        if item.adapter in config.skip_adapters:
+            return
+        if item.adapter in config.news_media_adapters and not config.allow_news_media:
+            return
+        route = image_source_for(item.adapter or "")
+        if route is None:
+            return
+
+        candidates: list[str] = []
+        if route == "arxiv":
+            for arxiv_url in _arxiv_html_urls(item.link):
+                html = await client.fetch_html(arxiv_url)
+                if html:
+                    candidates = extract_image_candidates(html, arxiv_url)
+                    if candidates:
+                        break
+            # 没有 arXiv HTML 版 -> 留白, 不回退到 HF 页面的渐变占位图(spec 决定)
+        else:
+            html = await client.fetch_html(item.link)
+            if html:
+                img = _og_image(html)
+                if img:
+                    candidates = [img]
+
+        for cand in candidates:
+            # 找到 URL 和拿到图是两回事: 候选可能是死链或畸形拼接, 必须真的校验
+            # 打得开才写进 image_url(2026-09-01 实测踩过这个坑)。
+            if await client.check_image(cand):
+                item.image_url = cand
+                return
+    except Exception as e:
+        emit(
+            ctx.logger,
+            "item_image_error",
+            link=item.link,
+            error_type=type(e).__name__,
+            error=str(e)[:200],
+        )
+
+
+async def enrich_item_images(
+    items: list[ScoredItem], client, config: ItemImageConfig, ctx: RunContext
+) -> list[ScoredItem]:
+    """给每条最终发布条目配一张来自原文页面的图 (spec 2026-08-31-per-item-images-design)。
+
+    只该对最终发布的条目跑(由调用方保证, 如 tick.py 在 build_report() 之后),
+    不对发卡池全量跑——最终只发几条, 全池抓图是几倍浪费。
+
+    抓不到/校验不通过 -> image_url 留 None, 条目照常发布, 绝不因为没图卡住或
+    剔除条目; found/failed 分开计数, 避免"这批源本来就没图"和"抓取全挂了"
+    在日志上看着一样(#119 storylink 已经踩过这个坑)。"""
+    emit(ctx.logger, "item_image_start", input_count=len(items), enabled=config.enabled)
+    if not config.enabled or not items:
+        emit(ctx.logger, "item_image_done", found=0, failed=0)
+        return items
+
+    sem = asyncio.Semaphore(max(1, config.concurrency))
+
+    async def _bounded(item: ScoredItem) -> None:
+        async with sem:
+            await _resolve_one(item, client, config, ctx)
+
+    await asyncio.gather(*(_bounded(it) for it in items))
+
+    found = sum(1 for it in items if it.image_url)
+    emit(ctx.logger, "item_image_done", found=found, failed=len(items) - found)
+    return items

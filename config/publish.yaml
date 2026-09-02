@@ -10,6 +10,7 @@ adapter_quota: {github_releases: 2, github_trending: 1}  # 按采集渠道封顶
 story_merge_max_support: 3               # 故事线合并: 每组最多附带几个"已支持"平台提及(spec 2026-08-28)
 story_merge_support_template: "\n\n目前已知 {names} 等平台跟进支持。"  # 故事线合并支持平台提及文案模板(spec 2026-08-28)
 total_limit: 12                          # 刊物总条目硬上限(2026-07-24: 11→12, 对齐用户定的量级; X 走独立保底通道见 reserved_quota, 不占这里的 genre 配额)
+reserved_quota: {x_list: 4}              # X 保底 4 条(2026-07-25 PR #76 原始设定, 2026-09-02 用户确认维持原值)
 genre_labels:                            # genre → 中文展示名(键顺序=组间顺序)
   paper: "论文"
   model: "模型"

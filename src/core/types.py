@@ -184,6 +184,12 @@ class ScoringConfig:
     popularity_cap: float = 15.0  # 单条最高加 15 分, 防异常超大数值
     # 发卡候选池: 按 score 取 top-N 进 interpret(成本上界)。per-genre 配额/总量已移到 PublishConfig。
     card_pool_limit: int = 25
+    # 按 adapter 在发卡池里保底 top-N(实测 2026-09-02: card_pool_limit 是纯按分数的
+    # 硬切, X announcement 类目分数上限低于论文/模型的长尾, 181 条 X 候选中位分 71
+    # 高于非 X 的 62, 却只有 2 条挤进发卡池——用户根本没机会在 TG 里看到、审阅其余
+    # 179 条。空 dict = 不保底, 维持现状。PublishConfig.reserved_quota 是同名机制
+    # 在发布层的姊妹字段, 两处都要配置才能既让 X 进审阅、又让 X 进最终报告。)
+    card_pool_reserved_quota: dict[str, int] = field(default_factory=dict)
     sources_registry_path: str = "config/sources.yaml"
     topic_keywords: list[str] = field(default_factory=list)
     topic_bonus: float = 5.0
@@ -271,6 +277,9 @@ class InterpretConfig:
     min_evidence: int = 1
     item_prompt_path: str = "src/prompts/interpret_item.md"
     daily_prompt_path: str = "src/prompts/daily_take.md"
+    # 只对最终发布条目里仍是 extractive_fallback 的做纯翻译, 不解读不补充信息
+    # (2026-09-02 用户要求: 英文回退条目对公众号读者不友好, 但不能借机编造)
+    translate_fallback_prompt_path: str = "src/prompts/translate_fallback.md"
 
 
 @dataclass
@@ -406,6 +415,10 @@ class PublishConfig:
     adapter_quota: dict[str, int] = field(
         default_factory=dict
     )  # 按采集渠道封顶(spec §5), 不占用 genre 配额名额
+    # 按采集渠道保底(方向与 adapter_quota 相反, PR #76): 指定 adapter 的 top-N 直接进,
+    # 不跟其它 genre 抢 apply_quota 的配额名额。2026-09-02 恢复(曾在未留痕迹的重构中
+    # 连代码带配置一起消失, 只剩这条注释的姊妹条目还在)。
+    reserved_quota: dict[str, int] = field(default_factory=dict)
     story_merge_max_support: int = (
         3  # 故事线合并: 每组最多附带几个"已支持"平台提及(spec 2026-08-28)
     )
@@ -504,6 +517,25 @@ class HFReadmeConfig:
 
 
 @dataclass
+class ItemImageConfig:
+    """逐条配图(spec 2026-08-31-per-item-images-design)。只对最终发布条目跑
+    (由 tick.py 在 build_report() 之后调用), 不对发卡池全量跑——最终只发
+    几条, 全池抓图是几倍浪费。抓不到/校验不通过 -> image_url 留 None, 条目
+    照常发布, 绝不因为没图卡住或剔除条目。"""
+
+    enabled: bool = True
+    timeout_s: int = 8
+    concurrency: int = 5
+    # GitHub 的 og:image 是自动生成的仓库卡片, 每条同构、零信息量——留白比放它好
+    skip_adapters: list[str] = field(default_factory=lambda: ["github_releases", "github_trending"])
+    # 新闻媒体的 og:image 是有版权的新闻摄影, 默认不取(风险类问题, 不是缺陷类问题);
+    # 用户可自行开启, 不是本层能替用户做的判断
+    allow_news_media: bool = False
+    news_media_adapters: list[str] = field(default_factory=list)
+    max_bytes: int = 2_000_000  # 实测 arXiv 图有到 1.6MB 的
+
+
+@dataclass
 class EnrichConfig:
     """RSS 类源天然无 popularity, 用 HN Algolia by URL 反查补 signals.hn_*。"""
 
@@ -514,6 +546,7 @@ class EnrichConfig:
     skip_genres: list[str] = field(default_factory=lambda: ["paper", "model"])
     release_importance: ReleaseImportanceConfig = field(default_factory=ReleaseImportanceConfig)
     hf_readme: HFReadmeConfig = field(default_factory=HFReadmeConfig)
+    item_image: ItemImageConfig = field(default_factory=ItemImageConfig)
 
 
 @dataclass

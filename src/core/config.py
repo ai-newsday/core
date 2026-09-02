@@ -67,6 +67,7 @@ def load_scoring_config(path: str) -> ScoringConfig:
         popularity_weights=data.get("popularity_weights", d.popularity_weights),
         popularity_cap=data.get("popularity_cap", d.popularity_cap),
         card_pool_limit=data.get("card_pool_limit", d.card_pool_limit),
+        card_pool_reserved_quota=data.get("card_pool_reserved_quota", d.card_pool_reserved_quota),
         sources_registry_path=data.get("sources_registry_path", d.sources_registry_path),
         topic_keywords=data.get("topic_boost", {}).get("keywords", d.topic_keywords),
         topic_bonus=data.get("topic_boost", {}).get("bonus", d.topic_bonus),
@@ -135,6 +136,9 @@ def load_interpret_config(path: str) -> InterpretConfig:
         min_evidence=data.get("min_evidence", d.min_evidence),
         item_prompt_path=data.get("item_prompt_path", d.item_prompt_path),
         daily_prompt_path=data.get("daily_prompt_path", d.daily_prompt_path),
+        translate_fallback_prompt_path=data.get(
+            "translate_fallback_prompt_path", d.translate_fallback_prompt_path
+        ),
     )
 
 
@@ -197,6 +201,7 @@ def load_publish_config(path: str) -> PublishConfig:
         total_limit=data.get("total_limit", d.total_limit),
         genre_labels=data.get("genre_labels", d.genre_labels),
         adapter_quota=data.get("adapter_quota", d.adapter_quota),
+        reserved_quota=data.get("reserved_quota", d.reserved_quota),
         timezone=data.get("timezone", d.timezone),
         story_merge_max_support=data.get("story_merge_max_support", d.story_merge_max_support),
         story_merge_support_template=data.get(
@@ -210,6 +215,7 @@ def load_enrich_config(path: str) -> EnrichConfig:
     缺文件 -> 默认。"""
     from src.core.types import (  # local import to avoid cycles
         HFReadmeConfig,
+        ItemImageConfig,
         ProviderSpec,
         ReleaseImportanceConfig,
     )
@@ -249,6 +255,17 @@ def load_enrich_config(path: str) -> EnrichConfig:
         min_body_chars=hr_data.get("min_body_chars", hr_d.min_body_chars),
         max_body_chars=hr_data.get("max_body_chars", hr_d.max_body_chars),
     )
+    ii_data = data.get("item_image", {})
+    ii_d = ItemImageConfig()
+    item_image = ItemImageConfig(
+        enabled=ii_data.get("enabled", ii_d.enabled),
+        timeout_s=ii_data.get("timeout_s", ii_d.timeout_s),
+        concurrency=ii_data.get("concurrency", ii_d.concurrency),
+        skip_adapters=ii_data.get("skip_adapters", ii_d.skip_adapters),
+        allow_news_media=ii_data.get("allow_news_media", ii_d.allow_news_media),
+        news_media_adapters=ii_data.get("news_media_adapters", ii_d.news_media_adapters),
+        max_bytes=ii_data.get("max_bytes", ii_d.max_bytes),
+    )
     return EnrichConfig(
         enabled=data.get("enabled", d.enabled),
         concurrency=data.get("concurrency", d.concurrency),
@@ -256,6 +273,7 @@ def load_enrich_config(path: str) -> EnrichConfig:
         skip_genres=data.get("skip_genres", d.skip_genres),
         release_importance=release_importance,
         hf_readme=hf_readme,
+        item_image=item_image,
     )
 
 

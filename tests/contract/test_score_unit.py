@@ -6,6 +6,7 @@ from src.pipeline.score import (
     _topic_relevance,
     apply_adapter_quota,
     apply_quota,
+    apply_reserved_quota,
     compute_scores,
     recency_band,
 )
@@ -428,3 +429,74 @@ def test_firehose_penalty_demotes_individual_zero_signal():
     assert by["https://x/2"].score_breakdown["惩罚"] == 0.0
     assert by["https://x/3"].score_breakdown["惩罚"] == 0.0
     assert by["https://x/4"].score_breakdown["惩罚"] == 0.0
+
+
+def test_apply_reserved_quota_takes_top_n_by_adapter_regardless_of_genre():
+    """回归(2026-09-02): X 保底通道(PR #76, 2c3f40a)在某次重构中连代码带配置整个
+    消失了, 只剩 publish.yaml 里一句指向它的孤立注释——发卡池 top-50 硬切下,
+    X 中位分(71)其实高于非 X(62), 但因为 X 类目分数上限被高分论文/模型的
+    长尾压过, 真实数据里 181 条 X 候选只有 2 条挤进最终 50 条(实测 2026-09-02)。"""
+    ctx = _ctx()
+    scored = _scored_list_with_adapter(
+        ctx,
+        ("x1", "https://x/1", "s1", Genre.announcement, NOW, "x_list"),
+        ("x2", "https://x/2", "s2", Genre.announcement, NOW, "x_list"),
+        ("x3", "https://x/3", "s3", Genre.announcement, NOW, "x_list"),
+        ("p1", "https://p/1", "s4", Genre.paper, NOW, "hf_papers"),
+    )
+    reserved, remaining = apply_reserved_quota(scored, {"x_list": 2})
+    assert len(reserved) == 2
+    assert {r.adapter for r in reserved} == {"x_list"}
+    # 未中选的 X 条目回到 remaining, 仍有资格参与后续 genre 配额竞争(没进保底不等于没资格)
+    remaining_adapters = {r.adapter for r in remaining}
+    assert "x_list" in remaining_adapters
+    assert len(remaining) == 2  # 1 条 x_list 落选 + 1 条 hf_papers
+
+
+def test_apply_reserved_quota_picks_highest_scored_within_adapter():
+    ctx = _ctx()
+    fresh = NOW
+    stale = NOW - timedelta(hours=100)
+    scored = _scored_list_with_adapter(
+        ctx,
+        ("x1", "https://x/1", "s1", Genre.announcement, fresh, "x_list"),
+        ("x2", "https://x/2", "s2", Genre.announcement, stale, "x_list"),
+    )
+    reserved, remaining = apply_reserved_quota(scored, {"x_list": 1})
+    assert [r.link for r in reserved] == ["https://x/1"]  # fresher/higher score wins
+    assert [r.link for r in remaining] == ["https://x/2"]
+
+
+def test_apply_reserved_quota_empty_dict_returns_unchanged():
+    ctx = _ctx()
+    scored = _scored_list_with_adapter(ctx, ("a", "https://a/1", "s1", Genre.writeup, NOW, "rss"))
+    reserved, remaining = apply_reserved_quota(scored, {})
+    assert reserved == []
+    assert remaining == scored
+
+
+def test_apply_reserved_quota_unlisted_adapter_is_untouched():
+    ctx = _ctx()
+    scored = _scored_list_with_adapter(ctx, ("a", "https://a/1", "s1", Genre.writeup, NOW, "rss"))
+    reserved, remaining = apply_reserved_quota(scored, {"x_list": 4})
+    assert reserved == []
+    assert remaining == scored
+
+
+def test_apply_reserved_quota_fewer_available_than_n_takes_all():
+    ctx = _ctx()
+    scored = _scored_list_with_adapter(
+        ctx, ("x1", "https://x/1", "s1", Genre.announcement, NOW, "x_list")
+    )
+    reserved, remaining = apply_reserved_quota(scored, {"x_list": 4})
+    assert len(reserved) == 1
+    assert remaining == []
+
+
+def test_production_config_has_card_pool_reserved_quota_for_x():
+    """2026-09-02 恢复(见 test_publish_config.py 的姊妹测试): 发卡池那层的保底,
+    跟 PublishConfig.reserved_quota 是同一个机制在两个不同截断点的应用。"""
+    from src.core.config import load_scoring_config
+
+    cfg = load_scoring_config("config/scoring.yaml")
+    assert cfg.card_pool_reserved_quota == {"x_list": 20}

@@ -16,7 +16,7 @@ from src.core.types import (
 )
 from src.observability.events import emit
 from src.pipeline.interpret import _trim_to_sentence
-from src.pipeline.score import apply_adapter_quota, apply_quota
+from src.pipeline.score import apply_adapter_quota, apply_quota, apply_reserved_quota
 
 
 def select_must_read(items: list[ReviewedItem], config: PublishConfig) -> list[ReviewedItem]:
@@ -166,8 +166,16 @@ def build_report(
     items = merge_story_groups(
         items, config.story_merge_max_support, config.story_merge_support_template
     )
-    # per-genre 配额 + total_limit: 人 keep 之后对 kept 集合施加(组成控制, 复用 score 纯函数)
-    items, _ = apply_quota(items, config.quota, config.total_limit)
+    # 采集渠道保底(与上面 apply_adapter_quota 方向相反, PR #76 / 2026-09-02 恢复):
+    # 指定 adapter 的 top-N 直接进, 不跟其它 genre 抢 apply_quota 的配额名额——
+    # X 类目分数上限低于论文/模型的长尾, 361 candidates 挤 50 个发卡池名额时会被
+    # 高分内容整体压没(实测 2026-09-02: 181 条 X 候选、中位分 71, 高于非 X 的 62,
+    # 却只有 2 条挤进最终池)。
+    reserved, items = apply_reserved_quota(items, config.reserved_quota)
+    # per-genre 配额 + total_limit: 人 keep 之后对 kept 集合施加(组成控制, 复用 score 纯函数);
+    # total_limit 扣掉保底已占的名额, 保证刊物总数仍不超过配置值
+    items, _ = apply_quota(items, config.quota, max(config.total_limit - len(reserved), 0))
+    items = sorted(reserved + items, key=lambda it: (-it.score, it.published_at, it.link))
     return DailyReport(
         date_label=date_label,
         daily_take=review_result.daily_take,
@@ -215,8 +223,13 @@ def _render_items(report: DailyReport) -> tuple[list[str], list[tuple[str, str]]
 
     for cat in report.categories:
         for it in cat.items:
-            lines.append(f"### {it.title}")
+            # 2026-09-02 用户改用二级标题(##): 与文末"## 参考链接"同级, 便于
+            # doocs/md 等公众号排版工具按标题层级套用统一样式。
+            lines.append(f"## {it.title}")
             lines.append("")
+            if it.image_url:
+                lines.append(f"![]({it.image_url})")
+                lines.append("")
             lines.append(_escape_math_delimiters(it.body))
             lines.append("")
             if it.tags:
@@ -303,24 +316,12 @@ def render_markdown(report: DailyReport, config: PublishConfig) -> str:
     return "\n".join(lines)
 
 
-def publish(
-    review_result: ReviewResult, date_label: str, config: PublishConfig, ctx: RunContext
-) -> PublishResult:
-    """编排: 空→静默; 否则组装内容模型并渲染 Markdown。无网络/LLM/渠道副作用。"""
-    items = review_result.reviewed_items
-    emit(ctx.logger, "publish_start", run_id=ctx.run_id, input_count=len(items))
-    report = build_report(review_result, date_label, config)
-    if not items:
-        emit(
-            ctx.logger,
-            "publish_done",
-            item_count=0,
-            is_pending=report.is_pending,
-            silent=True,
-        )
-        return PublishResult(
-            report=report, markdown="", is_pending=report.is_pending, is_silent=True
-        )
+def render(report: DailyReport, config: PublishConfig, ctx: RunContext) -> PublishResult:
+    """跟 publish() 共享的"渲染非空报告"步骤, 拆出来是为了让调用方能在
+    build_report() 之后、真正渲染 Markdown 之前插入修改——比如 #139 用配额筛选后
+    的最终条目重新生成标题/摘要、逐条配图——而不必让 publish() 重新跑一遍
+    build_report() 把这些修改冲掉。只用于已知非空(item 数量已由调用方保证)的
+    报告; 空报告的静默短路仍由 publish() 处理。"""
     emit(
         ctx.logger,
         "report_built",
@@ -341,3 +342,24 @@ def publish(
     return PublishResult(
         report=report, markdown=markdown, is_pending=report.is_pending, is_silent=False
     )
+
+
+def publish(
+    review_result: ReviewResult, date_label: str, config: PublishConfig, ctx: RunContext
+) -> PublishResult:
+    """编排: 空→静默; 否则组装内容模型并渲染 Markdown。无网络/LLM/渠道副作用。"""
+    items = review_result.reviewed_items
+    emit(ctx.logger, "publish_start", run_id=ctx.run_id, input_count=len(items))
+    report = build_report(review_result, date_label, config)
+    if not items:
+        emit(
+            ctx.logger,
+            "publish_done",
+            item_count=0,
+            is_pending=report.is_pending,
+            silent=True,
+        )
+        return PublishResult(
+            report=report, markdown="", is_pending=report.is_pending, is_silent=True
+        )
+    return render(report, config, ctx)

@@ -356,3 +356,58 @@ def interpret(
         fallback_count=fallback_count,
         is_silent=False,
     )
+
+
+def translate_fallback_item(
+    item: InterpretedItem, template: str, llm, config: InterpretConfig, logger=None
+) -> None:
+    """给一条 extractive_fallback 条目做纯语言翻译, 原地修改 title/body。
+
+    只翻译不解读、不补充信息——跟其它字段(tags/evidence/interpretation_status)
+    一律不动, 这条本来就是"解读失败"的产物, 翻译不该让它看起来像被解读过了。
+    任何失败(LLM 报错/非 JSON/空字段)保留英文原文, 不阻塞发布——同
+    generate_daily_head 的 fail-closed 原则(2026-09-02 用户要求)。"""
+    if item.interpretation_status != "extractive_fallback":
+        return
+    try:
+        prompt = template.replace("{{title_en}}", item.title_en).replace("{{body_en}}", item.body)
+        raw = llm.complete_json(
+            prompt, temperature=config.temperature, max_tokens=config.max_tokens
+        )
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError("translate output is not a JSON object")
+        title = data.get("title")
+        body = data.get("body")
+        if (
+            not isinstance(title, str)
+            or not title.strip()
+            or not isinstance(body, str)
+            or not body.strip()
+        ):
+            raise ValueError("title/body missing or not a non-empty string")
+        item.title = title.strip()[: config.title_max_chars]
+        item.body = _trim_to_sentence(body.strip(), config.body_max_chars)
+    except Exception as e:
+        if logger is not None:
+            emit(
+                logger,
+                "translate_fallback_error",
+                link=item.link,
+                error_type=type(e).__name__,
+                error=str(e)[:200],
+            )
+
+
+def translate_fallback_items(
+    items: list[InterpretedItem], config: InterpretConfig, llm, logger=None
+) -> None:
+    """对列表里所有仍是 extractive_fallback 的条目做翻译(原地修改)。只该在最终
+    发布条目上调用(如 tick.py 在 build_report() 之后), 不对发卡池全量跑——
+    最终只发几条, 全池翻译是几倍浪费, 跟逐条配图(#124)同一个道理。"""
+    template = load_prompt(config.translate_fallback_prompt_path)
+    targets = [it for it in items if it.interpretation_status == "extractive_fallback"]
+    for item in targets:
+        translate_fallback_item(item, template, llm, config, logger=logger)
+    if logger is not None:
+        emit(logger, "translate_fallback_done", attempted=len(targets))
