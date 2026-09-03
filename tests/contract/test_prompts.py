@@ -104,3 +104,22 @@ def test_interpret_prompt_requires_chinese_body():
     """2026-09-01 实测: 正文里混着未翻译的 `practitioners`。"""
     t = load_prompt("src/prompts/interpret_item.md")
     assert "专有名词" in t or "术语" in t
+
+
+def test_daily_take_prompt_targets_three_events_in_title():
+    """2026-09-03 用户要求: 标题目标 3 个事件(原为默认 2 个)。"""
+    t = load_prompt("src/prompts/daily_take.md")
+    assert "3 个事件" in t
+
+
+def test_daily_take_prompt_lets_title_degrade_when_too_long():
+    """字数是硬约束, 事件数量必须服从字数, 不能反过来——不然"3 个事件"会
+    直接顶替"≤64 字"变成新的失败模式(3 个事件比 2 个更难塞进 64 字)。"""
+    t = load_prompt("src/prompts/daily_take.md")
+    assert "砍成" in t or "少放" in t or "少写" in t
+
+
+def test_daily_take_prompt_targets_four_to_five_events_in_digest():
+    """2026-09-03 用户要求: 摘要目标 4-5 个事件(原为 2-3 段)。"""
+    t = load_prompt("src/prompts/daily_take.md")
+    assert "4-5 段" in t or "4-5 个" in t
