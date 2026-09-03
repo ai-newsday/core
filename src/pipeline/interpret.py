@@ -229,22 +229,38 @@ def plain_title(date_label: str) -> str:
     return f"AI Daily · {date_label}"
 
 
-def enforce_title(title: str, date_label: str) -> str:
+def enforce_title(title: str, date_label: str, logger=None) -> str:
     """标题必须 ≤64 字且带固定后缀; 不合规就回退成朴素标题。
 
-    刻意不截断: 截断会切掉 `【AI日报】` 后缀, 留下半截标题, 比朴素标题更糟。"""
+    刻意不截断: 截断会切掉 `【AI日报】` 后缀, 留下半截标题, 比朴素标题更糟。
+
+    回退时记一条 daily_title_rejected 事件, 带具体原因和被拒的原文
+    (2026-09-02/03 生产两次撞见 title_generated: false 却查不出 LLM 到底
+    返回了什么、卡在哪个条件——静默回退等于把这个问题焊死成永远查不出来)。"""
     t = (title or "").strip()
-    if not t or not t.endswith(_TITLE_SUFFIX) or len(t) > _TITLE_MAX:
-        return plain_title(date_label)
-    return t
+    if not t:
+        reason = "empty"
+    elif not t.endswith(_TITLE_SUFFIX):
+        reason = "missing_suffix"
+    elif len(t) > _TITLE_MAX:
+        reason = "over_length"
+    else:
+        return t
+    if logger is not None:
+        emit(logger, "daily_title_rejected", reason=reason, length=len(t), raw=t[:120])
+    return plain_title(date_label)
 
 
-def enforce_digest(digest: str) -> str:
+def enforce_digest(digest: str, logger=None) -> str:
     """摘要截到 ≤120 字的句末。
 
     长度必须在代码里卡: 2026-08-31 spike 实测, prompt 明写"必须 ≤120 字",
     模型仍产出 145 字——prompt 约不住长度。"""
-    return _trim_to_sentence((digest or "").strip(), _DIGEST_MAX)
+    d = (digest or "").strip()
+    out = _trim_to_sentence(d, _DIGEST_MAX)
+    if not out and d and logger is not None:
+        emit(logger, "daily_digest_rejected", reason="empty_after_trim", raw=d[:120])
+    return out
 
 
 def generate_daily_head(
@@ -257,7 +273,12 @@ def generate_daily_head(
 ) -> tuple[str, str | None]:
     """一次 LLM 调用同时产出公众号标题与摘要 (spec 2026-08-31-wechat-format-design)。
 
-    任何失败 -> (朴素标题, None), 不编造。"""
+    任何失败 -> (朴素标题, None), 不编造。
+
+    标题不合规(超字数/缺后缀)时重试一次, 要求模型自己精简——2026-09-03 实测:
+    "目标 3 个事件, 塞不下就退化"这条指令模型基本不会主动执行, 一次性写到
+    64 字上限两倍的情况很常见; 靠 prompt 文字自觉不够, 得代码层面强制再要一次。
+    重试仍不合规就老实回退, 不无限重试(成本可控: 只在第一次不合规时多花一次调用)。"""
     try:
         prompt = build_daily_prompt(items, daily_template)
         raw = llm.complete_json(
@@ -270,7 +291,31 @@ def generate_daily_head(
         digest = data.get("digest")
         if not isinstance(title, str) or not isinstance(digest, str):
             raise ValueError("title/digest missing or not a string")
-        return enforce_title(title, date_label), (enforce_digest(digest) or None)
+
+        enforced_title = enforce_title(title, date_label)
+        if enforced_title == plain_title(date_label) and title.strip():
+            retry_prompt = (
+                prompt
+                + "\n\n(上一次给出的 title 不合规——超过 64 字, 或缺少【AI日报】后缀。"
+                + "请只重写 title, 精简事件数量或措辞, 严格 ≤64 字且以【AI日报】结尾；"
+                + "digest 不变。仍输出同样的 JSON 结构。)"
+            )
+            try:
+                raw2 = llm.complete_json(
+                    retry_prompt, temperature=config.temperature, max_tokens=config.max_tokens
+                )
+                data2 = json.loads(raw2)
+                if isinstance(data2, dict) and isinstance(data2.get("title"), str):
+                    enforced_title = enforce_title(data2["title"], date_label, logger=logger)
+                else:
+                    enforced_title = enforce_title(title, date_label, logger=logger)
+            except Exception:
+                enforced_title = enforce_title(title, date_label, logger=logger)
+
+        return (
+            enforced_title,
+            (enforce_digest(digest, logger=logger) or None),
+        )
     except Exception as e:
         if logger is not None:
             emit(logger, "daily_head_error", error_type=type(e).__name__, error=str(e)[:200])
