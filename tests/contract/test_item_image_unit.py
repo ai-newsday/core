@@ -134,3 +134,61 @@ def test_papers_dispatch_to_arxiv():
 
 def test_unknown_adapter_falls_back_to_og():
     assert image_source_for("some_blog_rss") == "og"
+
+
+# 2026-09-04 生产实测的真实 arXiv 标记(2609.02749v1, DisCo)。作者邮箱旁边有个
+# 14x14 的仓库图标, 排在真插图前面 —— 名字里既没有 "logo" 也不在 /static/ 下,
+# 名字黑名单挡不住; 体积也挡不住(实测 101KB, 比同批真插图 dart_fig2.png 的 38KB
+# 还大)。能区分的是标签自带的尺寸: 14 对 476。
+ARXIV_HTML_TINY_ICON_FIRST = """
+<html><body>
+<p>Correspondence: someone@example.edu
+<img src="2609.02749v1/figures/repo-mark.png" id="p1.g1" class="ltx_graphics"
+     style="aspect-ratio:14/14;" width="14" height="14" alt="[Uncaptioned image]"></p>
+<figure id="S0.F1" class="ltx_figure">
+<img src="2609.02749v1/intro.png" id="S0.F1.g1" class="ltx_graphics"
+     style="aspect-ratio:476/184;" width="476" height="184" alt="Refer to caption">
+</figure>
+</body></html>
+"""
+
+ARXIV_HTML_NO_DIMENSIONS = """
+<html><body><figure><img src="teaser.png" alt="Refer to caption"></figure></body></html>
+"""
+
+
+def test_arxiv_skips_tiny_inline_icons():
+    """回归(2026-09-04 生产): DisCo 那条配图配成了论文里 14x14 的仓库图标。"""
+    url = "https://arxiv.org/html/2609.02749v1"
+    cands = extract_image_candidates(ARXIV_HTML_TINY_ICON_FIRST, url)
+    assert cands, "跳过图标后应当继续找到真插图"
+    assert all("repo-mark" not in c for c in cands)
+    assert any(c.endswith("intro.png") for c in cands)
+
+
+def test_arxiv_keeps_images_that_declare_no_size():
+    """没有 width/height 属性时无从判断——放行, 别为了挡图标反而丢掉真插图。"""
+    cands = extract_image_candidates(ARXIV_HTML_NO_DIMENSIONS, "https://arxiv.org/html/2608.1v1")
+    assert any(c.endswith("teaser.png") for c in cands)
+
+
+HF_MODEL_SOCIAL_CARD = """
+<html><head><meta property="og:image"
+ content="https://cdn-thumbnails.huggingface.co/social-thumbnails/models/IFM/K2-Horizon.png">
+</head></html>
+"""
+
+
+def test_hf_model_social_thumbnail_is_rejected():
+    """HF 模型页的 og:image 是自动生成的模板卡: 渐变底 + 把模型名当图片文字重复一遍,
+    而模型名就是它正上方的标题。跟 spec 已拒掉的 GitHub 仓库卡片同类, 留白更好。
+    (2026-09-04 查过 README 兜底: 三个真实模型里只有一个有真图, 一个没有图,
+    一个只有 shields.io 徽章 —— 抓 README 反而会配出徽章, 不做。)"""
+    assert extract_image(HF_MODEL_SOCIAL_CARD, "https://huggingface.co/IFM/K2-Horizon") is None
+
+
+def test_ordinary_og_image_still_accepted():
+    """挡的是模板卡, 不是所有 og:image。"""
+    assert extract_image(OG_PROPERTY_FIRST, "https://blog.example.com/post") == (
+        "https://cdn.example.com/a.png"
+    )
