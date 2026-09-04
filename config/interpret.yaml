@@ -29,6 +29,11 @@ fallback_models:
   - "modelscope:Qwen/Qwen3.5-397B-A17B"
   - "agnes:agnes-2.0-flash"
 
+# 每条解读是一次独立的 LLM 往返。顺序跑 100 条发卡池实测 40-60 分钟
+# (2026-09-03/04), 并发只压墙钟时间, 调用次数与成本不变。
+# 往上调之前先看 429: 供应商按账号限流, 打太猛会把 fallback 率顶回去。
+concurrency: 4
+
 temperature: 0.3
 # 2026-08-30: 1500 → 4000。agnes 是推理模型, reasoning_tokens 计入 max_tokens 且
 # 波动极大(同一条 prompt 实测 600 / 695 / 1127)。1500 的预算里推理已占 66%
