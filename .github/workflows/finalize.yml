@@ -4,7 +4,9 @@ on:
   schedule:
     # UK 23:00 (BST) 当天结算 → UTC 22:00。报告标"当天"日期, 当天内容进当天报告。
     # 冬令时(GMT)会落在本地 22:00, 仍是当天, 已接受该漂移。
-    - cron: "0 22 * * *"
+    # 分钟取 17 而不是 0: 整点是最挤的排队槽, 实测 09-01/02/03 三天的定时运行都
+    # 迟到约 2 小时(22:00 排到 23:54)。错开热门槽位能明显减少延迟。
+    - cron: "17 22 * * *"
   workflow_dispatch:
 
 jobs:
@@ -58,5 +60,26 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add content/
-          git diff --cached --quiet || git commit -m "chore: finalize draft + metrics $(date -u +%Y-%m-%d)"
-          git push
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore: finalize draft + metrics $(date -u +%Y-%m-%d)"
+          # 这一步跑完时 master 常常已经不是 checkout 时那个了: finalize 要跑几十
+          # 分钟, 期间任何一次合并都会让直推被拒。09-01/02/03 连续三天的定时运行
+          # 全挂在这里(`! [rejected] master -> master (fetch first)`), 草稿之所以
+          # 每天还在, 是因为每晚都有人手动补跑了一次。
+          for i in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+            echo "push rejected (attempt $i); rebasing onto the latest master"
+            git fetch origin master
+            # -X theirs: rebase 时 "theirs" 指正在重放的提交, 也就是本次跑出来的
+            # 草稿。当天的报告文件可能已经被同日另一次运行推上去了(手动补跑正是
+            # 这种情况), 那是同一份文件的两个生成版本, 会真冲突——生成物按"后跑
+            # 的赢"处理, 而不是让整步挂掉。
+            git rebase -X theirs origin/master || { git rebase --abort; exit 1; }
+          done
+          echo "::error::could not push the draft after 3 attempts"
+          exit 1
