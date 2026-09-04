@@ -9,7 +9,9 @@ class Notifier(Protocol):
         """推一张审稿卡片。返回平台 message_id。不支持交互的通道返回 None。"""
         ...
 
-    async def send_final_report(self, markdown: str, summary: dict) -> None:
+    async def send_final_report(
+        self, markdown: str, summary: dict, wechat_markdown: str = ""
+    ) -> None:
         """发送定稿日报。summary = {date_label, item_count, must_read_count}。"""
         ...
 
@@ -24,14 +26,18 @@ class FakeNotifier:
     def __init__(self):
         self.sent_cards: list[tuple[str, dict]] = []
         self.final_report: str | None = None
+        self.final_wechat: str | None = None
         self.reminder_count: int | None = None
 
     async def send_review_card(self, item_id: str, card: dict) -> int | None:
         self.sent_cards.append((item_id, card))
         return len(self.sent_cards)
 
-    async def send_final_report(self, markdown: str, summary: dict) -> None:
+    async def send_final_report(
+        self, markdown: str, summary: dict, wechat_markdown: str = ""
+    ) -> None:
         self.final_report = markdown
+        self.final_wechat = wechat_markdown
 
     async def send_reminder(self, undecided_count: int) -> None:
         self.reminder_count = undecided_count

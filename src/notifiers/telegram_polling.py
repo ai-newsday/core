@@ -94,7 +94,9 @@ class TelegramPollingNotifier:
         )
         return msg.message_id
 
-    async def send_final_report(self, markdown: str, summary: dict) -> None:
+    async def send_final_report(
+        self, markdown: str, summary: dict, wechat_markdown: str = ""
+    ) -> None:
         text = _make_final_message(summary)
         await self._bot.send_message(
             chat_id=self._cfg.chat_id,

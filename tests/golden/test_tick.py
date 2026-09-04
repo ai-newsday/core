@@ -361,3 +361,37 @@ def test_finalize_without_llm_keeps_prior_behavior(tmp_path):
         assert "旧标题【AI日报】" in notifier.final_report
 
     asyncio.run(go())
+
+
+def test_finalize_tick_produces_the_wechat_version_too(tmp_path):
+    """spec 2026-08-31 §1: 流水线要同时产出公众号版, 而不是每天人工从网站版转换。
+
+    转换这一步至今是手工的, 漏目录(2026-09-03)、漏标签清洗、漏摘要都出在那里——
+    出错的每一次都是手工环节, 不是流水线。这条走真实 run_finalize_tick 路径,
+    盯的就是"接线漏了但类型看着没问题"这类静默失效(#130 的教训)。"""
+
+    async def go():
+        db = Database(str(tmp_path / "state.db"))
+        await db.init()
+        notifier = FakeNotifier()
+        items = [_make_item("https://a/1", source="openai", st=Genre.announcement, signals={})]
+        keep_id = hashlib.sha256(b"https://a/1").hexdigest()[:16]
+        await run_finalize_tick(
+            run_id="r-wechat",
+            now=NOW,
+            date_label=TODAY,
+            interpreted_items=items,
+            daily_take="今日亮点：甲发布 X。详见正文，参考链接见文末。",
+            wechat_title="甲发布X【AI日报】",
+            db=db,
+            notifiers=[notifier],
+            decision_store=FakeDecisionStore({keep_id: "keep"}),
+        )
+        w = notifier.final_wechat
+        assert w, "公众号版没产出——接线漏了"
+        assert w.split("\n", 1)[0] == "甲发布X【AI日报】"
+        assert "## 目录" in w
+        assert "draft:" not in w and "RSS · 历史归档" not in w
+        assert "](http" not in w.split("## 参考链接", 1)[1]
+
+    asyncio.run(go())

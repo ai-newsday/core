@@ -200,7 +200,9 @@ def _escape_math_delimiters(text: str) -> str:
     return text.replace("$", "\\$")
 
 
-def _render_items(report: DailyReport) -> tuple[list[str], list[tuple[str, str]]]:
+def _render_items(
+    report: DailyReport, *, separator: bool = False
+) -> tuple[list[str], list[tuple[str, str]]]:
     """条目顺读渲染(2026-08-05 改版)。
 
     去掉 `## {genre}` 大分类标题: 分类对读者没有导航价值, 同一件事被哪个源先抓到就
@@ -221,8 +223,13 @@ def _render_items(report: DailyReport) -> tuple[list[str], list[tuple[str, str]]
         refs.append((label, url))
         return len(refs)
 
+    first = True
     for cat in report.categories:
         for it in cat.items:
+            if separator and not first:
+                lines.append("---")
+                lines.append("")
+            first = False
             # 2026-09-02 用户改用二级标题(##): 与文末"## 参考链接"同级, 便于
             # doocs/md 等公众号排版工具按标题层级套用统一样式。
             lines.append(f"## {it.title}")
@@ -247,12 +254,18 @@ def _render_items(report: DailyReport) -> tuple[list[str], list[tuple[str, str]]
     return lines, refs
 
 
-def _render_references(refs: list[tuple[str, str]]) -> list[str]:
-    """文末参考链接章节。空表不产章节。"""
+def _render_references(refs: list[tuple[str, str]], *, bare_urls: bool = False) -> list[str]:
+    """文末参考链接章节。空表不产章节。
+
+    `bare_urls` 供公众号版: 微信里 Markdown 链接渲染成不可点的彩色文字, 等于
+    把地址藏起来了; 裸 URL 至少能被读者复制 (spec 2026-08-31 §6)。"""
     if not refs:
         return []
     lines = ["## 参考链接", ""]
-    lines += [f"{i}. [{label}]({url})" for i, (label, url) in enumerate(refs, start=1)]
+    if bare_urls:
+        lines += [f"{i}. {label} — {url}" for i, (label, url) in enumerate(refs, start=1)]
+    else:
+        lines += [f"{i}. [{label}]({url})" for i, (label, url) in enumerate(refs, start=1)]
     lines.append("")
     return lines
 
@@ -316,6 +329,61 @@ def render_markdown(report: DailyReport, config: PublishConfig) -> str:
     return "\n".join(lines)
 
 
+def _wechat_report(report: DailyReport) -> DailyReport:
+    """滤掉解读回退的条目 (spec §5)。
+
+    回退条目按定义就是"没解读成功": 标题是英文原文、正文是原始摘要倒灌, 放进
+    公众号就是读者一眼看出来的半成品。#123 把回退率从 44% 压到 2% 之后, 这条
+    代价才小到可接受。
+
+    重新构造一份报告而不是在渲染时跳过, 是为了让目录、正文角标、参考表**共用
+    同一批条目**——三处编号必须一致, 分头过滤迟早对不上号。"""
+    cats = [
+        cat.model_copy(
+            update={
+                "items": [
+                    it for it in cat.items if it.interpretation_status != "extractive_fallback"
+                ]
+            }
+        )
+        for cat in report.categories
+    ]
+    kept = sum(len(c.items) for c in cats)
+    return report.model_copy(update={"categories": cats, "item_count": kept})
+
+
+def render_wechat(report: DailyReport, config: PublishConfig) -> str:
+    """公众号版 Markdown (spec 2026-08-31 §1/§3b/§5/§6)。
+
+    与 `render_markdown()` 同为纯函数、同一个 `DailyReport` 入参, 差异只有四处:
+    不含 front matter / 站点页脚 / H1(粘进 doocs/md 会变成垃圾), 摘要不套引用块,
+    多一段目录, 参考链接用裸 URL。条目正文本身走同一条 `_render_items` 路径——
+    两版分头渲染必然漂移, 而漂移正是这份 md 至今手工转换时反复出错的原因。
+
+    标题放第一行的纯文本: 公众号标题在编辑器的标题栏里, 要能直接复制, 但不该
+    在正文里再重复一个 H1。"""
+    wr = _wechat_report(report)
+    lines: list[str] = []
+    if wr.wechat_title:
+        lines += [wr.wechat_title, ""]
+    if wr.daily_take:
+        lines += [wr.daily_take, ""]
+
+    titles = [it.title for cat in wr.categories for it in cat.items]
+    if titles:
+        lines.append("## 目录")
+        lines.append("")
+        lines += [f"{i}. {t}" for i, t in enumerate(titles, start=1)]
+        lines += ["", "---", ""]
+
+    body_lines, refs = _render_items(wr, separator=True)
+    lines += body_lines
+    if refs:
+        lines += ["---", ""]
+    lines += _render_references(refs, bare_urls=True)
+    return "\n".join(lines).rstrip("\n") + "\n"
+
+
 def render(report: DailyReport, config: PublishConfig, ctx: RunContext) -> PublishResult:
     """跟 publish() 共享的"渲染非空报告"步骤, 拆出来是为了让调用方能在
     build_report() 之后、真正渲染 Markdown 之前插入修改——比如 #139 用配额筛选后
@@ -332,6 +400,7 @@ def render(report: DailyReport, config: PublishConfig, ctx: RunContext) -> Publi
     markdown = (
         render_front_matter(report, config, draft=True) + "\n" + render_markdown(report, config)
     )
+    wechat_markdown = render_wechat(report, config)
     emit(
         ctx.logger,
         "publish_done",
@@ -340,7 +409,11 @@ def render(report: DailyReport, config: PublishConfig, ctx: RunContext) -> Publi
         silent=False,
     )
     return PublishResult(
-        report=report, markdown=markdown, is_pending=report.is_pending, is_silent=False
+        report=report,
+        markdown=markdown,
+        wechat_markdown=wechat_markdown,
+        is_pending=report.is_pending,
+        is_silent=False,
     )
 
 
