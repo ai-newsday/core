@@ -246,6 +246,24 @@ def test_build_daily_prompt_uses_titles():
     assert "智谱 GLM-5" in out
 
 
+def test_build_daily_prompt_carries_score_and_publisher():
+    """回归(2026-09-04): prompt 里写了"大机构优先、评分高优先", 但 items 块只喂了
+    标题——模型看不到 publisher 和 score, 那两条规则根本没法执行, 只能从标题文字
+    里瞎猜机构。规则要生效, 信号必须真的送到。"""
+    it_ok = build_ok_item(json.loads(_OK_JSON), _scored(score=88), InterpretConfig())
+    out = build_daily_prompt([it_ok], "Today:\n{{items}}")
+    assert "88" in out
+    assert "company" in out
+
+
+def test_build_daily_prompt_falls_back_to_english_title_for_fallback_items():
+    """抽取式回退的条目没有中文 title, 仍要带上 score/publisher 一起进 prompt。"""
+    it = extractive_fallback(_scored(score=70, publisher=Publisher.individual), InterpretConfig())
+    out = build_daily_prompt([it], "Today:\n{{items}}")
+    assert "GLM-5 released" in out
+    assert "70" in out and "individual" in out
+
+
 def test_generate_daily_take_ok():
     it_ok = build_ok_item(json.loads(_OK_JSON), _scored(), InterpretConfig())
     tpl = load_prompt("src/prompts/daily_take.md")

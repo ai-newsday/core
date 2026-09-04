@@ -193,11 +193,15 @@ def interpret_item(
 
 
 def build_daily_prompt(items: list[InterpretedItem], template: str) -> str:
-    """Render the daily-take prompt from interpreted items' titles."""
+    """Render the daily-take prompt from interpreted items.
+
+    每行带上 score 与 publisher: daily_take.md 里"大机构优先、评分高优先"的选题
+    规则要能执行, 模型就得真看见这两个信号——只喂标题的话它只能从标题文字里猜
+    机构(`OpenAI 推出…` 猜得中, `K2-Horizon-MoVA` 完全没依据)。"""
     lines = []
     for it in items:
         title = it.title if it.interpretation_status == "ok" else it.title_en
-        lines.append(f"- {title}")
+        lines.append(f"- [{it.score}|{it.publisher.value}] {title}")
     return template.replace("{{items}}", "\n".join(lines))
 
 
