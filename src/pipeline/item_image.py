@@ -26,7 +26,15 @@ _OG_CONTENT_FIRST = re.compile(
     r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']og:image["\']',
     re.I,
 )
-_FIRST_IMG = re.compile(r'<img[^>]+src=["\']([^"\']+\.(?:png|jpg|jpeg))["\']', re.I)
+_IMG_TAG = re.compile(r"<img[^>]*>", re.I)
+_IMG_SRC = re.compile(r'src=["\']([^"\']+\.(?:png|jpg|jpeg))["\']', re.I)
+_IMG_DIM = re.compile(r'\b(width|height)=["\']?(\d+)', re.I)
+
+# 论文正文里夹着的小图标(仓库标记、ORCID、信封)不是插图。2026-09-04 实测 DisCo
+# (2609.02749v1): 作者邮箱旁一个 14x14 的仓库图标排在真插图前面, 名字里没有 "logo"
+# 也不在 /static/ 下, 名字黑名单挡不住; 体积也挡不住 —— 那个图标 101KB, 比同批
+# 真插图 dart_fig2.png 的 38KB 还大。标签自带的尺寸才是能区分的信号: 14 对 476。
+_MIN_IMG_PX = 200
 
 # 留白胜过放一张模板卡片
 _NO_IMAGE_ADAPTERS = {"github_releases", "github_trending"}
@@ -42,9 +50,25 @@ def image_source_for(adapter: str) -> str | None:
     return "og"
 
 
+# 自动生成的模板卡: 渐变底 + 把标题当图片文字重复一遍, 而标题就在图正上方。
+# GitHub 那套已按 adapter 在 _NO_IMAGE_ADAPTERS 里挡掉了; HF 模型页走 og 路线,
+# 挡不到, 于是 2026-09-04 一期里两条配的都是这种卡。同类同办法: 留白。
+# (查过 README 兜底: 三个真实模型里一个有真图、一个没有图、一个只有 shields.io
+#  徽章 —— 抓 README 反而会配出徽章, 收益为负, 不做。)
+_TEMPLATE_CARD_MARKERS = (
+    "cdn-thumbnails.huggingface.co/social-thumbnails/",
+    "opengraph.githubassets.com",
+)
+
+
 def _og_image(html: str) -> str | None:
     m = _OG_ATTR_FIRST.search(html) or _OG_CONTENT_FIRST.search(html)
-    return m.group(1) if m else None
+    if not m:
+        return None
+    url = m.group(1)
+    if any(marker in url for marker in _TEMPLATE_CARD_MARKERS):
+        return None
+    return url
 
 
 # arXiv 自己的静态资源(赞助商 logo 之类)不是论文插图。2026-09-01 实测: 没有 HTML 版的
@@ -62,9 +86,17 @@ def extract_image_candidates(html: str, url: str) -> list[str]:
       2608.28281 -> "2608.28281v1/looparena_teaser.png" (已含 <id>v1/ 前缀)
     按前者的规则拼后者会得到 .../2608.28281v1/2608.28281v1/x.png, 实测 404;
     正确形式返回 200 image/png。两种都产出, 由调用方按"能不能真打开"择一。"""
-    for m in _FIRST_IMG.finditer(html):
-        src = m.group(1)
+    for tag_m in _IMG_TAG.finditer(html):
+        tag = tag_m.group(0)
+        src_m = _IMG_SRC.search(tag)
+        if not src_m:
+            continue
+        src = src_m.group(1)
         if any(j in src.lower() for j in _JUNK_IMG):
+            continue
+        # 声明了尺寸且过小 -> 是图标不是插图; 没声明尺寸就无从判断, 放行
+        dims = [int(v) for _, v in _IMG_DIM.findall(tag)]
+        if dims and max(dims) < _MIN_IMG_PX:
             continue
         if src.startswith(("http://", "https://")):
             return [src]
