@@ -129,6 +129,7 @@ def load_interpret_config(path: str) -> InterpretConfig:
         temperature=data.get("temperature", d.temperature),
         max_tokens=data.get("max_tokens", d.max_tokens),
         timeout_s=data.get("timeout_s", d.timeout_s),
+        concurrency=data.get("concurrency", d.concurrency),
         title_max_chars=data.get("title_max_chars", d.title_max_chars),
         body_max_chars=data.get("body_max_chars", d.body_max_chars),
         raw_summary_max_chars=data.get("raw_summary_max_chars", d.raw_summary_max_chars),

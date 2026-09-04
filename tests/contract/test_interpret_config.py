@@ -65,3 +65,15 @@ def test_interpret_config_loads_raw_summary_max_chars_override(tmp_path):
     p.write_text("raw_summary_max_chars: 800\n", encoding="utf-8")
     c = load_interpret_config(str(p))
     assert c.raw_summary_max_chars == 800
+
+
+def test_interpret_config_has_a_concurrency_default():
+    assert InterpretConfig().concurrency == 4
+
+
+def test_interpret_config_loads_concurrency_override(tmp_path):
+    """回归(同 wechat_title 那次的隐患): load_interpret_config 是逐字段显式映射的,
+    types 上加了字段但忘了在 loader 里接, YAML 写了也不会生效, 而且悄无声息。"""
+    f = tmp_path / "interpret.yaml"
+    f.write_text("concurrency: 9\n", encoding="utf-8")
+    assert load_interpret_config(str(f)).concurrency == 9

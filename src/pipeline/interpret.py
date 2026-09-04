@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 from src.core.prompts import load_prompt
 from src.core.types import (
@@ -355,8 +356,8 @@ def interpret(
         )
 
     item_tpl = load_prompt(config.item_prompt_path)
-    out: list[InterpretedItem] = []
-    for it in items:
+
+    def _one(it: ScoredItem) -> InterpretedItem:
         res = interpret_item(
             it,
             item_tpl,
@@ -365,6 +366,9 @@ def interpret(
             logger=ctx.logger,
             uncertain_content_penalty=uncertain_content_penalty,
         )
+        # 在工作线程里就地 emit: 一批要跑几十条, 攒到最后再打日志就等于整段跑完
+        # 之前什么进度都看不见。logging 本身线程安全; 事件顺序因此不保证, 但
+        # 这两个事件是诊断用的, 没有下游依赖它们的次序。
         emit(
             ctx.logger,
             "item_interpreted",
@@ -374,7 +378,13 @@ def interpret(
         )
         if res.interpretation_status == "extractive_fallback":
             emit(ctx.logger, "interpret_fallback", link=res.link)
-        out.append(res)
+        return res
+
+    # 结果顺序必须跟输入一致(下游的配额、参考链接编号都依赖它), executor.map 保证
+    # 按输入顺序产出, 与完成先后无关。interpret_item 内部吞掉所有异常并回退, 所以
+    # 这里不会有异常穿出来打断整批。
+    with ThreadPoolExecutor(max_workers=max(1, config.concurrency)) as pool:
+        out: list[InterpretedItem] = list(pool.map(_one, items))
 
     daily_tpl = load_prompt(config.daily_prompt_path)
     date_label = ctx.now.strftime("%Y-%m-%d")

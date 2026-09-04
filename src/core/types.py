@@ -270,6 +270,10 @@ class InterpretConfig:
     temperature: float = 0.3
     max_tokens: int = 800
     timeout_s: int = 60
+    # 每条解读是一次独立的 LLM 往返, 顺序跑 100 条就是 100 次串行等待
+    # (2026-09-03/04 实测 finalize 40-60 分钟)。并发只压墙钟时间, 调用次数与
+    # 成本不变。上限压着走: 供应商 429 本来就是老问题, 打太猛会把它放大。
+    concurrency: int = 4
     title_max_chars: int = 64
     body_max_chars: int = 240
     raw_summary_max_chars: int = 1500  # 防任意 adapter 的超长 raw_summary 撑爆 prompt
