@@ -207,3 +207,19 @@ def test_evidence_anchor_gets_its_own_reference_number():
     assert "1. 条目一 — https://a" in refs
     assert "2. 依据 — https://evidence" in refs
     assert "[1][2]" in out
+
+
+def test_wechat_tags_are_cleaned_in_the_rendered_output():
+    """接线测试: 清洗函数单测全绿但没接进渲染的话, 读者那边照样看到 `#GLM`
+    被微信截出来。盯的是"函数写了没用上"这类静默失效。"""
+    it = _item("条目一", "https://a", tags=["#GLM-5.3-Flash", "#AI Tutor", "#具身智能"])
+    out = render_wechat(_report([it]), _cfg())
+    assert "#GLM #AI #具身智能" in out
+    assert "5.3-Flash" not in out
+    assert "Tutor" not in out
+
+
+def test_website_version_keeps_the_full_tags():
+    """截断是微信的毛病, 网站不截断——那边保留信息更全的原标签。"""
+    it = _item("条目一", "https://a", tags=["#GLM-5.3-Flash"])
+    assert "#GLM-5.3-Flash" in render_markdown(_report([it]), _cfg())
