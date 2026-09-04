@@ -150,3 +150,40 @@ def test_paper_with_no_arxiv_html_gets_no_image_not_a_placeholder():
     cfg = ItemImageConfig()
     out = asyncio.run(enrich_item_images(items, client, cfg, _ctx()))
     assert out[0].image_url is None
+
+
+def test_unvalidated_feed_image_is_dropped_when_it_is_not_really_an_image():
+    """回归(2026-09-04 生产): image_url 有两个写入方, 只有一个校验。
+    抓图这条路每个候选都过 check_image, 但采集期 rss.py 直接把 feed 里的
+    media:content 塞进 image_url, 从不校验; 抓图这边没找到图时也不会覆盖它,
+    于是那个未经校验的值一路发到正文里(实测是个返回 text/html 的播放器地址)。
+    页面没抓到图时, 必须把它也验一遍。"""
+    items = [_item("https://site/post", "rss")]
+    items[0].image_url = "https://www.youtube.com/v/abc?version=3"  # 采集期塞的, 不是图
+    client = _FakeClient({"https://site/post": "<html>no og</html>"}, set())
+    out = asyncio.run(enrich_item_images(items, client, ItemImageConfig(), _ctx()))
+    assert out[0].image_url is None
+    assert "https://www.youtube.com/v/abc?version=3" in client.check_calls
+
+
+def test_valid_feed_image_survives_when_the_page_has_no_og_image():
+    """feed 给的图本身合法时保留——校验是为了挡掉坏的, 不是把图都清空。"""
+    good = "https://i3.ytimg.com/vi/abc/hqdefault.jpg"
+    items = [_item("https://site/post", "rss")]
+    items[0].image_url = good
+    client = _FakeClient({"https://site/post": "<html>no og</html>"}, {good})
+    out = asyncio.run(enrich_item_images(items, client, ItemImageConfig(), _ctx()))
+    assert out[0].image_url == good
+
+
+def test_og_image_still_wins_over_the_feed_image():
+    """og:image 通常比 feed 缩略图清晰(YouTube: maxresdefault vs hqdefault),
+    保持既有优先级, 别因为加了校验就把顺序换掉。"""
+    feed_img = "https://i3.ytimg.com/vi/abc/hqdefault.jpg"
+    og_img = "https://i.ytimg.com/vi/abc/maxresdefault.jpg"
+    items = [_item("https://site/post", "rss")]
+    items[0].image_url = feed_img
+    html = f'<html><meta property="og:image" content="{og_img}"></html>'
+    client = _FakeClient({"https://site/post": html}, {feed_img, og_img})
+    out = asyncio.run(enrich_item_images(items, client, ItemImageConfig(), _ctx()))
+    assert out[0].image_url == og_img
