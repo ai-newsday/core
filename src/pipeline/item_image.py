@@ -136,6 +136,12 @@ async def _resolve_one(item: ScoredItem, client, config: ItemImageConfig, ctx: R
             if await client.check_image(cand):
                 item.image_url = cand
                 return
+
+        # 页面没抓到图时, item.image_url 里可能还留着采集期 rss.py 从 feed 塞进来的值
+        # ——那条路径不做任何校验(2026-09-04 实测发出去一个返回 text/html 的播放器地址)。
+        # 校验它, 不合格就清掉: image_url 不该有未经校验的来源。
+        if item.image_url and not await client.check_image(item.image_url):
+            item.image_url = None
     except Exception as e:
         emit(
             ctx.logger,

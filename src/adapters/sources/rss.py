@@ -16,12 +16,27 @@ def _published_utc(entry) -> datetime | None:
     return datetime.fromtimestamp(timegm(tm), tz=timezone.utc)
 
 
+def _is_image(m: dict) -> bool:
+    """media:content / enclosure 里只有声明为图片的才是图片。
+
+    YouTube 的 media:content 是**播放器**不是图 (2026-09-04 实测 runway-yt feed):
+        {url: .../v/<id>?version=3, type: application/x-shockwave-flash}
+    照单全收会把一个返回 text/html 的地址当封面发出去。"""
+    if str(m.get("type", "")).startswith("image/"):
+        return True
+    return m.get("medium") == "image"  # 部分 feed 只给 medium 不给 type
+
+
 def _image_url(entry) -> str | None:
     for m in getattr(entry, "media_content", []) or []:
-        if m.get("url"):
+        if m.get("url") and _is_image(m):
             return m["url"]
+    # YouTube 的真图在 media:thumbnail 里; 少了这一条, 过滤完播放器就彻底没图了
+    for t in getattr(entry, "media_thumbnail", []) or []:
+        if t.get("url"):
+            return t["url"]
     for enc in getattr(entry, "enclosures", []) or []:
-        if enc.get("href"):
+        if enc.get("href") and _is_image(enc):
             return enc["href"]
     return None
 
