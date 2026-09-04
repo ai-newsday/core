@@ -329,6 +329,42 @@ def render_markdown(report: DailyReport, config: PublishConfig) -> str:
     return "\n".join(lines)
 
 
+# 微信话题标签遇到符号即截断: `#GLM-5.3-Flash` 在读者那边显示成 `#GLM`,
+# `#AI Tutor` 在空格处断成 `#AI`。数字同样断(用户 2026-09-02: "不要 Qwen3,
+# 直接 Qwen 比较好")。prompt 层已经要求只用字母/汉字, 但 LLM 必然违反
+# (2026-09-04 真实产出仍有 `#GPT-6Astra`), 所以代码层兜底——与其让它在读者那边
+# 断得莫名其妙, 不如我们先断好 (spec 2026-08-31 §4)。
+_TAG_KEEP = re.compile(r"^[A-Za-z\u4e00-\u9fff]+")
+_TAG_SYMBOLS = re.compile(r"[^0-9A-Za-z\u4e00-\u9fff]+")
+
+
+def clean_wechat_tag(tag: str) -> str:
+    """把一个标签裁到微信不会再截断的形式; 无内容返回空串。"""
+    body = tag.lstrip("#").strip()
+    if not body:
+        return ""
+    m = _TAG_KEEP.match(body)
+    kept = m.group(0) if m else ""
+    # 截出来太短就没有意义了(`#3D生成` 会被清空, `#K2-Horizon` 只剩 `K`)——
+    # 退回"仅去掉符号", 至少保住原意, 由微信自己去断。
+    if len(kept) < 2:
+        kept = _TAG_SYMBOLS.sub("", body)
+    return f"#{kept}" if kept else ""
+
+
+def clean_wechat_tags(tags: list[str]) -> list[str]:
+    """按顺序清洗一组标签, 丢掉空值并去重。
+
+    去重是必要的: 两个不同标签清洗后可能撞成同一个(`#Qwen3.8-Flash` 与
+    `#Qwen-Drive` 都变成 `#Qwen`), 重复的话题标签对读者是纯噪音。"""
+    out: list[str] = []
+    for t in tags:
+        c = clean_wechat_tag(t)
+        if c and c not in out:
+            out.append(c)
+    return out
+
+
 def _wechat_report(report: DailyReport) -> DailyReport:
     """滤掉解读回退的条目 (spec §5)。
 
@@ -342,7 +378,11 @@ def _wechat_report(report: DailyReport) -> DailyReport:
         cat.model_copy(
             update={
                 "items": [
-                    it for it in cat.items if it.interpretation_status != "extractive_fallback"
+                    # 标签清洗只在公众号这一版做: 截断是微信的行为, 网站不截断,
+                    # 那边保留信息更全的原标签(`#GLM-5.3-Flash` 比 `#GLM` 有用)。
+                    it.model_copy(update={"tags": clean_wechat_tags(it.tags)})
+                    for it in cat.items
+                    if it.interpretation_status != "extractive_fallback"
                 ]
             }
         )
