@@ -241,7 +241,7 @@ async def run_finalize_tick(
     if not pres.is_silent:
         for notifier in notifiers:
             try:
-                await notifier.send_final_report(pres.markdown, summary)
+                await notifier.send_final_report(pres.markdown, summary, pres.wechat_markdown)
             except Exception as e:  # noqa: BLE001 - notifier failure is non-fatal
                 emit(logger, "notifier_final_report_error", error=str(e))
     emit(

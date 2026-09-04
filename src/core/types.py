@@ -437,6 +437,9 @@ class PublishResult:
     markdown: str
     is_pending: bool
     is_silent: bool
+    # 公众号版 (spec 2026-08-31 §1: 两份文件)。同一个 DailyReport 渲染两次,
+    # 空报时为空字符串。
+    wechat_markdown: str = ""
 
 
 # --- feedback layer (Circle 7) ---
@@ -588,6 +591,9 @@ class TelegramConfig:
 class WebsiteConfig:
     enabled: bool = True
     output_dir: str = "content/posts"
+    # 公众号版与网站版并存 (spec 2026-08-31 §1)。同在 content/ 下, finalize.yml
+    # 的 content 提交步骤会自动带上, 不需要额外的提交逻辑。
+    wechat_output_dir: str = "content/wechat"
     git_push: bool = False  # True = finalize 后自动 git add + commit
     site_base_url: str = "https://ai-newsday.github.io/core/"
 

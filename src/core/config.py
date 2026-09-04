@@ -335,6 +335,7 @@ def load_delivery_config(path: str) -> DeliveryConfig:
     web = WebsiteConfig(
         enabled=web_data.get("enabled", True),
         output_dir=web_data.get("output_dir", "content/posts"),
+        wechat_output_dir=web_data.get("wechat_output_dir", "content/wechat"),
         git_push=web_data.get("git_push", False),
         site_base_url=web_data.get("site_base_url", "https://ai-newsday.github.io/core/"),
     )
