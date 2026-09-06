@@ -572,8 +572,8 @@ def run_tick(
         }
 
     elif tick == "finalize":
-        # 结算当天 23:00 本地(cron 22:00 UTC), 报告标"当天"日期。
-        # 从 now(UTC) 换算到本地再取日期, 手动触发也不会偏一天。
+        # 结算跑在当天 23:00 本地, 但报告标的是**发布日**(用户在午夜之后发, 对应
+        # 北京早上八点), 所以晚上这次标第二天。详见 _report_date。
         date_label = _report_date(now=now)
         result = asyncio.run(
             run_finalize_tick(
@@ -613,23 +613,38 @@ def _latest_run_dir(base=None):
     return max(runs, key=lambda p: p.stat().st_mtime)
 
 
+# 结算跑在本地晚上, 而用户在午夜之后才发布(伦敦午夜 = 北京早上八点左右, 刊物是
+# 给中国读者的早报)。所以晚上那次跑出来的, 属于**第二天**的刊物。
+_PUBLISH_EVENING_CUTOFF_HOUR = 18
+
+
 def _report_date(tz: str | None = None, now: datetime | None = None) -> str:
-    """Report date = *today* in the configured local timezone.
+    """报告日期 = **读者读到它的那一天**(发布日), 用配置的本地时区判断。
 
-    2026-08-01: finalize moved from "next morning, labelled yesterday" to "same
-    day 23:00 local, labelled today" (user relocated to the UK). Running late on
-    the day it reports also removes the old date-boundary hole: same-day items
-    now belong in the same-day report by construction, instead of leaking into a
-    report labelled yesterday. Metrics read the same value so /metrics/X stays
-    paired with /posts/X.
+    沿革:
+    - 2026-08-01 用户搬到英国, 从"次日早上、标昨天"改成"当天 23:00 本地、标当天"。
+    - 2026-09-05 改成标发布日: 用户在伦敦午夜之后发布(北京早上八点左右), 晚上跑出
+      来的那份要标第二天。
 
-    `now` is injectable so run_tick keeps its deterministic clock — a manual
-    dispatch then lands on the same date the run itself thinks it is."""
+    这不只是命名偏好。2026-09-04 两次 finalize 落在同一个伦敦日(00:04 与 23:52),
+    拿到同一个 date_label, 于是跨天去重里"同 label 视为重跑"的豁免把两条已发布条目
+    整个放行——K2-Horizon-MoVA 与 Runway GWM Worlds 2 **链接完全相同**却连发两天,
+    第二次还覆盖了已经发出去的那份文件。按发布日命名之后, 这两次自然落在不同 label。
+
+    午夜之后跑的(补跑、或结算本身拖过了午夜)标当天: 那正是它要发的那一份, 同一份
+    刊物的重跑必须拿到同一个 label, 否则重跑会被当成新的一天, 把昨晚已发的条目全部
+    重新放行。
+
+    `now` 可注入, run_tick 因此保持确定性时钟, 手动触发也不会偏一天。"""
+    from datetime import timedelta
     from zoneinfo import ZoneInfo
 
     tz = tz or load_publish_config("config/publish.yaml").timezone
     now = now or datetime.now(timezone.utc)
-    return now.astimezone(ZoneInfo(tz)).date().isoformat()
+    local = now.astimezone(ZoneInfo(tz))
+    if local.hour >= _PUBLISH_EVENING_CUTOFF_HOUR:
+        local += timedelta(days=1)
+    return local.date().isoformat()
 
 
 def run_remind(*, db_path: str = "data/state.db") -> int:
