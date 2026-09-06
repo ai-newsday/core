@@ -8,6 +8,7 @@ import logging
 
 import pytest
 
+from src.core.prompts import load_prompt
 from src.core.types import InterpretConfig
 from src.pipeline.interpret import enforce_digest, enforce_title, generate_daily_head
 from tests.fakes import FailingLLMProvider
@@ -220,3 +221,34 @@ def test_generate_daily_head_survives_malformed_output(raw):
     )
     assert title == "AI Daily · 2026-09-01"
     assert digest is None
+
+
+def test_three_median_length_events_cannot_fit_the_limit():
+    """把算术钉死 (#161)。
+
+    2026-09-02/03/04 连续三晚标题回退成朴素标题, 诊断日志显示两次尝试分别是
+    75 字和 88 字。根因是 prompt 的目标从"2 个事件"改成了"3 个事件":
+    `【AI日报】` 占 6 字、每个 ` | ` 占 3 字, 64 字里只剩约 52 字分给事件, 而
+    单个模型名就可能占 13 字(`GLM-5.3-Flash`)。三个中等长度事件必然超。
+
+    这条测试不测 prompt 文案, 测的是**物理上装不下**——将来谁再把目标改回 3 个,
+    这里会红。"""
+    event = "OpenAI 推出 Daybreak 计划"  # 21 字, 真实产出里的中等长度
+    title = " | ".join([event] * 3) + "【AI日报】"
+    assert len(title) > 64, f"三个 {len(event)} 字事件只占 {len(title)} 字, 前提变了请重算"
+    assert enforce_title(title, "2026-09-04") == "AI Daily · 2026-09-04"
+
+
+def test_two_median_length_events_do_fit():
+    """两个同样长度的事件放得下——这是把目标定在 2 个的依据。"""
+    event = "OpenAI 推出 Daybreak 计划"
+    title = " | ".join([event] * 2) + "【AI日报】"
+    assert len(title) <= 64
+    assert enforce_title(title, "2026-09-04") == title
+
+
+def test_prompt_targets_two_events_not_three():
+    """回归: prompt 的目标数量与上面的算术必须一致, 否则模型每天产出必然被拒。"""
+    tpl = load_prompt("src/prompts/daily_take.md")
+    assert "目标是 2 个事件" in tpl
+    assert "目标是 3 个事件" not in tpl
