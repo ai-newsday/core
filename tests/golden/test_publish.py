@@ -233,10 +233,15 @@ def test_build_report_all_items_below_floor_gives_empty_categories():
 
 
 def test_build_report_applies_per_genre_quota():
-    """kept 集合某 genre 超配额 → 只留该类 top-N(按 score)。"""
+    """kept 集合某 genre 超配额 → 只留该类 top-N(按 score)。
+
+    2026-09-05 起配额只在"总数装不下"时才施加(见
+    test_genre_quota_does_not_cut_kept_items_when_they_already_fit),
+    所以这里把 total_limit 压到 1 制造真实的取舍压力; 断言的仍是原来那件事:
+    同一 genre 内按分数留高的。"""
     cfg = PublishConfig()
     cfg.quota = {"paper": 1}
-    cfg.total_limit = 99
+    cfg.total_limit = 1
     items = [
         _ri("https://a/1", score=80, genre=Genre.paper, title="高分论文"),
         _ri("https://a/2", score=70, genre=Genre.paper, title="低分论文"),
@@ -925,3 +930,45 @@ def test_build_report_drops_items_with_empty_body():
     all_links = [it.link for cat in rep.categories for it in cat.items]
     assert all_links == ["https://a/1"]
     assert rep.item_count == 1
+
+
+def test_genre_quota_does_not_cut_kept_items_when_they_already_fit():
+    """回归(2026-09-04 生产): 用户在 TG 里明确 keep 了 10 条, 最终只发出 7 条——
+    genre 配额把 3 条论文静默丢掉了, 而总数 10 根本没到 total_limit=12。
+
+    配额之和恰好等于 total_limit(3+3+3+2+1=12), 所以只要类型分布不均, per-genre
+    上限就必然先于总量生效。但配额是"必须取舍时用来定结构"的手段: 人已经筛过、
+    而且总数装得下的时候, 没有什么要取舍。"""
+    items = [_ri(f"https://p/{i}", genre=Genre.paper) for i in range(6)]
+    items += [_ri("https://m/1", genre=Genre.model)]
+    items += [_ri(f"https://a/{i}", genre=Genre.announcement) for i in range(3)]
+    cfg = PublishConfig(
+        quota={"paper": 3, "model": 3, "announcement": 3, "writeup": 2, "news": 1},
+        total_limit=12,
+        reserved_quota={},
+    )
+    report = build_report(_rr(items), "2026-09-05", cfg)
+    assert report.item_count == 10, "10 条 keep、上限 12, 不该有任何一条被配额砍掉"
+
+
+def test_genre_quota_still_applies_when_kept_items_exceed_the_limit():
+    """真的装不下时配额照常生效——这是它存在的意义, 别一起改掉。"""
+    items = [_ri(f"https://p/{i}", genre=Genre.paper) for i in range(10)]
+    items += [_ri(f"https://a/{i}", genre=Genre.announcement) for i in range(10)]
+    cfg = PublishConfig(
+        quota={"paper": 3, "model": 3, "announcement": 3, "writeup": 2, "news": 1},
+        total_limit=12,
+        reserved_quota={},
+    )
+    report = build_report(_rr(items), "2026-09-05", cfg)
+    genres = [it.genre.value for cat in report.categories for it in cat.items]
+    assert genres.count("paper") == 3
+    assert genres.count("announcement") == 3
+
+
+def test_total_limit_still_caps_a_fitting_but_oversized_set():
+    """配额不生效时总量上限仍然要生效, 否则 total_limit 就形同虚设。"""
+    items = [_ri(f"https://p/{i}", genre=Genre.paper) for i in range(20)]
+    cfg = PublishConfig(quota={"paper": 3}, total_limit=12, reserved_quota={})
+    report = build_report(_rr(items), "2026-09-05", cfg)
+    assert report.item_count <= 12

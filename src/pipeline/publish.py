@@ -173,8 +173,16 @@ def build_report(
     # 却只有 2 条挤进最终池)。
     reserved, items = apply_reserved_quota(items, config.reserved_quota)
     # per-genre 配额 + total_limit: 人 keep 之后对 kept 集合施加(组成控制, 复用 score 纯函数);
-    # total_limit 扣掉保底已占的名额, 保证刊物总数仍不超过配置值
-    items, _ = apply_quota(items, config.quota, max(config.total_limit - len(reserved), 0))
+    # total_limit 扣掉保底已占的名额, 保证刊物总数仍不超过配置值。
+    #
+    # 只在真的装不下时才施加 per-genre 上限。配额是"必须取舍时用来定结构"的手段,
+    # 人已经在 TG 里筛过、而且总数装得下的时候, 没有什么要取舍 —— 2026-09-04 实测
+    # 用户 keep 了 10 条却只发出 7 条, 3 条论文被静默丢掉, 而 total_limit 是 12。
+    # 根因是配额之和恰好等于 total_limit(3+3+3+2+1=12), 于是只要类型分布不均,
+    # per-genre 上限就必然先于总量生效。
+    room = max(config.total_limit - len(reserved), 0)
+    if len(items) > room:
+        items, _ = apply_quota(items, config.quota, room)
     items = sorted(reserved + items, key=lambda it: (-it.score, it.published_at, it.link))
     return DailyReport(
         date_label=date_label,
