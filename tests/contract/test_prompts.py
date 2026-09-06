@@ -106,10 +106,16 @@ def test_interpret_prompt_requires_chinese_body():
     assert "专有名词" in t or "术语" in t
 
 
-def test_daily_take_prompt_targets_three_events_in_title():
-    """2026-09-03 用户要求: 标题目标 3 个事件(原为默认 2 个)。"""
+def test_daily_take_prompt_targets_two_events_in_title():
+    """2026-09-03 按用户要求把目标从 2 个改成 3 个, 2026-09-05 退回 2 个 (#161)。
+
+    退回的依据是实测而不是偏好: 09-02/03/04 连续三晚标题回退成朴素标题, 诊断日志
+    显示两次尝试是 75 字和 88 字, 重试比第一次还长。下面那条测试当初的注释已经
+    预警过这个失败模式("3 个事件会直接顶替 ≤64 字"), 结果就是这样。
+    物理约束见 test_daily_head_unit.py 里把算术钉死的两条。"""
     t = load_prompt("src/prompts/daily_take.md")
-    assert "3 个事件" in t
+    assert "目标是 2 个事件" in t
+    assert "目标是 3 个事件" not in t
 
 
 def test_daily_take_prompt_lets_title_degrade_when_too_long():
