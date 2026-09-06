@@ -153,6 +153,22 @@ is_pending  = review_result.is_pending
 daily_take  = review_result.daily_take   # 可为 None
 ```
 
+### 5.5b 组成控制：配额只在装不下时才生效（2026-09-05）
+
+`build_report` 在人工 keep 之后依次施加：地板分过滤 → `apply_adapter_quota`（采集渠道封顶）→ 故事线合并 → `apply_reserved_quota`（保底）→ **per-genre 配额** → 总量上限。
+
+per-genre 配额**只在 kept 集合超过剩余总量名额时才施加**：
+
+```
+room = max(total_limit - len(reserved), 0)
+if len(items) > room:
+    items = apply_quota(items, quota, room)
+```
+
+理由是实测出来的。2026-09-04 用户在 TG 里明确 keep 了 10 条，最终只发出 7 条——3 条论文被 genre 上限静默丢掉，而 `total_limit` 是 12，**总数根本没到上限**。根因是配额之和恰好等于总量上限（`3+3+3+2+1 = 12`），于是只要当天类型分布不均，per-genre 上限就必然先于总量生效。
+
+配额是「必须取舍时用来定结构」的手段。人已经筛过、而且总数装得下的时候没有什么要取舍，此时砍掉用户明确保留的条目是纯损失——当天最大的新闻就是这样掉出刊物的。真的装不下时配额照常生效，这是它存在的意义。
+
 ### 5.6 渲染（`render_markdown(report, config) -> str`）
 
 按 PRD §5.6 模板拼字符串，分块、全确定性：
