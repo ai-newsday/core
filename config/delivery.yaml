@@ -12,3 +12,10 @@ website:
 decisions_api:
   url: "https://ai-newsday-telegram-webhook.ai-newwsday.workers.dev"  # CF Worker 基址
   # secret 通过 DECISIONS_API_SECRET 环境变量注入, 不要写死
+
+# 源静默归零告警 (#169)。抓取失败是非致命的: 抓不到东西写的是
+# `source_fetch_success, item_count: 0`, 日志里一切正常。x-extension 曾因此连续
+# 17 天产出 0 无人察觉; 2026-09-07 五个 X 源再次全部归零, 同样无人察觉。
+zero_yield_alert:
+  adapters: ["x_list", "hf_papers"]   # 只监控平时稳定有产出的; 常年安静的源会淹没告警
+  consecutive_runs: 3                 # collect 一天 8 次, 3 次约等于 6 小时

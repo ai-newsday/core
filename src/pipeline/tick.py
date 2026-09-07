@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from datetime import datetime
 
@@ -16,11 +17,14 @@ from src.core.types import (
 )
 from src.notifiers import Notifier
 from src.observability.events import emit
+from src.pipeline.collect import check_zero_yield
 from src.pipeline.interpret import generate_daily_head, translate_fallback_items
 from src.pipeline.item_image import enrich_item_images
 from src.pipeline.publish import build_report, publish, render
 from src.pipeline.review import review
 from src.state.db import Database
+
+_ZERO_YIELD_KEY = "zero_yield_state"
 
 
 def _item_id(item: InterpretedItem) -> str:
@@ -109,6 +113,40 @@ def _build_card(item: InterpretedItem) -> dict:
     }
 
 
+async def _alert_zero_yield(
+    source_reports, adapter_of, config, db: Database, notifiers, logger
+) -> None:
+    """按 adapter 汇总本次产出, 连续归零到阈值就报一次 (#169)。
+
+    整段包在 try 里: 告警本身绝不能把采集 tick 弄挂——那会把"有个源坏了"升级成
+    "整条流水线坏了", 正好跟这个功能的目的相反。"""
+    try:
+        watched = set(config.adapters)
+        if not watched:
+            return
+        yields = {a: 0 for a in watched}
+        for r in source_reports:
+            a = adapter_of.get(r.name)
+            if a in watched:
+                yields[a] += r.item_count
+        state = json.loads(await db.get_kv(_ZERO_YIELD_KEY) or "{}")
+        new_state, alerts = check_zero_yield(yields, state, config.consecutive_runs)
+        await db.set_kv(_ZERO_YIELD_KEY, json.dumps(new_state))
+        for adapter in alerts:
+            emit(logger, "zero_yield_alert", adapter=adapter, runs=config.consecutive_runs)
+            text = (
+                f"⚠️ <b>{adapter}</b> 连续 {config.consecutive_runs} 次采集产出为 0。\n"
+                "抓取报的是成功而不是失败, 所以日志里看不出来。"
+            )
+            for n in notifiers:
+                try:
+                    await n.send_alert(text)
+                except Exception as e:  # noqa: BLE001
+                    emit(logger, "zero_yield_alert_error", error=str(e))
+    except Exception as e:  # noqa: BLE001
+        emit(logger, "zero_yield_check_error", error=str(e))
+
+
 async def run_collect_tick(
     run_id: str,
     now: datetime,
@@ -116,12 +154,19 @@ async def run_collect_tick(
     daily_take: str | None,
     db: Database,
     notifiers: list[Notifier],
+    source_reports=None,
+    zero_yield_config=None,
+    adapter_of: dict[str, str] | None = None,
 ) -> None:
     """采集 tick: 把新候选写 DB + 推 Telegram 卡片。决策由 webhook 异步收集, finalize 时拉取。"""
     logger = logging.getLogger("ai-newsday")
     date = now.date().isoformat()
     await db.insert_run(run_id, "collect")
     emit(logger, "tick_collect_start", run_id=run_id, date=date, item_count=len(interpreted_items))
+    if source_reports is not None and zero_yield_config is not None:
+        await _alert_zero_yield(
+            source_reports, adapter_of or {}, zero_yield_config, db, notifiers, logger
+        )
     pushed = 0
     for item in interpreted_items:
         if not item.relevant:

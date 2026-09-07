@@ -19,6 +19,10 @@ class Notifier(Protocol):
         """22:00 待审提醒。只报个数, 由调用方保证 undecided_count > 0 才调用。"""
         ...
 
+    async def send_alert(self, text: str) -> None:
+        """运维告警(如某个源静默归零, #169)。不支持的通道可以是 no-op。"""
+        ...
+
 
 class FakeNotifier:
     """测试用的内存实现，记录所有调用。"""
@@ -28,6 +32,7 @@ class FakeNotifier:
         self.final_report: str | None = None
         self.final_wechat: str | None = None
         self.reminder_count: int | None = None
+        self.alerts: list[str] = []
 
     async def send_review_card(self, item_id: str, card: dict) -> int | None:
         self.sent_cards.append((item_id, card))
@@ -41,3 +46,6 @@ class FakeNotifier:
 
     async def send_reminder(self, undecided_count: int) -> None:
         self.reminder_count = undecided_count
+
+    async def send_alert(self, text: str) -> None:
+        self.alerts.append(text)

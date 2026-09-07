@@ -605,7 +605,22 @@ class DecisionsApiConfig:
 
 
 @dataclass
+class ZeroYieldAlertConfig:
+    """源静默归零的告警 (#169)。
+
+    采集失败是非致命的: 抓不到东西写的是 `source_fetch_success, item_count: 0`,
+    看起来一切正常。x-extension 曾因此连续 17 天产出 0 无人察觉。"""
+
+    # 按 adapter 分组监控。只列平时稳定有产出的, 否则公司博客那种本来就常年安静的
+    # 源会把告警淹掉。
+    adapters: list[str] = field(default_factory=lambda: ["x_list", "hf_papers"])
+    # 连续多少次 collect 归零才报。collect 一天 8 次, 3 次约等于 6 小时。
+    consecutive_runs: int = 3
+
+
+@dataclass
 class DeliveryConfig:
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
+    zero_yield_alert: ZeroYieldAlertConfig = field(default_factory=ZeroYieldAlertConfig)
     website: WebsiteConfig = field(default_factory=WebsiteConfig)
     decisions_api: DecisionsApiConfig = field(default_factory=DecisionsApiConfig)
