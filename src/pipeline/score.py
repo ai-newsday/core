@@ -269,7 +269,18 @@ def score(
     # 姊妹字段但作用在发卡池而不是最终报告): 纯按分数的硬切会把 X 这类分数天花板
     # 较低但中位分其实不差的类目整体压没, 用户压根看不到、审阅不到那些条目——
     # 空 dict 时这里是纯 no-op, 行为与恢复前完全一致。
-    reserved, remaining = apply_reserved_quota(scored, config.card_pool_reserved_quota)
+    # 分数下限先于保底配额: 这是硬闸, 保底名额也不该用低质条目去填满
+    # ——供给差的一天应当出一份短的, 而不是硬凑 (#167)。
+    eligible = [s for s in scored if s.score >= config.card_pool_min_score]
+    if len(eligible) < len(scored):
+        emit(
+            ctx.logger,
+            "card_pool_floor_applied",
+            floor=config.card_pool_min_score,
+            dropped=len(scored) - len(eligible),
+            kept=len(eligible),
+        )
+    reserved, remaining = apply_reserved_quota(eligible, config.card_pool_reserved_quota)
     fill_n = max(config.card_pool_limit - len(reserved), 0)
     selected = sorted(
         reserved + remaining[:fill_n], key=lambda s: (-s.score, s.published_at, s.link)

@@ -69,6 +69,7 @@ def load_scoring_config(path: str) -> ScoringConfig:
         popularity_cap=data.get("popularity_cap", d.popularity_cap),
         card_pool_limit=data.get("card_pool_limit", d.card_pool_limit),
         card_pool_reserved_quota=data.get("card_pool_reserved_quota", d.card_pool_reserved_quota),
+        card_pool_min_score=data.get("card_pool_min_score", d.card_pool_min_score),
         sources_registry_path=data.get("sources_registry_path", d.sources_registry_path),
         topic_keywords=data.get("topic_boost", {}).get("keywords", d.topic_keywords),
         topic_bonus=data.get("topic_boost", {}).get("bonus", d.topic_bonus),

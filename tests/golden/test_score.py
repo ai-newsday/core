@@ -145,3 +145,45 @@ def test_golden_clamp_and_breakdown_sum_and_determinism():
     # determinism: same input + same ctx -> identical scores
     again = compute_scores(items, {}, hi, _ctx())
     assert [x.score for x in s1] == [x.score for x in again]
+
+
+def test_card_pool_floor_drops_low_scoring_candidates():
+    """发卡池分数下限 (#167)。
+
+    2026-09-07 实测: X 归零那天 88 张卡里最低 27 分, 28% 低于发布下限 40——那些卡
+    就算用户按 keep 也必定在发布层被丢掉, 审它们是白费注意力。而正常日子(X 有产出)
+    100% 的候选本来就 >=50 分, 所以低分候选只在供给差的日子才冒出来, 正是用户抱怨
+    的那批二手新闻。
+
+    取 60 的依据是真实发布数据: 09-04 实际发出的 7 条分数 82-100, 最低 82,
+    下限 60 一条都不会碰到。"""
+    cfg = _cfg()
+    cfg.card_pool_limit = 100
+    cfg.card_pool_min_score = 60
+    items = [
+        _ni("fresh", "https://p/1", "s1", Genre.paper, NOW),
+        _ni("stale", "https://p/2", "s2", Genre.news, NOW - timedelta(hours=100)),
+    ]
+    res = score(items, cfg, _ctx())
+    assert all(s.score >= 60 for s in res.selected_items)
+    assert all(s.score >= 60 for s in res.selected_items), "低分候选不该进发卡池"
+    # 全量打分不受影响: 下限只管进不进发卡池, 不改分数本身
+    assert len(res.all_scored) == 2
+
+
+def test_card_pool_floor_of_zero_keeps_everything():
+    """下限 0 = 关闭这道闸, 行为与加它之前完全一致。"""
+    cfg = _cfg()
+    cfg.card_pool_limit = 100
+    cfg.card_pool_min_score = 0
+    items = [
+        _ni("fresh", "https://p/1", "s1", Genre.paper, NOW),
+        _ni("stale", "https://p/2", "s2", Genre.news, NOW - timedelta(hours=100)),
+    ]
+    assert len(score(items, cfg, _ctx()).selected_items) == 2
+
+
+def test_card_pool_floor_defaults_to_off_for_backward_compatibility():
+    from src.core.types import ScoringConfig as SC
+
+    assert SC().card_pool_min_score == 0

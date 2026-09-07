@@ -190,6 +190,12 @@ class ScoringConfig:
     # 179 条。空 dict = 不保底, 维持现状。PublishConfig.reserved_quota 是同名机制
     # 在发布层的姊妹字段, 两处都要配置才能既让 X 进审阅、又让 X 进最终报告。)
     card_pool_reserved_quota: dict[str, int] = field(default_factory=dict)
+    # 发卡池分数下限 (#167)。0 = 关闭(向后兼容)。
+    # 2026-09-07 实测: X 归零那天 88 张卡最低 27 分, 28% 低于发布下限 40 —— 那些卡
+    # 就算用户 keep 也必定在发布层被丢, 审它们是白费注意力。正常日子(X 有产出)
+    # 100% 候选本来就 >=50, 低分候选只在供给差的日子冒出来。取 60 的依据是真实发布
+    # 数据: 09-04 实际发出的 7 条是 82-100 分, 下限 60 一条都碰不到。
+    card_pool_min_score: int = 0
     sources_registry_path: str = "config/sources.yaml"
     topic_keywords: list[str] = field(default_factory=list)
     topic_bonus: float = 5.0
