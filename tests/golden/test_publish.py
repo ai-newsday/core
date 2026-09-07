@@ -19,6 +19,7 @@ from src.pipeline.publish import (
     publish,
     render_front_matter,
     render_markdown,
+    render_wechat,
     select_must_read,
 )
 
@@ -169,7 +170,9 @@ def test_build_report_assembles_blocks():
     assert rep.item_count == 2 and rep.explore_count == 1
     # must_read is always [] now
     assert rep.must_read == []
-    assert [c.genre for c in rep.categories] == ["paper", "model"]
+    # 2026-09-08 起条目按重要性(分数)排序, 不再按 genre 分组 —— 分组标题从 #90
+    # 起就不渲染, 读者只看到一个无从理解的顺序。genre 仍用于 front matter 的 tags。
+    assert [c.genre for c in rep.categories] == ["all"]
     assert rep.is_pending is False
     # 全量目录守恒
     assert sum(len(c.items) for c in rep.categories) == rep.item_count
@@ -548,8 +551,10 @@ def test_publish_markdown_snapshot():
     # 条目顺序仍按 genre_labels 键序(paper 在 model 前), 所以 88 分那条(model)拿 [2]
     assert "\n[2]\n" in res.markdown
     refs = res.markdown.split("## 参考链接")[1]
-    assert "1. [新论文](https://a/2)" in refs  # paper 先出现
-    assert "2. [GLM-5 发布](https://a/1)" in refs  # model 次之
+    # 2026-09-08 起按分数排: GLM-5 是 88 分, 新论文 82 分。旧的 genre 序会把 82 分的
+    # 论文排在 88 分的模型前面, 仅仅因为它是论文 —— 读者第一眼看到的不是当天最大的事。
+    assert "1. [GLM-5 发布](https://a/1)" in refs
+    assert "2. [新论文](https://a/2)" in refs
     if not SNAPSHOT.exists():  # 首次运行固化快照
         SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
         SNAPSHOT.write_text(res.markdown, encoding="utf-8")
@@ -972,3 +977,46 @@ def test_total_limit_still_caps_a_fitting_but_oversized_set():
     cfg = PublishConfig(quota={"paper": 3}, total_limit=12, reserved_quota={})
     report = build_report(_rr(items), "2026-09-05", cfg)
     assert report.item_count <= 12
+
+
+def test_items_are_ordered_by_importance_not_by_genre():
+    """当天最重要的新闻排最前 (#167 后续)。
+
+    改之前顺序由 genre 分组决定(genre_labels 键序: 论文→模型→官方→…), 跟"哪条最
+    重要"无关。而分类标题从 #90 起就不再渲染, 所以读者看不到任何分组存在, 只看到
+    一个他无从理解的顺序: 点进来第一眼是某篇论文的方法框架, 而当天最大的新闻排在
+    后面。2026-09-04 那期就是这样——NVIDIA 收购 Hugging Face 是当天最大的事。"""
+    items = [
+        _ri("https://n/1", genre=Genre.news, score=97, title="NVIDIA 收购 Hugging Face"),
+        _ri("https://p/1", genre=Genre.paper, score=80, title="某论文"),
+        _ri("https://p/2", genre=Genre.paper, score=75, title="另一篇论文"),
+        _ri("https://a/1", genre=Genre.announcement, score=90, title="某公司发布"),
+    ]
+    rep = build_report(_rr(items), "2026-09-08", CFG)
+    order = [it.title for cat in rep.categories for it in cat.items]
+    assert order[0] == "NVIDIA 收购 Hugging Face", f"最高分的没排第一: {order}"
+    assert order == ["NVIDIA 收购 Hugging Face", "某公司发布", "某论文", "另一篇论文"]
+
+
+def test_front_matter_tags_still_list_genres_in_label_order():
+    """回归: tags 原本取自分类结构。改成按重要性排序后, 分类结构不再承担排序,
+    但站点的 tags 必须保持不变——它是分组仅存的、读者可见的用途。"""
+    items = [
+        _ri("https://m/1", genre=Genre.model, score=95, title="模型"),
+        _ri("https://p/1", genre=Genre.paper, score=60, title="论文"),
+    ]
+    rep = build_report(_rr(items), "2026-05-30", CFG)
+    fm = render_front_matter(rep, CFG, draft=True)
+    # genre_labels 键序: paper 在 model 前, 与条目分数顺序无关
+    assert 'tags: ["论文", "模型"]' in fm
+
+
+def test_wechat_toc_follows_the_same_importance_order():
+    """目录、正文、参考链接三处顺序必须一致(它们共用同一批条目)。"""
+    items = [
+        _ri("https://n/1", genre=Genre.news, score=97, title="最重要"),
+        _ri("https://p/1", genre=Genre.paper, score=70, title="次要"),
+    ]
+    out = render_wechat(build_report(_rr(items), "2026-09-08", CFG), CFG)
+    toc = out.split("## 目录", 1)[1].split("## 最重要", 1)[0]
+    assert "1. 最重要" in toc and "2. 次要" in toc

@@ -25,6 +25,20 @@ def select_must_read(items: list[ReviewedItem], config: PublishConfig) -> list[R
     return eligible[: config.must_read_count]
 
 
+def order_by_importance(items: list[ReviewedItem]) -> list[CategorySection]:
+    """把全部条目按分数降序放进单个 section —— 当天最重要的排最前。
+
+    改这个之前, 顺序由 genre 分组决定(genre_labels 键序: 论文→模型→官方→…), 跟
+    "哪条最重要"完全无关。而分类标题从 #90 起就不再渲染, 所以读者看不到任何分组
+    存在, 只看到一个他无从理解的顺序: 点进来第一眼是某篇论文的方法框架, 而当天最大
+    的新闻排在后面(2026-09-04 那期: NVIDIA 收购 Hugging Face 是当天最大的事)。
+
+    genre 分组仍由 group_by_category 保留给 front matter 的 tags —— 那是分组仅存的、
+    读者真正看得见的用途。"""
+    ordered = sorted(items, key=lambda it: (-it.score, it.published_at, it.link))
+    return [CategorySection(genre="all", label="", items=ordered)] if ordered else []
+
+
 def group_by_category(items: list[ReviewedItem], config: PublishConfig) -> list[CategorySection]:
     """按 genre 分组; 组间按 genre_labels 键序(不在表里的排末尾);
     组内保上游序; 空类目不产 section。"""
@@ -189,7 +203,7 @@ def build_report(
         daily_take=review_result.daily_take,
         wechat_title=review_result.wechat_title,
         must_read=[],
-        categories=group_by_category(items, config),
+        categories=order_by_importance(items),
         overview=Overview(genre_distribution={}, keywords=[]),
         is_pending=review_result.is_pending,
         item_count=len(items),
@@ -293,7 +307,12 @@ def render_front_matter(report: DailyReport, config: PublishConfig, draft: bool)
     固定东八区 08:00。tags = categories 的 label(已去重 + genre_labels 序)。"""
     m = re.match(r"\d{4}-\d{2}-\d{2}", report.date_label)
     iso_date = m.group(0) if m else report.date_label
-    tags = ", ".join(_yaml_quote(c.label) for c in report.categories)
+    # tags 取自条目自身的 genre 而不是 categories: 条目顺序已改成按重要性排,
+    # categories 不再按 genre 分组, 但站点的 tags 要保持原样(genre_labels 键序)。
+    present = {it.genre.value for cat in report.categories for it in cat.items}
+    tags = ", ".join(
+        _yaml_quote(label) for key, label in config.genre_labels.items() if key in present
+    )
     # 截到句末而不是硬切: 硬切 140 曾把 "DeepSeek" 切成 "De" 出现在站点 meta /
     # 社交预览里(2026-09-01 实测)。daily_take 现在本身已被 enforce_digest 卡在
     # 120 字内, 这层只是兜底, 但兜底也不该切在词中间。
