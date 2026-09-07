@@ -113,6 +113,15 @@ class TelegramPollingNotifier:
             disable_web_page_preview=True,
         )
 
+    async def send_alert(self, text: str) -> None:
+        """运维告警 (#169)。跟审稿卡片区分开: 这条不需要任何决策, 只是通知有东西坏了。"""
+        await self._bot.send_message(
+            chat_id=self._cfg.chat_id,
+            text=text,
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+
     async def send_photo(self, photo_path: Path, caption: str) -> None:
         """Send a photo file to the same chat as send_message uses. HTML parse mode."""
         with photo_path.open("rb") as f:

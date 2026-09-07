@@ -32,6 +32,7 @@ from src.core.config import (
     load_selfcheck_config,
     load_storylink_config,
 )
+from src.core.registry import load_registry
 from src.core.types import (
     CollectionConfig,
     InterpretConfig,
@@ -510,6 +511,7 @@ def run_tick(
 
     async def _collect_and_interpret():
         c = await collect(coll_cfg, ctx)
+        head_llm_holder["source_reports"] = c.source_reports
         if ecfg.enabled and c.items:
             await enrich_with_hn(c.items, HNAlgoliaClient(ecfg.timeout_s), ecfg, ctx)
         if ecfg.release_importance.enabled and c.items:
@@ -562,6 +564,11 @@ def run_tick(
                 daily_take=ires.daily_take,
                 db=db,
                 notifiers=notifiers,
+                # 静默归零告警 (#169): 抓取失败是非致命的, 报的是 success + 0 条,
+                # 日志里看不出来。x-extension 曾因此连续 17 天无产出无人察觉。
+                source_reports=head_llm_holder.get("source_reports"),
+                zero_yield_config=dcfg.zero_yield_alert,
+                adapter_of={s.name: s.adapter for s in load_registry(registry_path, ctx)},
             )
         )
         return {

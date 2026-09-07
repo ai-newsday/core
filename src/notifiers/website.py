@@ -16,6 +16,9 @@ class WebsiteNotifier:
     async def send_reminder(self, undecided_count: int) -> None:
         return None
 
+    async def send_alert(self, text: str) -> None:
+        return None  # 站点不是运维告警的去处
+
     async def send_final_report(
         self, markdown: str, summary: dict, wechat_markdown: str = ""
     ) -> None:

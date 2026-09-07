@@ -18,6 +18,7 @@ from src.core.types import (
     StoryLinkConfig,
     TelegramConfig,
     WebsiteConfig,
+    ZeroYieldAlertConfig,
 )
 
 
@@ -339,9 +340,17 @@ def load_delivery_config(path: str) -> DeliveryConfig:
         git_push=web_data.get("git_push", False),
         site_base_url=web_data.get("site_base_url", "https://ai-newsday.github.io/core/"),
     )
+    zy_data = data.get("zero_yield_alert", {})
+    zy_d = ZeroYieldAlertConfig()
+    zy = ZeroYieldAlertConfig(
+        adapters=zy_data.get("adapters", zy_d.adapters),
+        consecutive_runs=zy_data.get("consecutive_runs", zy_d.consecutive_runs),
+    )
     da_data = data.get("decisions_api", {})
     decisions_api = DecisionsApiConfig(
         url=da_data.get("url", ""),
         secret=os.environ.get("DECISIONS_API_SECRET", da_data.get("secret", "")),
     )
-    return DeliveryConfig(telegram=tg, website=web, decisions_api=decisions_api)
+    return DeliveryConfig(
+        telegram=tg, website=web, decisions_api=decisions_api, zero_yield_alert=zy
+    )
