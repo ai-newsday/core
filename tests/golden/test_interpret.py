@@ -47,14 +47,21 @@ def test_golden_happy_full_fields():
     items = [_scored("https://a/1")]
     llm = FakeLLMProvider(
         {"https://a/1": _ok_json("https://a/1")},
-        default=json.dumps({"title": "甲发布X | 乙提出Y【AI日报】", "digest": "看点。"}),
+        # 摘要用真实形状(带固定收尾): enforce_digest 会给缺收尾的补上(#174),
+        # 夹具若不带收尾, 这条 golden 测的就不是"原样透传"而是"被修补"。
+        default=json.dumps(
+            {
+                "title": "甲发布X | 乙提出Y【AI日报】",
+                "digest": "今日亮点：甲发布 X。详见正文，参考链接见文末。",
+            }
+        ),
     )
     res = interpret(items, InterpretConfig(), _ctx(), llm)
     one = res.interpreted_items[0]
     assert one.interpretation_status == "ok"
     assert len(one.tags) == 3 and one.eligible_for_must_read is True
     assert res.interpreted_count == 1 and res.fallback_count == 0
-    assert res.daily_take == "看点。"
+    assert res.daily_take == "今日亮点：甲发布 X。详见正文，参考链接见文末。"
 
 
 # Case 2 (spec §9.2): wrong tag count -> fallback

@@ -252,3 +252,57 @@ def test_prompt_targets_two_events_not_three():
     tpl = load_prompt("src/prompts/daily_take.md")
     assert "目标是 2 个事件" in tpl
     assert "目标是 3 个事件" not in tpl
+
+
+# --- 摘要格式强制 (#174) ---
+
+DIGEST_CLOSER = "详见正文，参考链接见文末。"
+
+
+def test_digest_missing_the_closing_clause_gets_it_appended():
+    """回归(2026-09-08 生产): 成品摘要停在 `；`, 没有固定收尾。
+
+    它只有 102 字、远没到 120 上限, 所以不是被截断——是模型直接没写, 而
+    enforce_digest 只校验长度不校验格式, 就放行了。跟标题当初一模一样: 只写在
+    prompt 里的规则, 模型总有一定比例的日子不遵守, 必须有代码兜。"""
+    d = "今日亮点：A 发布 X；B 提出 Y；C 开源 Z；"
+    out = enforce_digest(d)
+    assert out.endswith(DIGEST_CLOSER)
+    assert "；详见正文" not in out, "补收尾前要去掉悬空的分隔符"
+    assert out == "今日亮点：A 发布 X；B 提出 Y；C 开源 Z。" + DIGEST_CLOSER
+
+
+def test_digest_that_already_closes_properly_is_untouched():
+    d = "今日亮点：A 发布 X；B 提出 Y。" + DIGEST_CLOSER
+    assert enforce_digest(d) == d
+
+
+def test_repaired_digest_still_respects_the_length_limit():
+    """补收尾会加 13 字, 不能因此把摘要顶过 120。"""
+    d = "今日亮点：" + "甲乙丙丁戊己庚辛壬癸；" * 11
+    out = enforce_digest(d)
+    assert len(out) <= 120, f"补完收尾后 {len(out)} 字, 超了"
+    assert out.endswith(DIGEST_CLOSER)
+
+
+def test_missing_closer_is_logged_like_the_title_is(caplog):
+    """静默修复等于下次还会发生却看不见——跟 daily_title_rejected 一样要留痕。"""
+    import logging
+
+    logger = logging.getLogger("test.digest.closer")
+    with caplog.at_level(logging.INFO, logger="test.digest.closer"):
+        enforce_digest("今日亮点：A 发布 X；", logger=logger)
+    payload = json.loads(caplog.records[-1].message)
+    assert payload["event"] == "daily_digest_repaired"
+    assert payload["reason"] == "missing_closer"
+
+
+def test_empty_digest_stays_empty():
+    assert enforce_digest("") == ""
+    assert enforce_digest("   ") == ""
+
+
+def test_prompt_and_enforcement_agree_on_the_closing_string():
+    """两处必须是同一个字符串, 否则 prompt 改了措辞、代码还在补旧的, 会产出两种收尾。"""
+    tpl = load_prompt("src/prompts/daily_take.md")
+    assert DIGEST_CLOSER in tpl
