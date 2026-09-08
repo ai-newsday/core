@@ -10,6 +10,7 @@ from src.core.types import (
     ReviewDecision,
     RunContext,
     SourceFeedbackStats,
+    publisher_key,
 )
 from src.observability.events import emit
 
@@ -25,7 +26,15 @@ def derive_events(
         if dec is None:
             continue
         out.append(
-            FeedbackEvent(link=it.link, source=it.source, action=dec.action, run_id=run_id, ts=now)
+            FeedbackEvent(
+                link=it.link,
+                # 按发布方而不是 source 聚合: X 的 source 是列表名, 按它降权会
+                # 误伤同列表的其它账号, 且刷屏账号永远不会被单独降权 (#175)。
+                source=publisher_key(it.link, it.source),
+                action=dec.action,
+                run_id=run_id,
+                ts=now,
+            )
         )
     return out
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -22,6 +23,19 @@ class Publisher(str, Enum):
     company = "company"
     individual = "individual"
     media = "media"
+
+
+# X 的 item.source 是 List 名(如 x-ai-product)而不是账号, 所以任何按 source 分组的
+# 机制(同源惩罚、发卡池封顶、反馈闭环的 quality_weight)对 X 都看不见"谁发的"。
+# 后果不只是学不会, 是学错: drop 掉一个刷屏账号会把整个列表降权, 连带同列表的
+# OpenAI/DeepMind 一起拉下水 (2026-09-08 实测, #175)。真正的发布方在链接里。
+_X_HANDLE_RE = re.compile(r"^https?://(?:www\.)?x\.com/([^/]+)/status/", re.I)
+
+
+def publisher_key(link: str, source: str) -> str:
+    """发布方标识: X 用账号 handle, 其余用 source。"""
+    m = _X_HANDLE_RE.match(link or "")
+    return f"x:{m.group(1).lower()}" if m else source
 
 
 class RawItem(BaseModel):

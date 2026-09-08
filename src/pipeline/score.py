@@ -1,11 +1,18 @@
 from __future__ import annotations
 
-import re
 from collections import defaultdict
 from datetime import datetime
 
 from src.core.registry import load_source_priorities
-from src.core.types import NewsItem, QuotaLine, RunContext, ScoredItem, ScoreResult, ScoringConfig
+from src.core.types import (
+    NewsItem,
+    QuotaLine,
+    RunContext,
+    ScoredItem,
+    ScoreResult,
+    ScoringConfig,
+    publisher_key,
+)
 from src.observability.events import emit
 
 # PRD §5.5 fixed breakdown dimension keys.
@@ -64,7 +71,9 @@ def _same_source_penalty(items: list[NewsItem], config: ScoringConfig) -> dict[s
     for it in items:
         if it.adapter in exempt:
             continue
-        by_source[it.source].append(it)
+        # 按发布方而不是 source: X 的 source 是列表名, 一个列表算一个源——这正是
+        # x_list 当初被放进豁免名单的原因, 豁免和错误的分组键一直在互相掩护 (#175)。
+        by_source[publisher_key(it.link, it.source)].append(it)
     out: dict[str, float] = defaultdict(float)
     for grp in by_source.values():
         ordered = sorted(
@@ -155,17 +164,6 @@ def compute_scores(
     return scored
 
 
-# X 的 item.source 是 List 名(如 x-ai-company)而不是账号, 所以同源惩罚看不见"谁发的";
-# 真正的发布方在链接里: x.com/<handle>/status/<id>。
-_X_HANDLE = re.compile(r"^https?://(?:www\.)?x\.com/([^/]+)/status/", re.I)
-
-
-def publisher_key(item: NewsItem) -> str:
-    """发布方标识: X 用账号 handle, 其余用 source。"""
-    m = _X_HANDLE.match(item.link)
-    return f"x:{m.group(1).lower()}" if m else item.source
-
-
 def apply_account_cap(scored: list[ScoredItem], cap: int) -> list[ScoredItem]:
     """每个发布方最多留 cap 条, 留分数最高的那几条 (#175)。
 
@@ -177,7 +175,7 @@ def apply_account_cap(scored: list[ScoredItem], cap: int) -> list[ScoredItem]:
     seen: dict[str, int] = defaultdict(int)
     out: list[ScoredItem] = []
     for s in sorted(scored, key=lambda s: (-s.score, s.published_at, s.link)):
-        k = publisher_key(s)
+        k = publisher_key(s.link, s.source)
         if seen[k] < cap:
             seen[k] += 1
             out.append(s)
