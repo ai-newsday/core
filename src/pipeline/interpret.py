@@ -227,6 +227,7 @@ def generate_daily_take(
 
 _TITLE_MAX = 64
 _DIGEST_MAX = 120
+_DIGEST_CLOSER = "详见正文，参考链接见文末。"
 _TITLE_SUFFIX = "【AI日报】"
 
 
@@ -257,15 +258,34 @@ def enforce_title(title: str, date_label: str, logger=None) -> str:
 
 
 def enforce_digest(digest: str, logger=None) -> str:
-    """摘要截到 ≤120 字的句末。
+    """把摘要修成 spec 规定的形状: ≤120 字, 且以固定收尾结束。
 
     长度必须在代码里卡: 2026-08-31 spike 实测, prompt 明写"必须 ≤120 字",
-    模型仍产出 145 字——prompt 约不住长度。"""
+    模型仍产出 145 字——prompt 约不住长度。
+
+    收尾同理 (#174): 2026-09-08 成品的摘要停在 `；`, 只有 102 字、远没到上限, 所以
+    不是被截断——是模型直接没写收尾, 而这里当时只校验长度就放行了。跟标题当初一样,
+    只写在 prompt 里的规则, 模型总有一定比例的日子不遵守。
+
+    缺收尾时就地修补而不是丢弃: 一份内容本身没问题、只是少了固定尾巴的摘要, 值得补好,
+    丢掉只会让公众号摘要栏变空。补之前先去掉悬空的分隔符, 否则会得到 `…；详见正文`。"""
     d = (digest or "").strip()
-    out = _trim_to_sentence(d, _DIGEST_MAX)
-    if not out and d and logger is not None:
-        emit(logger, "daily_digest_rejected", reason="empty_after_trim", raw=d[:120])
-    return out
+    if not d:
+        return ""
+    body = d[: -len(_DIGEST_CLOSER)] if d.endswith(_DIGEST_CLOSER) else d
+    repaired = not d.endswith(_DIGEST_CLOSER)
+    body = body.rstrip("；;，,、 ")
+    if body and body[-1] not in "。！？!?":
+        body += "。"
+    # 先把正文截到给收尾留够位置, 再拼收尾——反过来会把收尾自己截掉
+    body = _trim_to_sentence(body, _DIGEST_MAX - len(_DIGEST_CLOSER))
+    if not body:
+        if logger is not None:
+            emit(logger, "daily_digest_rejected", reason="empty_after_trim", raw=d[:120])
+        return ""
+    if repaired and logger is not None:
+        emit(logger, "daily_digest_repaired", reason="missing_closer", raw=d[:120])
+    return body + _DIGEST_CLOSER
 
 
 def generate_daily_head(
