@@ -196,6 +196,12 @@ class ScoringConfig:
     # 100% 候选本来就 >=50, 低分候选只在供给差的日子冒出来。取 60 的依据是真实发布
     # 数据: 09-04 实际发出的 7 条是 82-100 分, 下限 60 一条都碰不到。
     card_pool_min_score: int = 0
+    # 单个发布方在发卡池里最多占几条 (#175)。0 = 关闭。
+    # 2026-09-08 实测: @higgsfield_ai 一个账号占了 100 条池子里的 18 条(算上关联账号
+    # 共 21 条), 分数 73-83 且 13 条并列 73 —— 高度雷同的分数正是同一批模板化营销贴
+    # 的特征, 用户看到的是"巨多各种 demo"。X 的 source 是列表名不是账号, 同源惩罚
+    # 看不见账号; 这里按链接里的 handle 分组, 那才是真正的发布方。
+    card_pool_account_cap: int = 0
     sources_registry_path: str = "config/sources.yaml"
     topic_keywords: list[str] = field(default_factory=list)
     topic_bonus: float = 5.0
