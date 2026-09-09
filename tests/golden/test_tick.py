@@ -295,7 +295,10 @@ def test_finalize_title_reflects_only_items_that_survive_quota(tmp_path):
             self.prompts.append(prompt)
             return (
                 '{"title": "生成的标题【AI日报】", '
-                '"digest": "今日亮点：生成的摘要。详见正文，参考链接见文末。"}'
+                # 摘要用真实形状(4 段): 段数不足会触发一次补段重试(2026-09-09),
+                # 那样这条测的就不是"标题只生成一次"了。
+                '"digest": "今日亮点：甲发 X；乙提 Y；丙开源 Z；丁上线 W。'
+                '详见正文，参考链接见文末。"}'
             )
 
     async def go():

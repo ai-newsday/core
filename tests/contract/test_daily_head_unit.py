@@ -119,8 +119,12 @@ def test_overlong_title_triggers_one_retry_with_shorter_result():
     """回归(2026-09-03 实测): 3 事件目标下模型经常一次性写到 100+ 字(远超 64),
     不会自己按 prompt 里"塞不下就退化"的指示重写——必须代码层面重试一次,
     否则"目标 3 个事件"在实践中几乎总是直接摆烂成朴素标题。"""
-    overlong = '{"title": "' + "标" * 80 + '【AI日报】", "digest": "今日亮点：X。"}'
-    short = '{"title": "短标题【AI日报】", "digest": "今日亮点：X。"}'
+    overlong = (
+        '{"title": "'
+        + "标" * 80
+        + '【AI日报】", "digest": "今日亮点：A 发 X；B 提 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"}'
+    )
+    short = '{"title": "短标题【AI日报】", "digest": "今日亮点：A 发 X；B 提 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"}'
     llm = _SequenceLLM([overlong, short])
     title, digest = generate_daily_head([], "tpl {{items}}", InterpretConfig(), llm, "2026-09-03")
     assert title == "短标题【AI日报】"
@@ -128,7 +132,7 @@ def test_overlong_title_triggers_one_retry_with_shorter_result():
 
 
 def test_title_within_limit_on_first_try_does_not_retry():
-    ok = '{"title": "短标题【AI日报】", "digest": "今日亮点：X。"}'
+    ok = '{"title": "短标题【AI日报】", "digest": "今日亮点：A 发 X；B 提 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"}'
     llm = _SequenceLLM([ok])
     title, _ = generate_daily_head([], "tpl {{items}}", InterpretConfig(), llm, "2026-09-03")
     assert title == "短标题【AI日报】"
@@ -137,7 +141,11 @@ def test_title_within_limit_on_first_try_does_not_retry():
 
 def test_retry_also_overlong_falls_back_to_plain_title():
     """重试只给一次机会, 第二次还是不合规就老实回退, 不无限重试。"""
-    overlong = '{"title": "' + "标" * 80 + '【AI日报】", "digest": "今日亮点：X。"}'
+    overlong = (
+        '{"title": "'
+        + "标" * 80
+        + '【AI日报】", "digest": "今日亮点：A 发 X；B 提 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"}'
+    )
     llm = _SequenceLLM([overlong, overlong])
     title, _ = generate_daily_head([], "tpl {{items}}", InterpretConfig(), llm, "2026-09-03")
     assert title == "AI Daily · 2026-09-03"
@@ -146,7 +154,11 @@ def test_retry_also_overlong_falls_back_to_plain_title():
 
 def test_retry_llm_failure_falls_back_to_first_attempts_plain_title():
     """重试请求本身报错(网络/超时) -> 不让整个调用失败, 就当没重试成功处理。"""
-    overlong = '{"title": "' + "标" * 80 + '【AI日报】", "digest": "今日亮点：X。"}'
+    overlong = (
+        '{"title": "'
+        + "标" * 80
+        + '【AI日报】", "digest": "今日亮点：A 发 X；B 提 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"}'
+    )
 
     class _FailOnSecond(_SequenceLLM):
         def complete_json(self, *a, **kw):
@@ -161,8 +173,12 @@ def test_retry_llm_failure_falls_back_to_first_attempts_plain_title():
 
 
 def test_retry_prompt_asks_for_a_shorter_title():
-    overlong = '{"title": "' + "标" * 80 + '【AI日报】", "digest": "今日亮点：X。"}'
-    short = '{"title": "短标题【AI日报】", "digest": "今日亮点：X。"}'
+    overlong = (
+        '{"title": "'
+        + "标" * 80
+        + '【AI日报】", "digest": "今日亮点：A 发 X；B 提 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"}'
+    )
+    short = '{"title": "短标题【AI日报】", "digest": "今日亮点：A 发 X；B 提 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"}'
     llm = _SequenceLLM([overlong, short])
     generate_daily_head([], "tpl {{items}}", InterpretConfig(), llm, "2026-09-03")
     assert len(llm.prompts) == 2
@@ -172,7 +188,7 @@ def test_retry_prompt_asks_for_a_shorter_title():
 def test_generate_daily_head_returns_both_fields():
     llm = _CannedLLM(
         '{"title": "A发布X | B提出Y【AI日报】",'
-        ' "digest": "今日亮点：A 发布 X；B 提出 Y。详见正文，参考链接见文末。"}'
+        ' "digest": "今日亮点：A 发 X；B 提 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"}'
     )
     title, digest = generate_daily_head([], "tpl {{items}}", InterpretConfig(), llm, "2026-09-01")
     assert title == "A发布X | B提出Y【AI日报】"
@@ -195,7 +211,11 @@ def test_generate_daily_head_logs_rejected_title_reason_end_to_end(caplog):
     except 分支(LLM 正常返回了 JSON), 是 enforce_title 自己悄悄拒绝的, 之前
     完全没有日志能看出是这一步。"""
     logger = logging.getLogger("test.daily_head.e2e")
-    llm = _CannedLLM('{"title": "' + "标" * 80 + '【AI日报】", "digest": "今日亮点：X。"}')
+    llm = _CannedLLM(
+        '{"title": "'
+        + "标" * 80
+        + '【AI日报】", "digest": "今日亮点：A 发 X；B 提 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"}'
+    )
     with caplog.at_level(logging.INFO, logger="test.daily_head.e2e"):
         title, _ = generate_daily_head(
             [], "tpl {{items}}", InterpretConfig(), llm, "2026-09-01", logger=logger
@@ -306,3 +326,69 @@ def test_prompt_and_enforcement_agree_on_the_closing_string():
     """两处必须是同一个字符串, 否则 prompt 改了措辞、代码还在补旧的, 会产出两种收尾。"""
     tpl = load_prompt("src/prompts/daily_take.md")
     assert DIGEST_CLOSER in tpl
+
+
+# --- 摘要段数 (2026-09-09) ---
+
+
+def _digest_json(digest, title="短标题【AI日报】"):
+    return json.dumps({"title": title, "digest": digest})
+
+
+def test_thin_digest_triggers_one_retry_for_more_segments():
+    """2026-09-09 实测: 成品摘要只有 3 段, 96 字——上限 120, 还剩 24 字空间。
+    不是塞不下, 是模型没按 prompt 的"目标 4-5 段"写。跟标题同一类问题: 只写在
+    prompt 里的规则, 模型总有一定比例的日子不遵守, 得代码层面再要一次。"""
+    thin = "今日亮点：A 发布 X；B 提出 Y；C 开源 Z。详见正文，参考链接见文末。"
+    rich = "今日亮点：A 发布 X；B 提出 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"
+    llm = _SequenceLLM([_digest_json(thin), _digest_json(rich)])
+    _, digest = generate_daily_head([], "tpl {{items}}", InterpretConfig(), llm, "2026-09-09")
+    assert digest.count("；") == 3, f"应当拿到 4 段的版本, 实际 {digest}"
+    assert llm.calls == 2
+
+
+def test_digest_with_enough_segments_does_not_retry():
+    rich = "今日亮点：A 发 X；B 提 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"
+    llm = _SequenceLLM([_digest_json(rich)])
+    generate_daily_head([], "tpl {{items}}", InterpretConfig(), llm, "2026-09-09")
+    assert llm.calls == 1, "已经够段数就不该多花一次调用"
+
+
+def test_no_retry_when_the_digest_is_already_near_the_length_limit():
+    """段数少但已经接近 120 字时不重试——那是真的塞不下, 再要一段只会被截掉。"""
+    long_thin = "今日亮点：" + "甲乙丙丁戊己庚辛壬癸" * 9 + "。详见正文，参考链接见文末。"
+    assert len(long_thin) > 102, f"夹具必须真的接近上限, 实际 {len(long_thin)} 字"
+    llm = _SequenceLLM([_digest_json(long_thin)])
+    generate_daily_head([], "tpl {{items}}", InterpretConfig(), llm, "2026-09-09")
+    assert llm.calls == 1
+
+
+def test_retry_that_comes_back_worse_keeps_the_first_digest():
+    """重试只给一次机会, 回来更差就用第一次的——不能因为想要更多段反而丢掉内容。"""
+    thin = "今日亮点：A 发布 X；B 提出 Y；C 开源 Z。详见正文，参考链接见文末。"
+    worse = "今日亮点：A 发布 X。详见正文，参考链接见文末。"
+    llm = _SequenceLLM([_digest_json(thin), _digest_json(worse)])
+    _, digest = generate_daily_head([], "tpl {{items}}", InterpretConfig(), llm, "2026-09-09")
+    assert digest == thin
+
+
+def test_digest_separator_before_the_closer_is_normalised():
+    """2026-09-09 成品: `…基金会；详见正文…`。收尾在但前面挂着分号, 之前会放行。"""
+    assert enforce_digest("今日亮点：A 发 X；B 提 Y；详见正文，参考链接见文末。") == (
+        "今日亮点：A 发 X；B 提 Y。详见正文，参考链接见文末。"
+    )
+
+
+def test_trimming_must_not_reintroduce_a_separator_before_the_closer():
+    """回归(2026-09-09 生产, 是 #176 自己的 bug): 成品摘要是 `…成为白金会员；详见正文…`。
+
+    根因不是模型写错, 是修补顺序错了: `_trim_to_sentence` 把 `；` 也当句末标点,
+    所以剥收尾 -> strip 分隔符 -> **trim** 这一步会重新截在一个 `；` 上, 之后拼收尾
+    就得到 `；详见正文`。分隔符必须在 trim **之后**再normalise 一次。"""
+    long_thin = "今日亮点：" + "甲乙丙丁戊己庚辛壬癸；" * 12
+    out = enforce_digest(long_thin)
+    assert len(out) <= 120
+    assert "；详见正文" not in out, f"trim 之后又冒出分隔符: ...{out[-24:]}"
+    assert out.endswith("。" + DIGEST_CLOSER[:0] + DIGEST_CLOSER) or out.endswith(DIGEST_CLOSER)
+    idx = out.find("详见正文")
+    assert out[idx - 1] == "。", f"收尾前应当是句号, 实际 {out[idx - 1]!r}"
