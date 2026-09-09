@@ -228,6 +228,11 @@ def generate_daily_take(
 _TITLE_MAX = 64
 _DIGEST_MAX = 120
 _DIGEST_CLOSER = "详见正文，参考链接见文末。"
+# 摘要目标 4-5 段。低于这个数且**还有字数余量**时重试一次要更多段: 2026-09-09 实测
+# 成品只有 2-3 段而长度才 96-101 字(上限 120), 不是塞不下, 是模型没按 prompt 写。
+# 只在有余量时重试——接近上限的少段数是真的塞不下, 再要一段只会被截掉。
+_DIGEST_MIN_SEGMENTS = 4
+_DIGEST_RETRY_HEADROOM = 18
 _TITLE_SUFFIX = "【AI日报】"
 
 
@@ -274,11 +279,14 @@ def enforce_digest(digest: str, logger=None) -> str:
         return ""
     body = d[: -len(_DIGEST_CLOSER)] if d.endswith(_DIGEST_CLOSER) else d
     repaired = not d.endswith(_DIGEST_CLOSER)
+    # 先把正文截到给收尾留够位置, 再拼收尾——反过来会把收尾自己截掉
+    body = _trim_to_sentence(body.rstrip(), _DIGEST_MAX - len(_DIGEST_CLOSER))
+    # 分隔符必须在 trim **之后**再规范一次: `_trim_to_sentence` 把 `；` 也当句末标点,
+    # 所以它可能正好截在一个分隔符上, 把刚 strip 掉的东西又带回来 —— 2026-09-09 成品
+    # 的 `…成为白金会员；详见正文…` 就是这么来的(是 #176 自己的修补顺序错了)。
     body = body.rstrip("；;，,、 ")
     if body and body[-1] not in "。！？!?":
         body += "。"
-    # 先把正文截到给收尾留够位置, 再拼收尾——反过来会把收尾自己截掉
-    body = _trim_to_sentence(body, _DIGEST_MAX - len(_DIGEST_CLOSER))
     if not body:
         if logger is not None:
             emit(logger, "daily_digest_rejected", reason="empty_after_trim", raw=d[:120])
@@ -286,6 +294,51 @@ def enforce_digest(digest: str, logger=None) -> str:
     if repaired and logger is not None:
         emit(logger, "daily_digest_repaired", reason="missing_closer", raw=d[:120])
     return body + _DIGEST_CLOSER
+
+
+def _segment_count(digest: str) -> int:
+    """摘要里的描述段数。收尾自带一个分隔符之前的句号, 所以按 `；` 数 + 1。"""
+    body = digest[: -len(_DIGEST_CLOSER)] if digest.endswith(_DIGEST_CLOSER) else digest
+    body = body.split("：", 1)[-1]
+    return len([p for p in body.split("；") if p.strip()])
+
+
+def _retry_thin_digest(digest: str, prompt: str, config: InterpretConfig, llm, logger=None) -> str:
+    """段数不足且还有字数余量时, 再要一次更丰富的摘要 (2026-09-09)。
+
+    跟标题的重试同一个思路: 只写在 prompt 里的规则模型总有一定比例的日子不遵守。
+    区别是方向相反——标题是写太长被拒, 摘要是写太少而合法, 所以这里判据是"段数少
+    **且还有余量**"。接近上限的少段数是真的塞不下, 重试只会被截掉, 白花一次调用。
+
+    重试回来更差(段数没增加)就保留第一次的结果: 目的是更丰富, 不是换一个。"""
+    if not digest:
+        return digest
+    if _segment_count(digest) >= _DIGEST_MIN_SEGMENTS:
+        return digest
+    if len(digest) > _DIGEST_MAX - _DIGEST_RETRY_HEADROOM:
+        return digest
+    retry_prompt = (
+        prompt
+        + f"\n\n(上一次的 digest 只有 {_segment_count(digest)} 段描述, 而 120 字里还有余量。"
+        + f"请只重写 digest, 补到 {_DIGEST_MIN_SEGMENTS}-5 段(用 `；` 分隔), 仍然 ≤120 字、"
+        + "仍以固定收尾结束; title 不变。仍输出同样的 JSON 结构。)"
+    )
+    try:
+        raw = llm.complete_json(
+            retry_prompt, temperature=config.temperature, max_tokens=config.max_tokens
+        )
+        data = json.loads(raw)
+        if not isinstance(data, dict) or not isinstance(data.get("digest"), str):
+            return digest
+        better = enforce_digest(data["digest"], logger=logger)
+        if _segment_count(better) > _segment_count(digest):
+            return better
+    except Exception as e:
+        if logger is not None:
+            emit(
+                logger, "daily_digest_retry_error", error_type=type(e).__name__, error=str(e)[:120]
+            )
+    return digest
 
 
 def generate_daily_head(
@@ -337,10 +390,9 @@ def generate_daily_head(
             except Exception:
                 enforced_title = enforce_title(title, date_label, logger=logger)
 
-        return (
-            enforced_title,
-            (enforce_digest(digest, logger=logger) or None),
-        )
+        enforced_digest = enforce_digest(digest, logger=logger)
+        enforced_digest = _retry_thin_digest(enforced_digest, prompt, config, llm, logger=logger)
+        return (enforced_title, enforced_digest or None)
     except Exception as e:
         if logger is not None:
             emit(logger, "daily_head_error", error_type=type(e).__name__, error=str(e)[:200])
