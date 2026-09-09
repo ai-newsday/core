@@ -405,6 +405,7 @@ def interpret(
     ctx: RunContext,
     llm,
     uncertain_content_penalty: float = -15.0,
+    generate_head: bool = True,
 ) -> InterpretResult:
     """Orchestrate per-item interpretation + daily take (spec §3, §5, §11).
     Only side effect is the injected llm; everything else is pure/testable."""
@@ -458,15 +459,25 @@ def interpret(
     with ThreadPoolExecutor(max_workers=max(1, config.concurrency)) as pool:
         out: list[InterpretedItem] = list(pool.map(_one, items))
 
-    daily_tpl = load_prompt(config.daily_prompt_path)
     date_label = ctx.now.strftime("%Y-%m-%d")
-    title, daily = generate_daily_head(out, daily_tpl, config, llm, date_label, logger=ctx.logger)
-    emit(
-        ctx.logger,
-        "daily_take_done",
-        ok=daily is not None,
-        title_generated=title != plain_title(date_label),
-    )
+    if generate_head:
+        daily_tpl = load_prompt(config.daily_prompt_path)
+        title, daily = generate_daily_head(
+            out, daily_tpl, config, llm, date_label, logger=ctx.logger
+        )
+        emit(
+            ctx.logger,
+            "daily_take_done",
+            ok=daily is not None,
+            title_generated=title != plain_title(date_label),
+        )
+    else:
+        # 调用方随后会用**最终发布条目**重新生成(regenerate_wechat_head), 这里这次
+        # 一定会被覆盖。而它喂的是全量解读池, prompt 是全系统最大的一个: 2026-09-09
+        # 实测 agnes 的 8000 token 全烧在推理上、一个正文 token 没产出, 而同一批逐条
+        # 解读 100/100 全成功——不是模型坏了, 是这个 prompt 太大。
+        # 每天固定失败一次、把日志刷成一片 LLM 报错、产物还用不上, 所以让调用方关掉。
+        title, daily = plain_title(date_label), None
 
     interpreted_count = sum(1 for r in out if r.interpretation_status == "ok")
     fallback_count = len(out) - interpreted_count

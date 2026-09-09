@@ -168,3 +168,48 @@ def test_golden_relevant_false_propagates():
     res = interpret(items, InterpretConfig(), _ctx(), llm)
     assert res.interpreted_items[0].interpretation_status == "ok"
     assert res.interpreted_items[0].relevant is False
+
+
+# --- 跳过 interpret 阶段的 head 生成 (2026-09-09) ---
+
+
+class _CountingLLM:
+    def __init__(self):
+        self.calls = 0
+
+    def complete_json(self, prompt, *, temperature, max_tokens, validator=None):
+        self.calls += 1
+        if "今日条目" in prompt:
+            return json.dumps(
+                {
+                    "title": "T【AI日报】",
+                    # 4 段: 段数不足会触发补段重试, 那样这条测的就不是调用次数了
+                    "digest": "今日亮点：甲发 X；乙提 Y；丙开源 Z；丁上线 W。详见正文，参考链接见文末。",
+                }
+            )
+        out = _ok_json("https://a/1")
+        if validator is not None:
+            validator(out)
+        return out
+
+
+def test_interpret_can_skip_head_generation():
+    """interpret 阶段的标题/摘要在生产里 100% 被 regenerate_wechat_head 覆盖
+    (finalize、dry-run 两条路径都无条件重生成), 而它用的是全量解读池——prompt 是
+    全系统最大的一个。2026-09-09 实测: agnes 的 8000 token 全烧在推理上、一个正文
+    token 没产出, 逐条解读却 100/100 全成功, 就是这个 prompt 太大。
+
+    每天固定失败一次、污染日志、输出还用不上, 所以调用方应当能关掉它。"""
+    llm = _CountingLLM()
+    res = interpret([_scored("https://a/1")], InterpretConfig(), _ctx(), llm, generate_head=False)
+    assert llm.calls == 1, f"只该有逐条解读那一次调用, 实际 {llm.calls}"
+    assert res.daily_take is None
+    assert len(res.interpreted_items) == 1
+
+
+def test_interpret_generates_head_by_default():
+    """默认仍生成——不传参数的调用方(测试、无 llm 的路径)行为不变。"""
+    llm = _CountingLLM()
+    res = interpret([_scored("https://a/1")], InterpretConfig(), _ctx(), llm)
+    assert llm.calls == 2, "逐条 + head 共两次"
+    assert res.daily_take is not None
