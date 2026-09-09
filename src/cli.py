@@ -213,6 +213,10 @@ def _dry_run_prefix(
             ctx,
             llm,
             uncertain_content_penalty=scfg.uncertain_content_penalty,
+            # 标题/摘要一律由 regenerate_wechat_head 用**最终发布条目**重生成
+            # (dry-run 与 finalize 两条路径都无条件重生成), 这里生成一次必被覆盖,
+            # 而它喂的是全量解读池——prompt 最大、最容易撞爆推理预算 (2026-09-09)。
+            generate_head=False,
         )
 
     return coll, dres, sres, ires, llm
@@ -549,6 +553,9 @@ def run_tick(
             ctx,
             _llm,
             uncertain_content_penalty=scfg.uncertain_content_penalty,
+            # 同上: finalize 走 regenerate_wechat_head 重生成; collect tick 的
+            # daily_take 参数在 run_collect_tick 里从未被使用。
+            generate_head=False,
         )
         return ires
 
