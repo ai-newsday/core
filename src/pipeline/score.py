@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from datetime import datetime
 
@@ -154,6 +155,35 @@ def compute_scores(
     return scored
 
 
+# X 的 item.source 是 List 名(如 x-ai-company)而不是账号, 所以同源惩罚看不见"谁发的";
+# 真正的发布方在链接里: x.com/<handle>/status/<id>。
+_X_HANDLE = re.compile(r"^https?://(?:www\.)?x\.com/([^/]+)/status/", re.I)
+
+
+def publisher_key(item: NewsItem) -> str:
+    """发布方标识: X 用账号 handle, 其余用 source。"""
+    m = _X_HANDLE.match(item.link)
+    return f"x:{m.group(1).lower()}" if m else item.source
+
+
+def apply_account_cap(scored: list[ScoredItem], cap: int) -> list[ScoredItem]:
+    """每个发布方最多留 cap 条, 留分数最高的那几条 (#175)。
+
+    在发卡池的 top-N 硬切之前施加, 所以被砍掉的名额会让位给别的发布方, 池子总量
+    不变而多样性上升 —— 2026-09-08 那天 21 条 higgsfield 会缩到 cap 条, 空出的位置
+    由排名其后的其它来源补上。cap<=0 = 关闭。"""
+    if cap <= 0:
+        return scored
+    seen: dict[str, int] = defaultdict(int)
+    out: list[ScoredItem] = []
+    for s in sorted(scored, key=lambda s: (-s.score, s.published_at, s.link)):
+        k = publisher_key(s)
+        if seen[k] < cap:
+            seen[k] += 1
+            out.append(s)
+    return out
+
+
 def apply_quota(
     scored: list[ScoredItem], quota: dict[str, int], total_limit: int
 ) -> tuple[list[ScoredItem], dict[str, QuotaLine]]:
@@ -280,7 +310,17 @@ def score(
             dropped=len(scored) - len(eligible),
             kept=len(eligible),
         )
-    reserved, remaining = apply_reserved_quota(eligible, config.card_pool_reserved_quota)
+    # 单发布方封顶先于 top-N 硬切: 砍掉的名额要让位给别的发布方, 而不是空着
+    capped = apply_account_cap(eligible, config.card_pool_account_cap)
+    if len(capped) < len(eligible):
+        emit(
+            ctx.logger,
+            "card_pool_account_cap_applied",
+            cap=config.card_pool_account_cap,
+            dropped=len(eligible) - len(capped),
+            kept=len(capped),
+        )
+    reserved, remaining = apply_reserved_quota(capped, config.card_pool_reserved_quota)
     fill_n = max(config.card_pool_limit - len(reserved), 0)
     selected = sorted(
         reserved + remaining[:fill_n], key=lambda s: (-s.score, s.published_at, s.link)

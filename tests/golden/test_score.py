@@ -187,3 +187,69 @@ def test_card_pool_floor_defaults_to_off_for_backward_compatibility():
     from src.core.types import ScoringConfig as SC
 
     assert SC().card_pool_min_score == 0
+
+
+def test_card_pool_caps_items_per_account():
+    """单账号刷屏封顶 (#175)。
+
+    2026-09-08 实测: @higgsfield_ai 一个账号占了 100 条发卡池里的 18 条(算上
+    @higgsfield 共 21 条), 分数 73-83 且其中 13 条并列 73——高度雷同的分数正是
+    同一批模板化营销贴的特征。用户看到的是"巨多各种 demo"。
+
+    X 的 `source` 是列表名(x-ai-company)不是账号, 所以同源惩罚看不见账号;
+    这里按链接里的 handle 分组, 那才是真正的发布方。"""
+    cfg = _cfg()
+    cfg.card_pool_limit = 100
+    cfg.card_pool_account_cap = 2
+    items = [
+        _ni(f"spam{i}", f"https://x.com/spammer/status/{i}", "x-ai-product", Genre.announcement)
+        for i in range(6)
+    ]
+    items.append(_ni("real", "https://x.com/other/status/1", "x-ai-product", Genre.announcement))
+    res = score(items, cfg, _ctx())
+    links = [s.link for s in res.selected_items]
+    spam = [ln for ln in links if "/spammer/" in ln]
+    assert len(spam) == 2, f"同一账号最多留 2 条, 实际 {len(spam)}"
+    assert any("/other/" in ln for ln in links), "别的账号不该被连累"
+
+
+def test_account_cap_keeps_the_highest_scoring_posts_from_that_account():
+    """封顶留分数最高的那几条, 不是随机或最早的。"""
+    cfg = _cfg()
+    cfg.card_pool_limit = 100
+    cfg.card_pool_account_cap = 1
+    items = [
+        _ni(
+            "old",
+            "https://x.com/acct/status/1",
+            "x-ai-product",
+            Genre.announcement,
+            NOW - timedelta(hours=60),
+        ),
+        _ni("fresh", "https://x.com/acct/status/2", "x-ai-product", Genre.announcement, NOW),
+    ]
+    res = score(items, cfg, _ctx())
+    assert len(res.selected_items) == 1
+    # 时效加分让 fresh 分数更高, 所以留下的应当是它
+    assert res.selected_items[0].link.endswith("/2")
+
+
+def test_non_x_items_are_capped_by_source():
+    """非 X 条目按 source 分组封顶——一个博客一天刷十篇同样是刷屏。"""
+    cfg = _cfg()
+    cfg.card_pool_limit = 100
+    cfg.card_pool_account_cap = 2
+    items = [_ni(f"p{i}", f"https://blog.example/{i}", "someblog", Genre.writeup) for i in range(5)]
+    res = score(items, cfg, _ctx())
+    assert len(res.selected_items) == 2
+
+
+def test_account_cap_of_zero_is_off():
+    cfg = _cfg()
+    cfg.card_pool_limit = 100
+    cfg.card_pool_account_cap = 0
+    items = [
+        _ni(f"s{i}", f"https://x.com/acct/status/{i}", "x-ai-product", Genre.announcement)
+        for i in range(5)
+    ]
+    assert len(score(items, cfg, _ctx()).selected_items) == 5
