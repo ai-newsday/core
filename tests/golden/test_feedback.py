@@ -195,3 +195,48 @@ def test_feedback_deterministic_order_independent():
     assert r1.quality_weights == r2.quality_weights
     assert r1.weight_diff == r2.weight_diff
     assert [s.model_dump() for s in r1.source_stats] == [s.model_dump() for s in r2.source_stats]
+
+
+# --- 发布方粒度 (#175) ---
+
+
+def test_feedback_keys_x_items_by_account_not_by_list():
+    """回归(2026-09-08): 反馈闭环整条按 `item.source` 聚合, 而 X 的 source 是**列表名**
+    (x-ai-product), 不是账号。后果不只是"学不会", 是**学错**:
+
+    用户 drop 掉 15 条 @higgsfield_ai 的营销贴, 被降权的是整个列表——同一列表里的
+    OpenAI、DeepMind 一起被拉下水; 而 higgsfield 本身永远不会被单独降权。
+
+    这跟发卡池封顶用的是同一个 publisher_key: 真正的发布方在链接里。"""
+    items = [
+        _ii(link="https://x.com/higgsfield_ai/status/1", source="x-ai-product"),
+        _ii(link="https://x.com/higgsfield_ai/status/2", source="x-ai-product"),
+        _ii(link="https://x.com/OpenAI/status/3", source="x-ai-product"),
+    ]
+    decisions = {
+        "https://x.com/higgsfield_ai/status/1": ReviewDecision(action="drop"),
+        "https://x.com/higgsfield_ai/status/2": ReviewDecision(action="drop"),
+        "https://x.com/OpenAI/status/3": ReviewDecision(action="keep"),
+    }
+    events = derive_events(items, decisions, "r1", NOW)
+    sources = {e.source for e in events}
+    assert sources == {"x:higgsfield_ai", "x:openai"}, (
+        f"事件仍按列表名聚合, 实际 {sources} —— 降权会误伤同列表的其它账号"
+    )
+
+    stats = aggregate_by_source(events)
+    by_key = {s.source: s for s in stats}
+    assert by_key["x:higgsfield_ai"].drop == 2
+    assert by_key["x:openai"].keep == 1
+
+    weights, _ = compute_quality_weights(stats, {}, CFG)
+    assert weights["x:higgsfield_ai"] < weights["x:openai"], "刷屏账号必须被单独降权"
+
+
+def test_non_x_items_still_key_by_source():
+    """非 X 条目行为不变。"""
+    items = [_ii(link="https://blog.example/1", source="someblog")]
+    events = derive_events(
+        items, {"https://blog.example/1": ReviewDecision(action="keep")}, "r", NOW
+    )
+    assert events[0].source == "someblog"

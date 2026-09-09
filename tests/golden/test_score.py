@@ -253,3 +253,29 @@ def test_account_cap_of_zero_is_off():
         for i in range(5)
     ]
     assert len(score(items, cfg, _ctx()).selected_items) == 5
+
+
+def test_same_source_penalty_now_applies_per_x_account():
+    """键修对之后, 同源惩罚**能够**按账号生效——这条测试把机制钉住。
+
+    生产配置仍然豁免 x_list, 是刻意保留的(见 config/scoring.yaml 旁边的说明):
+    撤销收益很小(固定 -5, 73-83 分只降到 68-78, 仍在发卡下限之上), 代价却是
+    2026-07-25 记录过的那件事——一个账号一天真发三件不同的事, 第 2、3 条被无谓降权。
+    刷屏由 card_pool_account_cap 和按账号的 quality_weight 解决, 不靠这个惩罚。
+    这里在测试内部清空豁免, 所以将来若要改配置, 机制已经有覆盖 (#175)。"""
+    cfg = _cfg()
+    cfg.card_pool_limit = 100
+    cfg.same_source_penalty_exempt_adapters = []
+    a1 = _ni("a1", "https://x.com/spammer/status/1", "x-ai-product", Genre.announcement, NOW)
+    a2 = _ni(
+        "a2",
+        "https://x.com/spammer/status/2",
+        "x-ai-product",
+        Genre.announcement,
+        NOW - timedelta(hours=1),
+    )
+    other = _ni("o", "https://x.com/other/status/9", "x-ai-product", Genre.announcement, NOW)
+    scored = {s.link: s for s in score([a1, a2, other], cfg, _ctx()).all_scored}
+    pen = {k: v.score_breakdown.get("惩罚", 0) for k, v in scored.items()}
+    assert pen["https://x.com/spammer/status/1"] < 0, "同账号第二条应当吃到同源惩罚"
+    assert pen["https://x.com/other/status/9"] == 0, "别的账号不该被连累"
