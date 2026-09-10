@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 
 import httpx
 
@@ -26,11 +27,14 @@ class OpenAICompatLLM:
         model: str,
         timeout_s: int = 60,
         fallback_models: list[str] | None = None,
+        retry_sleep=None,
     ):
         self._providers = providers
         self._model = model
         self._fallback_models = fallback_models or []
         self._timeout = timeout_s
+        # 可注入以便测试不用真的睡
+        self._sleep = retry_sleep or time.sleep
 
     def _split(self, model_ref: str) -> tuple[str, str]:
         """'modelscope:foo/bar' -> ('modelscope', 'foo/bar'); 'foo/bar' -> ('modelscope', 'foo/bar')."""
@@ -59,8 +63,24 @@ class OpenAICompatLLM:
             r = client.post(spec.base_url, headers=headers, json=body)
             r.raise_for_status()
             data = r.json()
-            choice = data["choices"][0]
-            content = choice["message"]["content"]
+            # 响应形状不能假设。2026-09-10 实测 ModelScope 对**不可用模型**返回
+            # HTTP 200 + 没有 error 字段 + choices 为 null, 而且所有字段都是零值:
+            #   {"object": "", "created": 0, "system_fingerprint": "", "choices": null,
+            #    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}}
+            # 模型根本没跑。原来直接下标取值, 抛出 `'NoneType' object is not
+            # subscriptable` —— 当晚 78 次, 把"这个模型已经死了"这个真实信号埋成了
+            # 一句看不懂的报错。报错必须能让看日志的人直接判断该不该把模型摘掉。
+            choices = data.get("choices")
+            if not choices:
+                usage = data.get("usage") or {}
+                raise ValueError(
+                    f"model {model_ref} returned no choices "
+                    f"(choices={choices!r}, usage={usage}); "
+                    "ModelScope 用这种零值 200 表示模型不可用, 考虑从模型链里摘掉"
+                )
+            choice = choices[0] or {}
+            message = choice.get("message") or {}
+            content = message.get("content")
             if not content:
                 # 推理模型(agnes-*)的 reasoning_tokens 计入 max_tokens: 预算烧完时
                 # finish_reason="length" 且一个正文 token 都没产出。这跟"模型没话说"
@@ -75,6 +95,26 @@ class OpenAICompatLLM:
                     )
                 raise ValueError(f"model {model_ref} returned empty content")
             return content
+
+    # 短暂限流应当靠退避吸收, 不该靠"换下一个模型"兜。2026-09-10 实测 agnes 被 429
+    # 了 97 次, 导致 30/60 条目解读失败; 前两晚同样并发 4 只有 0-1 次, 所以不是并发
+    # 引起的。换下一个模型也兜不住: 当晚 ModelScope 链同样在 429/400 里, 而且每换一个
+    # 模型就多一次注定失败的往返。所以短暂限流在出事的那一层就地扛住。
+    _RATE_LIMIT_BACKOFF = (2.0, 5.0, 10.0)
+
+    def _call_with_rate_limit_retry(self, model_ref, prompt, *, temperature, max_tokens):
+        """只对 429 退避重试。400 这类确定性错误重试毫无意义, 只会拖慢每次失败。"""
+        for i, wait in enumerate(self._RATE_LIMIT_BACKOFF):
+            try:
+                return self._call(model_ref, prompt, temperature=temperature, max_tokens=max_tokens)
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code != 429:
+                    raise
+                logger.info(
+                    "LLM %s rate limited, backing off %.0fs (attempt %d)", model_ref, wait, i + 1
+                )
+                self._sleep(wait)
+        return self._call(model_ref, prompt, temperature=temperature, max_tokens=max_tokens)
 
     def complete_json(
         self,
@@ -91,7 +131,7 @@ class OpenAICompatLLM:
         last_err: Exception | None = None
         for model_ref in models:
             try:
-                result = self._call(
+                result = self._call_with_rate_limit_retry(
                     model_ref, prompt, temperature=temperature, max_tokens=max_tokens
                 )
                 if validator is not None:

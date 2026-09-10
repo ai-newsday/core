@@ -15,17 +15,21 @@ providers:
 # 共用同一个额度, 一挂全挂, 每条目要先撞 7 次必死请求才轮到 agnes。agnes 同期 49 次
 # 调用全部 HTTP 200, 实际是它一个人在扛整条流水线。ModelScope 保留在后面, 额度恢复
 # 后自动重新参与, 不用改配置。
+# 2026-09-10 清理: 删掉 4 个实测返回 400 "has no provider supported" 的模型
+# (DeepSeek-V4-Flash / Ling-2.6-1T / Kimi-K2.6 / Kimi-K2.5) —— 模型不存在, 当晚贡献
+# 161 次调用、0 次成功, 占全部失败 41%。
+# 保留 DeepSeek-V4-Pro / Ring-2.6-1T / Qwen3.5-397B-A17B: 小时级间歇, 单次探活全返回
+# 零值 200(看起来像死), 同一晚生产日志里却成功了 27 次, 按单次采样删会砍掉当晚
+# 30 次成功里的 26 次。
+# ModelScope 会给模型 id 加日期后缀(DeepSeek-V4-Flash 已 400, -0731 存在), 硬编码 id
+# 会腐烂 —— 之后由定期维护的可用名单接管(2026-09-10 定的方向)。
 models:
   - "agnes:agnes-2.0-flash"
   - "modelscope:deepseek-ai/DeepSeek-V4-Pro"
   - "modelscope:inclusionAI/Ring-2.6-1T"
-  - "modelscope:deepseek-ai/DeepSeek-V4-Flash"
-  - "modelscope:inclusionAI/Ling-2.6-1T"
 
 # 备用模型链 (前 3 家 2026-07-11 未探活, 生产表现见分晓; agnes 是付费保险丝)
 fallback_models:
-  - "modelscope:moonshotai/Kimi-K2.6"
-  - "modelscope:moonshotai/Kimi-K2.5"
   - "modelscope:Qwen/Qwen3.5-397B-A17B"
   - "agnes:agnes-2.0-flash"
 
