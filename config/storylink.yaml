@@ -23,8 +23,9 @@ providers:
 models:
   - "agnes:agnes-2.0-flash"
 
+# 2026-09-10: 删掉 DeepSeek-V4-Flash —— 实测 400 "has no provider supported",
+# 模型不存在, 只会拖慢每次失败。
 fallback_models:
-  - "modelscope:deepseek-ai/DeepSeek-V4-Flash"
   - "modelscope:Qwen/Qwen3.5-397B-A17B"
 
 temperature: 0.0
