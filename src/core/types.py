@@ -271,6 +271,10 @@ class InterpretedItem(ScoredItem):  # ScoredItem 的下游演进; 本圈加解�
     eligible_for_must_read: bool
     quality_flags: list[QualityFlag] = Field(default_factory=list)
     fallback_reason: str | None = None  # exception type name when extractive_fallback ran
+    # 实际写出这条内容的模型(如 "agnes:agnes-2.0-flash"); 回退条目为 None。
+    # 2026-09-10: 读者感到"质量参差", 但从没记录过谁写的, 无法按模型量化质量——
+    # 这是"一期只用一个模型"方案的前提数据。
+    model: str | None = None
 
 
 @dataclass

@@ -213,3 +213,58 @@ def test_interpret_generates_head_by_default():
     res = interpret([_scored("https://a/1")], InterpretConfig(), _ctx(), llm)
     assert llm.calls == 2, "逐条 + head 共两次"
     assert res.daily_take is not None
+
+
+# --- 记录产出模型 (2026-09-10) ---
+
+
+class _ModelAwareLLM:
+    """带 last_model() 的替身, 模拟真实适配器的线程本地记录。"""
+
+    def __init__(self, model="agnes:agnes-2.0-flash"):
+        self._model = model
+
+    def complete_json(self, prompt, *, temperature, max_tokens, validator=None):
+        out = _ok_json("https://a/1")
+        if validator is not None:
+            validator(out)
+        return out
+
+    def last_model(self):
+        return self._model
+
+
+def test_interpreted_item_records_the_model_that_wrote_it():
+    """2026-09-10 那期 30 条是 agnes + DeepSeek + Qwen 混着写的, 而读者感到的
+    "质量参差"至今只能靠感觉——从没记录过谁写的。有了它才能按模型量质量。"""
+    from src.pipeline.interpret import interpret_item
+
+    res = interpret_item(
+        _scored("https://a/1"), "{{title_en}}", InterpretConfig(), _ModelAwareLLM("agnes:x")
+    )
+    assert res.interpretation_status == "ok"
+    assert res.model == "agnes:x"
+
+
+def test_fallback_item_records_no_model():
+    """回退条目没有哪个模型写过它, 不能误记。"""
+    from src.pipeline.interpret import interpret_item
+    from tests.fakes import FailingLLMProvider
+
+    res = interpret_item(
+        _scored("https://a/1"), "{{title_en}}", InterpretConfig(), FailingLLMProvider()
+    )
+    assert res.interpretation_status == "extractive_fallback"
+    assert res.model is None
+
+
+def test_llm_without_last_model_still_works():
+    """12 个测试替身里只有 1 个接受 **kwargs, 所以不能靠给 complete_json 加参数
+    实现这个功能——那会让 11 个替身抛 TypeError。没有 last_model() 的 llm 照常工作。"""
+    from src.pipeline.interpret import interpret_item
+    from tests.fakes import FakeLLMProvider
+
+    llm = FakeLLMProvider({"https://a/1": _ok_json("https://a/1")})
+    res = interpret_item(_scored("https://a/1"), "{{link}}", InterpretConfig(), llm)
+    assert res.interpretation_status == "ok"
+    assert res.model is None

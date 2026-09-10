@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 
 import httpx
@@ -35,6 +36,9 @@ class OpenAICompatLLM:
         self._timeout = timeout_s
         # 可注入以便测试不用真的睡
         self._sleep = retry_sleep or time.sleep
+        # 记录本线程最近一次 complete_json 实际是哪个模型答的。必须按线程隔离:
+        # interpret 用线程池并发, 多个线程共享同一个实例 (#153), 共享属性会串线。
+        self._local = threading.local()
 
     def _split(self, model_ref: str) -> tuple[str, str]:
         """'modelscope:foo/bar' -> ('modelscope', 'foo/bar'); 'foo/bar' -> ('modelscope', 'foo/bar')."""
@@ -129,6 +133,8 @@ class OpenAICompatLLM:
         empty content, or validator raising — log warning and continue chain."""
         models = [self._model] + self._fallback_models
         last_err: Exception | None = None
+        # 先清空: 全部失败时不能残留上一次的值, 否则回退条目会被误记成某个模型写的
+        self._local.model = None
         for model_ref in models:
             try:
                 result = self._call_with_rate_limit_retry(
@@ -142,8 +148,17 @@ class OpenAICompatLLM:
                         model_ref,
                         self._model,
                     )
+                self._local.model = model_ref
                 return result
             except Exception as e:
                 logger.warning("LLM %s failed: %s", model_ref, e)
                 last_err = e
         raise last_err  # type: ignore[misc]
+
+    def last_model(self) -> str | None:
+        """本线程最近一次 complete_json 成功时实际作答的模型; 失败或未调用过为 None。
+
+        不通过 complete_json 的返回值或新参数传出来: 仓库里 12 个测试替身只有 1 个
+        接受 **kwargs, 改签名会让另外 11 个抛 TypeError。调用方用 getattr 取这个方法,
+        没有它的 llm 就当作不知道。"""
+        return getattr(self._local, "model", None)
