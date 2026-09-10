@@ -21,6 +21,10 @@ from src.core.types import ProviderSpec
 logger = logging.getLogger("ai-newsday")
 
 
+class ReasoningBudgetExhausted(ValueError):
+    """推理模型把 max_tokens 全烧在 reasoning 上、正文 0 字。唯一值得"加预算重试"的失败。"""
+
+
 class OpenAICompatLLM:
     def __init__(
         self,
@@ -93,7 +97,7 @@ class OpenAICompatLLM:
                 if choice.get("finish_reason") == "length":
                     details = (data.get("usage") or {}).get("completion_tokens_details") or {}
                     used = details.get("reasoning_tokens")
-                    raise ValueError(
+                    raise ReasoningBudgetExhausted(
                         f"model {model_ref} produced no content within max_tokens={max_tokens}"
                         f" (reasoning_tokens={used}); raise max_tokens"
                     )
@@ -137,9 +141,17 @@ class OpenAICompatLLM:
         self._local.model = None
         for model_ref in models:
             try:
-                result = self._call_with_rate_limit_retry(
-                    model_ref, prompt, temperature=temperature, max_tokens=max_tokens
-                )
+                try:
+                    result = self._call_with_rate_limit_retry(
+                        model_ref, prompt, temperature=temperature, max_tokens=max_tokens
+                    )
+                except ReasoningBudgetExhausted:
+                    # 三晚实测 agnes 每晚 6-16 次推理烧穿预算。换模型会让同一期混进别的
+                    # 文风, 所以同一个模型翻倍预算再试一次; 只一次, 成本有上限。
+                    logger.info("LLM %s reasoning budget exhausted, retrying at 2x", model_ref)
+                    result = self._call_with_rate_limit_retry(
+                        model_ref, prompt, temperature=temperature, max_tokens=max_tokens * 2
+                    )
                 if validator is not None:
                     validator(result)  # raises → treat as model failure
                 if model_ref != self._model:

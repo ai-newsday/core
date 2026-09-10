@@ -48,7 +48,9 @@ temperature: 0.3
 # 2026-09-01: 4000 → 8000。线上仍有条目报 "produced no content within
 # max_tokens=4000"(当天 3 条回退里 2 条是它), 说明推理预算在某些输入上还会烧穿。
 max_tokens: 8000
-timeout_s: 60
+# 2026-09-10: 60 → 120。09-09 那晚 agnes 超时 7 次; 推理模型 8000 token 预算
+# (烧穿时还会翻倍重试) 在 60s 内跑不完。
+timeout_s: 120
 title_max_chars: 64
 body_max_chars: 240
 raw_summary_max_chars: 1500          # 防任意 adapter 的超长 raw_summary(如 GitHub release body)撑爆 prompt
