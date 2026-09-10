@@ -1020,3 +1020,45 @@ def test_wechat_toc_follows_the_same_importance_order():
     out = render_wechat(build_report(_rr(items), "2026-09-08", CFG), CFG)
     toc = out.split("## 目录", 1)[1].split("## 最重要", 1)[0]
     assert "1. 最重要" in toc and "2. 次要" in toc
+
+
+def test_site_version_also_excludes_fallback_items():
+    """2026-09-10 生产: 网站版被回退条目灌满(当晚 50% 回退率)。用户点名的四条
+    ——`vllm-gh v0.29.0`、`nex-agi/Nex-N2.5-mini`、AWS Ray Serve 那条、
+    `comfyui-gh v0.35.0`——在公众号版里 0 次、网站版里全在, 因为排除规则只写在
+    公众号那一版。回退条目按定义就是没解读成功: 标题是仓库 slug、正文是原文倒灌,
+    放在哪一版都是半成品。过滤上移到 build_report, 两版共用一处。"""
+    items = [
+        _ri("https://a/1", title="正常条目"),
+        _ri("https://a/2", title="vllm-gh v0.29.0", status="extractive_fallback"),
+    ]
+    rep = build_report(_rr(items), "2026-09-10", CFG)
+    assert rep.item_count == 1
+    md = render_markdown(rep, CFG)
+    assert "正常条目" in md
+    assert "vllm-gh" not in md
+
+
+def test_headings_inside_a_body_are_neutralised():
+    """回退条目会把原始 release notes 整段倒灌进来, 连它自己的标题一起:
+
+        ## vllm-gh v0.29.0
+        # v0.29.0        <- 原文的 H1
+        ## 亮点          <- 在网站上看起来像一个新条目
+
+    2026-09-10 网站版因此有 14 个 `##` 而实际只有 11 条。就算解读成功的条目, 正文里
+    出现 `#` 开头的行也会伪装成新条目, 所以这是渲染层的问题, 跟回退率无关。"""
+    body = "开头一句。\n\n# v0.29.0\n\n## 亮点\n\n正文内容。"
+    rep = build_report(_rr([_ri("https://a/1", title="条目一", body=body)]), "2026-09-10", CFG)
+    for md in (render_markdown(rep, CFG), render_wechat(rep, CFG)):
+        heads = [ln for ln in md.split("\n") if ln.startswith("#")]
+        assert all("亮点" not in h and "v0.29.0" not in h for h in heads), heads
+        assert "亮点" in md, "内容要保留, 只是不再是标题"
+
+
+def test_all_fallback_day_yields_an_empty_report_without_crashing():
+    items = [_ri("https://a/1", title="X", status="extractive_fallback")]
+    rep = build_report(_rr(items), "2026-09-10", CFG)
+    assert rep.item_count == 0
+    render_markdown(rep, CFG)
+    render_wechat(rep, CFG)
