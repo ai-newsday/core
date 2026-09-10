@@ -29,7 +29,9 @@ fallback_models:
   - "modelscope:Qwen/Qwen3.5-397B-A17B"
 
 temperature: 0.0
-max_tokens: 200
-timeout_s: 30
+# 2026-09-10: 200 → 4000, 30 → 60。主模型 agnes 是推理模型, reasoning_tokens
+# 计入 max_tokens, 200 连推理都不够——实测 200/500 都是推理吃满、正文 0 字。
+max_tokens: 4000
+timeout_s: 60
 summary_max_chars: 500
 prompt_path: "src/prompts/story_link_confirm.md"

@@ -31,7 +31,8 @@ release_importance:
   temperature: 0.1        # 分类任务, 低温度求稳定
   # 2026-08-12: max_tokens=300 时真实数据里出现过 JSON 被截断(Unterminated string),
   # 提示词只要求 4 布尔 + 一句话 reason, 但真实 reason 常超预估长度, 留够余量。
-  max_tokens: 500
+  # 2026-09-10: 500 → 4000。fallback 是推理模型 agnes-2.5-flash, 500 会被推理吃满。
+  max_tokens: 4000
   # 2026-08-12: 30s 超时下真实 release body 的判定几乎全部 ReadTimeout, 又 fail-open
   # 回 tier=2, 等于白测。interpret 主链同一 API 用 60s 稳定跑, 分类任务没理由更快, 对齐。
   timeout_s: 60

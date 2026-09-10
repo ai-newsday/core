@@ -253,3 +253,55 @@ def test_last_model_is_per_thread(monkeypatch):
     t.join()
     assert llm.last_model() == "modelscope/x"
     assert seen["other"] is None, "别的线程不该看到本线程的模型"
+
+
+# --- 推理预算烧穿: 翻倍重试一次 (2026-09-10 "最稳定形式" 第 2 步) ---
+
+_EXHAUSTED = {
+    "choices": [{"message": {"content": ""}, "finish_reason": "length"}],
+    "usage": {"completion_tokens_details": {"reasoning_tokens": 100}},
+}
+
+
+@respx.mock
+def test_exhausted_reasoning_budget_is_retried_once_with_double_budget(monkeypatch):
+    """三晚实测 agnes 每晚 6-16 次推理把预算烧光、正文 0 字; 换下一个模型会让同一期
+    混进别的模型的文风。只对这一种失败, 在同一个模型上把预算翻倍再试一次。"""
+    import json
+
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
+    route = respx.post(URL)
+    route.side_effect = [
+        httpx.Response(200, json=_EXHAUSTED),
+        httpx.Response(200, json={"choices": [{"message": {"content": '{"ok":1}'}}]}),
+    ]
+    llm = OpenAICompatLLM(providers=PROVIDERS, model="m", retry_sleep=lambda s: None)
+    assert llm.complete_json("p", temperature=0.1, max_tokens=100) == '{"ok":1}'
+    assert route.call_count == 2
+    assert json.loads(route.calls[1].request.content)["max_tokens"] == 200
+    assert llm.last_model() == "m"
+
+
+@respx.mock
+def test_exhausted_budget_retry_happens_only_once(monkeypatch):
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
+    route = respx.post(URL).mock(return_value=httpx.Response(200, json=_EXHAUSTED))
+    llm = OpenAICompatLLM(providers=PROVIDERS, model="m", retry_sleep=lambda s: None)
+    with pytest.raises(ValueError, match="max_tokens=200"):
+        llm.complete_json("p", temperature=0.1, max_tokens=100)
+    assert route.call_count == 2
+
+
+@respx.mock
+def test_plain_empty_content_is_not_retried(monkeypatch):
+    """finish_reason 不是 length 的空正文跟预算无关, 翻倍也没用。"""
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
+    route = respx.post(URL).mock(
+        return_value=httpx.Response(
+            200, json={"choices": [{"message": {"content": ""}, "finish_reason": "stop"}]}
+        )
+    )
+    llm = OpenAICompatLLM(providers=PROVIDERS, model="m", retry_sleep=lambda s: None)
+    with pytest.raises(ValueError):
+        llm.complete_json("p", temperature=0.1, max_tokens=100)
+    assert route.call_count == 1
