@@ -15,7 +15,7 @@ from src.core.types import (
     Publisher,
     ReviewedItem,
 )
-from src.pipeline.publish import render_markdown, render_wechat
+from src.pipeline.publish import build_report, render_markdown, render_wechat
 
 NOW_LABEL = "2026-09-04"
 
@@ -55,6 +55,24 @@ def _report(items, *, title="标题一 | 标题二【AI日报】", digest="今�
         is_pending=False,
         item_count=len(items),
         explore_count=0,
+    )
+
+
+def _review_result(items):
+    from src.core.types import ReviewResult
+
+    n = len(items)
+    return ReviewResult(
+        reviewed_items=items,
+        daily_take="今日亮点：甲发 X；乙提 Y；丙开源 Z；丁上线 W。详见正文，参考链接见文末。",
+        wechat_title="标题一 | 标题二【AI日报】",
+        input_count=n,
+        kept_count=n,
+        dropped_count=0,
+        edited_count=0,
+        is_reviewed=True,
+        is_pending=False,
+        is_silent=False,
     )
 
 
@@ -114,12 +132,15 @@ def test_toc_has_no_links():
 
 
 def test_extractive_fallback_items_are_excluded():
-    """spec §5: 回退条目按定义就是"没解读成功"——标题是英文原文、正文是原始摘要。"""
+    """spec §5: 回退条目按定义就是"没解读成功"——标题是英文原文、正文是原始摘要。
+
+    2026-09-10 起这道过滤在 build_report 里(两版共用), 不再由 render_wechat 自己做,
+    所以这条测试走真实路径构建报告, 而不是直接构造一个 DailyReport。"""
     items = [
         _item("正常条目", "https://a"),
         _item("Raw English Title", "https://b", status="extractive_fallback"),
     ]
-    out = render_wechat(_report(items), _cfg())
+    out = render_wechat(build_report(_review_result(items), NOW_LABEL, _cfg()), _cfg())
     assert "正常条目" in out
     assert "Raw English Title" not in out
 
@@ -132,7 +153,7 @@ def test_numbering_stays_consistent_after_excluding_a_fallback():
         _item("Dropped", "https://b", status="extractive_fallback"),
         _item("第二条", "https://c"),
     ]
-    out = render_wechat(_report(items), _cfg())
+    out = render_wechat(build_report(_review_result(items), NOW_LABEL, _cfg()), _cfg())
     toc = out.split("## 目录", 1)[1].split("## 第一条", 1)[0]
     assert "1. 第一条" in toc and "2. 第二条" in toc
     refs = out.split("## 参考链接", 1)[1]
@@ -188,9 +209,7 @@ def test_no_score_line():
 def test_all_items_fallback_yields_a_structurally_complete_but_short_document():
     """spec §8: 全部回退时不报错,可以很短但结构完整。"""
     items = [_item("A", "https://a", status="extractive_fallback")]
-    out = render_wechat(_report(items), _cfg())
-    assert out.split("\n", 1)[0] == "标题一 | 标题二【AI日报】"
-    assert "今日亮点" in out
+    out = render_wechat(build_report(_review_result(items), NOW_LABEL, _cfg()), _cfg())
     assert "## 目录" not in out  # 没有条目就没有目录, 不留一个空壳章节
 
 

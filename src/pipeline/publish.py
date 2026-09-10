@@ -167,6 +167,11 @@ def build_report(
         for it in review_result.reviewed_items
         if _pre_content_certainty_penalty_score(it) >= config.min_display_score
         and it.relevant
+        # 解读失败的条目两版都不发 (原先只在公众号版排除, spec 2026-08-31 §5):
+        # 2026-09-10 当晚 50% 回退率, 网站版被 `vllm-gh v0.29.0`、
+        # `nex-agi/Nex-N2.5-mini` 这类灌满 —— 标题是仓库 slug、正文是原文倒灌,
+        # 放在哪一版都是半成品。
+        and it.interpretation_status != "extractive_fallback"
         # 2026-09-02 实测: agnes 推理预算烧穿时, 解读失败 + 原文摘要本身也是空的
         # 两个条件叠加, 会产出一条 body 完全空白的卡片——比英文回退条目更差,
         # 读者看到的是标题下面什么都没有。宁可少发一条, 不发一张空卡片。
@@ -209,6 +214,19 @@ def build_report(
         item_count=len(items),
         explore_count=sum(1 for it in items if it.is_explore),
     )
+
+
+_HEADING_LINE = re.compile(r"^(#{1,6})(\s)", re.M)
+
+
+def _neutralise_headings(text: str) -> str:
+    """把正文里以 `#` 开头的行降级成加粗行。
+
+    回退条目会把原始 release notes 整段倒灌进来, 连它自己的标题一起 —— 2026-09-10
+    网站版因此有 14 个 `##` 而实际只有 11 条, `## 亮点` 在页面上看起来就是一个新条目。
+    回退条目现在已被过滤掉, 但这仍是渲染层该管的事: 任何正文里的 `#` 行都会伪装成
+    条目标题, 解读成功的条目也可能带。内容保留, 只是不再是标题。"""
+    return _HEADING_LINE.sub("", text)
 
 
 def _escape_math_delimiters(text: str) -> str:
@@ -259,7 +277,7 @@ def _render_items(
             if it.image_url:
                 lines.append(f"![]({it.image_url})")
                 lines.append("")
-            lines.append(_escape_math_delimiters(it.body))
+            lines.append(_escape_math_delimiters(_neutralise_headings(it.body)))
             lines.append("")
             if it.tags:
                 lines.append(" ".join(it.tags))
@@ -393,14 +411,14 @@ def clean_wechat_tags(tags: list[str]) -> list[str]:
 
 
 def _wechat_report(report: DailyReport) -> DailyReport:
-    """滤掉解读回退的条目 (spec §5)。
+    """给公众号版做标签清洗。
 
-    回退条目按定义就是"没解读成功": 标题是英文原文、正文是原始摘要倒灌, 放进
-    公众号就是读者一眼看出来的半成品。#123 把回退率从 44% 压到 2% 之后, 这条
-    代价才小到可接受。
+    回退条目的过滤已上移到 build_report(2026-09-10): 原先只在这里做, 于是网站版
+    被回退条目灌满 —— 那些条目标题是仓库 slug、正文是原文倒灌, 放在哪一版都是
+    半成品, 没有理由只对公众号版排除。
 
-    重新构造一份报告而不是在渲染时跳过, 是为了让目录、正文角标、参考表**共用
-    同一批条目**——三处编号必须一致, 分头过滤迟早对不上号。"""
+    仍然重新构造一份报告而不是在渲染时逐条处理, 是为了让目录、正文角标、参考表
+    **共用同一批条目**——三处编号必须一致, 分头处理迟早对不上号。"""
     cats = [
         cat.model_copy(
             update={
@@ -409,7 +427,6 @@ def _wechat_report(report: DailyReport) -> DailyReport:
                     # 那边保留信息更全的原标签(`#GLM-5.3-Flash` 比 `#GLM` 有用)。
                     it.model_copy(update={"tags": clean_wechat_tags(it.tags)})
                     for it in cat.items
-                    if it.interpretation_status != "extractive_fallback"
                 ]
             }
         )
