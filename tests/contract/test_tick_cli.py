@@ -94,3 +94,41 @@ def test_run_tick_reads_seeded_quality_weights_without_error(tmp_path, monkeypat
     )
     for k in ("run_id", "tick", "pushed", "date"):
         assert k in out
+
+
+def test_finalize_reuses_interpretations_written_by_collect(tmp_path, monkeypatch):
+    """接线: collect 写的解读要能被 finalize 读到, 否则缓存只是摆设。
+    finalize 用一个必然失败的 llm, 条目仍是 ok 就说明走的是缓存。"""
+    from tests.fakes import FakeLLMProvider
+
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake_tok")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "123")
+    ok = json.dumps(
+        {
+            "title": "中文标题",
+            "body": "正文。",
+            "tags": ["#a", "#b", "#c"],
+            "evidence": [],
+            "relevant": True,
+        }
+    )
+    kw = dict(
+        registry_path="tests/golden/data/registry_min.yaml",
+        now=NOW,
+        db_path=str(tmp_path / "state.db"),
+        embedder=FakeEmbeddingProvider({}),
+    )
+    seen = {}
+    real = cli_module.interpret
+
+    def _spy(*a, **k):
+        res = real(*a, **k)
+        seen[k.get("cache") is not None] = res
+        return res
+
+    monkeypatch.setattr(cli_module, "interpret", _spy)
+    run_tick(tick="collect", llm=FakeLLMProvider({}, default=ok), **kw)
+    first = seen.pop(True)
+    assert first.interpreted_count > 0
+    run_tick(tick="finalize", llm=FailingLLMProvider(), **kw)
+    assert seen[True].interpreted_count == first.interpreted_count
