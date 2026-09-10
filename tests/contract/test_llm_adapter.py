@@ -194,3 +194,62 @@ def test_non_rate_limit_errors_are_not_retried(monkeypatch):
     with pytest.raises(Exception):
         llm.complete_json("p", temperature=0.1, max_tokens=100)
     assert route.call_count == 1
+
+
+# --- 记录产出模型 (2026-09-10, 一期一模型方案的第 1 步) ---
+
+
+@respx.mock
+def test_last_model_reports_which_model_actually_answered(monkeypatch):
+    """ "质量参差不齐"至今无法量化: 从没记录过每条内容是哪个模型写的。
+    主模型失败、备用模型成功时, 必须能知道是备用那个写的。"""
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
+    respx.post(URL).mock(
+        side_effect=[
+            httpx.Response(400, json={"e": 1}),
+            httpx.Response(200, json={"choices": [{"message": {"content": '{"ok":1}'}}]}),
+        ]
+    )
+    llm = OpenAICompatLLM(
+        providers=PROVIDERS, model="modelscope/primary", fallback_models=["modelscope/backup"]
+    )
+    llm.complete_json("p", temperature=0.1, max_tokens=100)
+    assert llm.last_model() == "modelscope/backup"
+
+
+@respx.mock
+def test_last_model_is_none_after_total_failure(monkeypatch):
+    """全部失败时不能残留上一次的值——否则回退条目会被误记成某个模型写的。"""
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
+    respx.post(URL).mock(
+        side_effect=[
+            httpx.Response(200, json={"choices": [{"message": {"content": '{"ok":1}'}}]}),
+            httpx.Response(400, json={"e": 1}),
+        ]
+    )
+    llm = OpenAICompatLLM(providers=PROVIDERS, model="modelscope/x")
+    llm.complete_json("p", temperature=0.1, max_tokens=100)
+    assert llm.last_model() == "modelscope/x"
+    with pytest.raises(Exception):
+        llm.complete_json("p", temperature=0.1, max_tokens=100)
+    assert llm.last_model() is None
+
+
+@respx.mock
+def test_last_model_is_per_thread(monkeypatch):
+    """interpret 用线程池并发, 多个线程共享同一个 llm 实例 (#153)。用共享属性记
+    "刚才用了哪个模型"会串线——A 线程读到的可能是 B 线程刚写的。必须按线程隔离。"""
+    import threading
+
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
+    respx.post(URL).mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content": '{"ok":1}'}}]})
+    )
+    llm = OpenAICompatLLM(providers=PROVIDERS, model="modelscope/x")
+    llm.complete_json("p", temperature=0.1, max_tokens=100)
+    seen = {}
+    t = threading.Thread(target=lambda: seen.setdefault("other", llm.last_model()))
+    t.start()
+    t.join()
+    assert llm.last_model() == "modelscope/x"
+    assert seen["other"] is None, "别的线程不该看到本线程的模型"

@@ -153,6 +153,12 @@ def extractive_fallback(
     )
 
 
+def _model_that_answered(llm) -> str | None:
+    """问 llm 刚才实际是哪个模型答的; 不支持 last_model() 的 llm(测试替身等)返回 None。"""
+    fn = getattr(llm, "last_model", None)
+    return fn() if callable(fn) else None
+
+
 def interpret_item(
     item: ScoredItem,
     item_template: str,
@@ -180,7 +186,8 @@ def interpret_item(
             validator=_validate,
         )
         parsed = parsed_holder["parsed"]
-        return build_ok_item(parsed, item, config, uncertain_content_penalty)
+        ok = build_ok_item(parsed, item, config, uncertain_content_penalty)
+        return ok.model_copy(update={"model": _model_that_answered(llm)})
     except Exception as e:
         if logger is not None:
             emit(
@@ -448,6 +455,8 @@ def interpret(
             link=res.link,
             status=res.interpretation_status,
             evidence_count=len(res.evidence),
+            # 写进生产日志, 这样不用额外产物就能按模型统计成功率和内容质量
+            model=res.model,
         )
         if res.interpretation_status == "extractive_fallback":
             emit(ctx.logger, "interpret_fallback", link=res.link)
