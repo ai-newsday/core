@@ -59,8 +59,24 @@ class OpenAICompatLLM:
             r = client.post(spec.base_url, headers=headers, json=body)
             r.raise_for_status()
             data = r.json()
-            choice = data["choices"][0]
-            content = choice["message"]["content"]
+            # 响应形状不能假设。2026-09-10 实测 ModelScope 对**不可用模型**返回
+            # HTTP 200 + 没有 error 字段 + choices 为 null, 而且所有字段都是零值:
+            #   {"object": "", "created": 0, "system_fingerprint": "", "choices": null,
+            #    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}}
+            # 模型根本没跑。原来直接下标取值, 抛出 `'NoneType' object is not
+            # subscriptable` —— 当晚 78 次, 把"这个模型已经死了"这个真实信号埋成了
+            # 一句看不懂的报错。报错必须能让看日志的人直接判断该不该把模型摘掉。
+            choices = data.get("choices")
+            if not choices:
+                usage = data.get("usage") or {}
+                raise ValueError(
+                    f"model {model_ref} returned no choices "
+                    f"(choices={choices!r}, usage={usage}); "
+                    "ModelScope 用这种零值 200 表示模型不可用, 考虑从模型链里摘掉"
+                )
+            choice = choices[0] or {}
+            message = choice.get("message") or {}
+            content = message.get("content")
             if not content:
                 # 推理模型(agnes-*)的 reasoning_tokens 计入 max_tokens: 预算烧完时
                 # finish_reason="length" 且一个正文 token 都没产出。这跟"模型没话说"
