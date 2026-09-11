@@ -127,6 +127,29 @@ def test_finalize_reuses_interpretations_written_by_collect(tmp_path, monkeypatc
         return res
 
     monkeypatch.setattr(cli_module, "interpret", _spy)
+
+    # 固定条目: registry_min 的源是真网络, CI 恰好跨过 UTC 午夜时两次 tick 抓到的
+    # "当天"论文不同, 缓存自然命中 0 (2026-09-10 CI 实测 0 == 3)。
+    from src.core.types import CollectionResult, Genre, Publisher, RawItem
+
+    items = [
+        RawItem(
+            title_en=f"OpenAI ships thing {i}",
+            link=f"https://openai.com/news/{i}",
+            source="openai",
+            genre=Genre.announcement,
+            publisher=Publisher.lab,
+            published_at=NOW,
+            raw_summary="A summary.",
+            adapter="rss",
+        )
+        for i in range(3)
+    ]
+
+    async def _fixed_collect(cfg, ctx):
+        return CollectionResult(items=list(items), source_reports=[], is_silent=False)
+
+    monkeypatch.setattr(cli_module, "collect", _fixed_collect)
     run_tick(tick="collect", llm=FakeLLMProvider({}, default=ok), **kw)
     first = seen.pop(True)
     assert first.interpreted_count > 0
