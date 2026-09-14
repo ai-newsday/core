@@ -52,6 +52,9 @@ max_tokens: 8000
 # (烧穿时还会翻倍重试) 在 60s 内跑不完。
 timeout_s: 120
 title_max_chars: 64
+# 2026-09-11: 解读按链接缓存。collect 每轮只补没写过的链接, finalize 复用;
+# 当晚 agnes 限流到约每分钟 1 次、ModelScope 日额度被白天 collect 烧光, 60 条回退 45。
+cache_ttl_hours: 36
 body_max_chars: 240
 raw_summary_max_chars: 1500          # 防任意 adapter 的超长 raw_summary(如 GitHub release body)撑爆 prompt
 tags_count: 3

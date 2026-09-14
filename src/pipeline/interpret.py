@@ -166,12 +166,22 @@ def interpret_item(
     llm,
     logger=None,
     uncertain_content_penalty: float = -15.0,
+    cache: dict | None = None,
+    now_iso: str | None = None,
 ) -> InterpretedItem:
     """One item: prompt -> LLM chain (each with parse validation) -> enforce.
 
     Uses ``complete_json`` with a validator so parse failure counts as that
     model failing, letting the remaining models try. Any final failure -> extractive fallback (spec §5.2/§5.3).
     Optional `logger` enables an `interpret_error` emit before fallback."""
+    hit = (cache or {}).get(item.link)
+    if hit:
+        # 用**当次**条目重建(分数、扣分都按当次算); 旧条目在配置改动后可能不合法, 那就照常调模型
+        try:
+            ok = build_ok_item(hit["parsed"], item, config, uncertain_content_penalty)
+            return ok.model_copy(update={"model": hit.get("model")})
+        except Exception:  # noqa: BLE001
+            pass
     parsed_holder: dict = {}
 
     def _validate(raw: str) -> None:
@@ -187,7 +197,11 @@ def interpret_item(
         )
         parsed = parsed_holder["parsed"]
         ok = build_ok_item(parsed, item, config, uncertain_content_penalty)
-        return ok.model_copy(update={"model": _model_that_answered(llm)})
+        model = _model_that_answered(llm)
+        if cache is not None:
+            # 各线程写不同的 key, dict 单次赋值在 GIL 下是原子的
+            cache[item.link] = {"parsed": parsed, "model": model, "ts": now_iso}
+        return ok.model_copy(update={"model": model})
     except Exception as e:
         if logger is not None:
             emit(
@@ -413,6 +427,7 @@ def interpret(
     llm,
     uncertain_content_penalty: float = -15.0,
     generate_head: bool = True,
+    cache: dict | None = None,
 ) -> InterpretResult:
     """Orchestrate per-item interpretation + daily take (spec §3, §5, §11).
     Only side effect is the injected llm; everything else is pure/testable."""
@@ -436,6 +451,8 @@ def interpret(
         )
 
     item_tpl = load_prompt(config.item_prompt_path)
+    preloaded = set(cache or {})
+    now_iso = ctx.now.isoformat()
 
     def _one(it: ScoredItem) -> InterpretedItem:
         res = interpret_item(
@@ -445,6 +462,8 @@ def interpret(
             llm,
             logger=ctx.logger,
             uncertain_content_penalty=uncertain_content_penalty,
+            cache=cache,
+            now_iso=now_iso,
         )
         # 在工作线程里就地 emit: 一批要跑几十条, 攒到最后再打日志就等于整段跑完
         # 之前什么进度都看不见。logging 本身线程安全; 事件顺序因此不保证, 但
@@ -496,6 +515,8 @@ def interpret(
         input_count=len(items),
         interpreted_count=interpreted_count,
         fallback_count=fallback_count,
+        # 复用了几条缓存: 衡量缓存到底省了多少次模型调用
+        cache_hits=sum(1 for r in out if r.interpretation_status == "ok" and r.link in preloaded),
         silent=False,
     )
     return InterpretResult(

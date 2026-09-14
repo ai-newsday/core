@@ -8,7 +8,7 @@ import os
 import sys
 import uuid
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from src.adapters.decisions.worker import WorkerDecisionStore
 from src.adapters.embedding.modelscope import ModelScopeEmbedder
@@ -474,6 +474,19 @@ def run_dry_feedback(
     )
 
 
+_INTERPRET_CACHE_KEY = "interpret_cache"
+
+
+async def _load_interpret_cache(db: Database, now: datetime, ttl_hours: int) -> dict:
+    """{link: {parsed, model, ts}}, 丢掉超过 ttl 的。
+
+    ponytail: 整个缓存是 kv_state 里的一个 JSON; 一天几百条、每条约 2KB, 够用。
+    条目上万时再改成独立表。"""
+    cache = json.loads(await db.get_kv(_INTERPRET_CACHE_KEY) or "{}")
+    cutoff = now - timedelta(hours=ttl_hours)
+    return {k: v for k, v in cache.items() if datetime.fromisoformat(v["ts"]) >= cutoff}
+
+
 def run_tick(
     tick: str,
     registry_path: str,
@@ -547,6 +560,7 @@ def run_tick(
         _llm = llm or _make_llm(icfg)
         head_llm_holder["llm"] = _llm
         head_llm_holder["icfg"] = icfg
+        cache = await _load_interpret_cache(db, now, icfg.cache_ttl_hours)
         ires = interpret(
             linked_items,
             icfg,
@@ -556,7 +570,9 @@ def run_tick(
             # 同上: finalize 走 regenerate_wechat_head 重生成; collect tick 的
             # daily_take 参数在 run_collect_tick 里从未被使用。
             generate_head=False,
+            cache=cache,
         )
+        await db.set_kv(_INTERPRET_CACHE_KEY, json.dumps(cache, ensure_ascii=False))
         return ires
 
     ires = asyncio.run(_collect_and_interpret())

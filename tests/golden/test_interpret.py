@@ -268,3 +268,65 @@ def test_llm_without_last_model_still_works():
     res = interpret_item(_scored("https://a/1"), "{{link}}", InterpretConfig(), llm)
     assert res.interpretation_status == "ok"
     assert res.model is None
+
+
+# --- 解读缓存 (2026-09-11): 同一链接一天只让模型写一次 ---
+# collect tick 每天跑多轮, finalize 又从头解读一遍; agnes 被限流到约每分钟 1 次、
+# ModelScope 每日额度被白天的 collect 烧光, 当晚 45/60 条回退。缓存让白天的每一轮
+# 只补没写过的链接, finalize 基本不用再调模型。
+
+
+def test_cache_hit_skips_the_llm_and_rebuilds_from_current_item():
+    cache = {
+        "https://a/1": {
+            "parsed": {**json.loads(_ok_json("https://a/1")), "content_certain": False},
+            "model": "agnes:agnes-2.0-flash",
+            "ts": NOW.isoformat(),
+        }
+    }
+    llm = FailingLLMProvider()
+    res = interpret(
+        [_scored("https://a/1", score=70)],
+        InterpretConfig(),
+        _ctx(),
+        llm,
+        generate_head=False,
+        cache=cache,
+    )
+    one = res.interpreted_items[0]
+    assert llm.calls == []
+    assert one.interpretation_status == "ok" and one.model == "agnes:agnes-2.0-flash"
+    # 扣分按**当次**分数重算, 而不是沿用缓存那一轮的分数
+    assert one.score == 55
+
+
+def test_fresh_success_is_written_to_cache_and_fallback_is_not():
+    cache: dict = {}
+    llm = FakeLLMProvider({"https://a/1": _ok_json("https://a/1")})
+    interpret(
+        [_scored("https://a/1"), _scored("https://a/2")],
+        InterpretConfig(),
+        _ctx(),
+        llm,
+        generate_head=False,
+        cache=cache,
+    )
+    assert set(cache) == {"https://a/1"}
+    assert cache["https://a/1"]["parsed"]["title"] == "中文标题"
+    assert cache["https://a/1"]["ts"] == NOW.isoformat()
+
+
+def test_unusable_cache_entry_falls_through_to_the_llm():
+    """prompt/配置改了之后旧条目可能不再合法(比如 tags 数量), 不能因此回退。"""
+    cache = {"https://a/1": {"parsed": {"tags": []}, "model": "m", "ts": NOW.isoformat()}}
+    llm = FakeLLMProvider({"https://a/1": _ok_json("https://a/1")})
+    res = interpret(
+        [_scored("https://a/1")],
+        InterpretConfig(),
+        _ctx(),
+        llm,
+        generate_head=False,
+        cache=cache,
+    )
+    assert res.interpreted_items[0].interpretation_status == "ok"
+    assert len(llm.calls) == 1
