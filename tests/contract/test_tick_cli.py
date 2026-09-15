@@ -108,7 +108,7 @@ def test_finalize_reuses_interpretations_written_by_collect(tmp_path, monkeypatc
             "title": "中文标题",
             "body": "正文。",
             "tags": ["#a", "#b", "#c"],
-            "evidence": [],
+            "evidence": [{"claim": "c", "anchor": "https://openai.com/news/0"}],
             "relevant": True,
         }
     )

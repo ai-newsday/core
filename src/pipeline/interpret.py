@@ -159,6 +159,19 @@ def _model_that_answered(llm) -> str | None:
     return fn() if callable(fn) else None
 
 
+def _unless_ungrounded(
+    ok: InterpretedItem, item: ScoredItem, config: InterpretConfig
+) -> InterpretedItem:
+    """一个原文锚点都没有的解读不采用。
+
+    2026-09-15: LangChain 推文只说 Managed Deep Agent 能接 Slack, 模型写成
+    "LangChain 推出 Managed Deep Agent", evidence 为 0。prompt 早就禁止无依据的动作词,
+    模型不遵守; 零锚点说明它一句都没对上原文。宁可少写不可编造, 回退后发布层会过滤掉。"""
+    if ok.evidence:
+        return ok
+    return extractive_fallback(item, config, fallback_reason="NoEvidence")
+
+
 def interpret_item(
     item: ScoredItem,
     item_template: str,
@@ -179,7 +192,9 @@ def interpret_item(
         # 用**当次**条目重建(分数、扣分都按当次算); 旧条目在配置改动后可能不合法, 那就照常调模型
         try:
             ok = build_ok_item(hit["parsed"], item, config, uncertain_content_penalty)
-            return ok.model_copy(update={"model": hit.get("model")})
+            return _unless_ungrounded(
+                ok.model_copy(update={"model": hit.get("model")}), item, config
+            )
         except Exception:  # noqa: BLE001
             pass
     parsed_holder: dict = {}
@@ -201,7 +216,7 @@ def interpret_item(
         if cache is not None:
             # 各线程写不同的 key, dict 单次赋值在 GIL 下是原子的
             cache[item.link] = {"parsed": parsed, "model": model, "ts": now_iso}
-        return ok.model_copy(update={"model": model})
+        return _unless_ungrounded(ok.model_copy(update={"model": model}), item, config)
     except Exception as e:
         if logger is not None:
             emit(

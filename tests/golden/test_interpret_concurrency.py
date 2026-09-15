@@ -133,7 +133,7 @@ def test_one_failing_item_does_not_take_down_the_batch():
                 return json.dumps({"title": "T【AI日报】", "digest": "今日亮点：X。"})
             if "https://x/1" in prompt:
                 raise RuntimeError("boom")
-            anchor = prompt.split("L=")[-1].split()[0] if "L=" in prompt else "https://x/0"
+            anchor = next(f"https://x/{i}" for i in range(3) if f"https://x/{i}" in prompt)
             out = _ok_json(anchor)
             if validator is not None:
                 validator(out)

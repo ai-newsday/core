@@ -159,7 +159,7 @@ class LLMProvider(Protocol):
 | 单条 LLM 网络/超时失败 | 该条抽取式回退（§5.3），`status=extractive_fallback`，不影响其它条 |
 | LLM 返回非 JSON / schema 不符 | 当作失败 → 该条回退 |
 | `tags` 数量不达标 | 视为不达标 → 该条回退（不强行编造 tag） |
-| `evidence.anchor` 不在 `link∪related_links` | 丢弃该条 evidence（不编造锚点）；若清空后无 evidence 则 `eligible_for_must_read=False` |
+| `evidence.anchor` 不在 `link∪related_links` | 丢弃该条 evidence（不编造锚点）；若清空后无 evidence 则整条解读不采用，回退抽取式 `fallback_reason="NoEvidence"`（2026-09-15：零锚点的解读实测会编造动作词，如把功能提示写成"推出"） |
 | `raw_summary` 为空且回退 | `summary=""`（宁可少写不可编造） |
 | 今日看点 LLM 失败 | `daily_take=None` |
 | `--dry-run` | 链路 `collect()→dedup()→score()→interpret()`；产 `InterpretResult` JSON |
@@ -167,7 +167,7 @@ class LLMProvider(Protocol):
 ## 8. 不变量（golden 测试必须断言）
 
 1. **零编造**：`status=="extractive_fallback"` 的条目 `takeaway==""`、`hot_take==""`、`tags==[]`、`evidence==[]`（绝不编造内容）。
-2. **必读门**（PRD #5）：`eligible_for_must_read == (status=="ok" ∧ len(evidence)≥min_evidence ∧ takeaway≠"")`；evidence 为空的条目 `eligible_for_must_read==False`。
+2. **必读门**（PRD #5）：`eligible_for_must_read == (status=="ok" ∧ len(evidence)≥min_evidence ∧ takeaway≠"")`；evidence 为空的解读不会是 `ok`（回退抽取式），因而 `eligible_for_must_read==False`。
 3. **证据锚点合法**：每条 `evidence` 的 `anchor ∈ item.link ∪ item.related_links`（非法锚点已被丢弃）。
 4. **字段约束**：`status=="ok"` 时 `len(title)≤title_max_chars`、`len(summary)≤summary_max_chars`、`len(tags)==tags_count`。
 5. **不丢条**：`interpreted_count + fallback_count == input_count == len(interpreted_items)`。
