@@ -1,0 +1,30 @@
+# 手动触发的只读统计: 按来源/账号看审阅时的保留率。
+# 决策存在 Cloudflare KV(7 天 TTL)且只有 item_id, 来源要靠 state.db 里的
+# pending_reviews 关联, 而那份库只在 Actions 缓存里 —— 所以只能在这里跑。
+name: Decision Stats
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    env:
+      DECISIONS_API_SECRET: ${{ secrets.DECISIONS_API_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+      - run: uv sync
+
+      # 只读: 恢复最近一次 collect/finalize 存下的库, 不回存
+      - name: Restore state.db
+        uses: actions/cache/restore@v4
+        with:
+          path: data/state.db
+          key: state-db-none
+          restore-keys: state-db-
+
+      - name: Keep rate by source
+        run: uv run python -m src.tools.decision_stats data/state.db >> "$GITHUB_STEP_SUMMARY"
