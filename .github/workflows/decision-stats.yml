@@ -27,4 +27,5 @@ jobs:
           restore-keys: state-db-
 
       - name: Keep rate by source
-        run: uv run python -m src.tools.decision_stats data/state.db >> "$GITHUB_STEP_SUMMARY"
+        # tee: Summary 好看, 但 Summary 读不到日志里, 拿表就得翻 UI
+        run: uv run python -m src.tools.decision_stats data/state.db | tee -a "$GITHUB_STEP_SUMMARY"
