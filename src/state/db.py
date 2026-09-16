@@ -173,6 +173,15 @@ class Database:
             )
             await conn.commit()
 
+    async def get_all_pending_reviews(self) -> list[dict]:
+        """所有日期的推送条目。按来源统计保留率用(决策只在 KV 里存 7 天, 这边留得久)。"""
+        async with aiosqlite.connect(self._path) as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
+                "SELECT * FROM pending_reviews ORDER BY date DESC, score DESC"
+            ) as cur:
+                return [dict(row) for row in await cur.fetchall()]
+
     async def get_pending_reviews_for_date(self, date: str) -> list[dict]:
         async with aiosqlite.connect(self._path) as conn:
             conn.row_factory = aiosqlite.Row
