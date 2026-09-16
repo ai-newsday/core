@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+from datetime import datetime, timezone
 
 from src.adapters.decisions.worker import WorkerDecisionStore
 from src.core.config import load_delivery_config
@@ -28,12 +29,27 @@ def keep_rate_table(rows: list[dict], decisions: dict[str, str]) -> list[dict]:
     agg: dict[str, dict] = {}
     for r in rows:
         key = publisher_key(r["link"], r["source"])
-        a = agg.setdefault(key, {"publisher": key, "pushed": 0, "decided": 0, "keep": 0, "drop": 0})
+        a = agg.setdefault(
+            key,
+            {
+                "publisher": key,
+                "pushed": 0,
+                "seen": 0,
+                "decided": 0,
+                "keep": 0,
+                "drop": 0,
+                "skip": 0,
+            },
+        )
         a["pushed"] += 1
         action = decisions.get(r["item_id"])
-        if action in ("keep", "drop"):
-            a["decided"] += 1
+        # worker 的三个动作是 keep/drop/skip。skip 不进保留率的分母(不是"不要"),
+        # 但要单独看得见: 否则"你跳过 30 次"和"从没推给你看过"在表里一模一样。
+        if action in ("keep", "drop", "skip"):
+            a["seen"] += 1
             a[action] += 1
+            if action != "skip":
+                a["decided"] += 1
     out = []
     for a in agg.values():
         a["keep_rate"] = (a["keep"] / a["decided"]) if a["decided"] else None
@@ -43,16 +59,22 @@ def keep_rate_table(rows: list[dict], decisions: dict[str, str]) -> list[dict]:
     return out
 
 
+def unmatched_count(rows: list[dict], decisions: dict[str, str]) -> int:
+    """有多少决策找不到对应的推送记录。静默丢掉会让"数据有缺口"看起来像"样本很薄"。"""
+    known = {r["item_id"] for r in rows}
+    return sum(1 for item_id in decisions if item_id not in known)
+
+
 def render(table: list[dict]) -> str:
     lines = [
-        "| 来源/账号 | 推送 | 已决策 | 保留 | 丢弃 | 保留率 |",
-        "|---|---:|---:|---:|---:|---:|",
+        "| 来源/账号 | 推送 | 看过 | 保留 | 丢弃 | 跳过 | 保留率 |",
+        "|---|---:|---:|---:|---:|---:|---:|",
     ]
     for a in table:
         rate = "—" if a["keep_rate"] is None else f"{a['keep_rate'] * 100:.0f}%"
         lines.append(
-            f"| {a['publisher']} | {a['pushed']} | {a['decided']} "
-            f"| {a['keep']} | {a['drop']} | {rate} |"
+            f"| {a['publisher']} | {a['pushed']} | {a['seen']} | {a['keep']} "
+            f"| {a['drop']} | {a['skip']} | {rate} |"
         )
     return "\n".join(lines)
 
@@ -69,12 +91,18 @@ def main(argv: list[str] | None = None) -> int:
 
     async def _run():
         rows = await db.get_all_pending_reviews()
-        decisions = await store.fetch()
-        return rows, decisions
+        live = await store.fetch()
+        # 先落库再统计: KV 里的会在 7 天后消失, 库里这份不会
+        await db.record_decisions(live, ts=datetime.now(timezone.utc).isoformat())
+        return rows, live, await db.get_recorded_decisions()
 
-    rows, decisions = asyncio.run(_run())
+    rows, live, decisions = asyncio.run(_run())
     table = keep_rate_table(rows, decisions)
-    print(f"推送条目 {len(rows)} 条, 拿到决策 {len(decisions)} 条(KV 只留 7 天)\n")
+    print(
+        f"推送条目 {len(rows)} 条; KV 现有决策 {len(live)} 条(7 天 TTL), "
+        f"库里累计 {len(decisions)} 条, 其中 {unmatched_count(rows, decisions)} 条"
+        f"找不到对应的推送记录\n"
+    )
     print(render(table))
     return 0
 

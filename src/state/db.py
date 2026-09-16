@@ -51,6 +51,12 @@ CREATE TABLE IF NOT EXISTS quality_weights (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS decisions (
+    item_id TEXT PRIMARY KEY,
+    action  TEXT NOT NULL,
+    ts      TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS kv_state (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -172,6 +178,23 @@ class Database:
                 "UPDATE pending_reviews SET msg_id=? WHERE item_id=?", (msg_id, item_id)
             )
             await conn.commit()
+
+    async def record_decisions(self, decisions: dict[str, str], ts: str) -> None:
+        """把拉到的决策留一份。KV 只存 7 天, 按来源看长期保留率需要更长的历史。"""
+        if not decisions:
+            return
+        async with aiosqlite.connect(self._path) as conn:
+            await conn.executemany(
+                "INSERT INTO decisions(item_id,action,ts) VALUES(?,?,?) "
+                "ON CONFLICT(item_id) DO UPDATE SET action=excluded.action, ts=excluded.ts",
+                [(k, v, ts) for k, v in decisions.items()],
+            )
+            await conn.commit()
+
+    async def get_recorded_decisions(self) -> dict[str, str]:
+        async with aiosqlite.connect(self._path) as conn:
+            async with conn.execute("SELECT item_id, action FROM decisions") as cur:
+                return {r[0]: r[1] for r in await cur.fetchall()}
 
     async def get_all_pending_reviews(self) -> list[dict]:
         """所有日期的推送条目。按来源统计保留率用(决策只在 KV 里存 7 天, 这边留得久)。"""

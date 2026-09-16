@@ -225,9 +225,12 @@ async def run_finalize_tick(
     emit(logger, "tick_finalize_start", run_id=run_id, date=date)
     # webhook 决策按 item_id 直接匹配本报条目(与采集日解耦); 失败降级=未审默认 keep
     decisions_raw: dict[str, str] = {}
+    remote_raw: dict[str, str] = {}
     if decision_store is not None:
         try:
             remote = await decision_store.fetch()  # {item_id: action}
+            # KV 只留 7 天; 留一份到库里, 才能按来源看长期保留率(2026-09-17)
+            remote_raw = dict(remote)
             id_to_link = {_item_id(it): it.link for it in interpreted_items}
             for item_id, action in remote.items():
                 link = id_to_link.get(item_id)
@@ -242,6 +245,8 @@ async def run_finalize_tick(
                 error_type=type(e).__name__,
                 error=str(e),
             )
+    if remote_raw:
+        await db.record_decisions(remote_raw, ts=now.isoformat())
     decisions = {link: ReviewDecision(action=action) for link, action in decisions_raw.items()}
     from src.core.types import RunContext
 
