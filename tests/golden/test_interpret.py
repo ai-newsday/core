@@ -100,8 +100,8 @@ def test_golden_total_failure_all_fallback():
     assert all(i.tags == [] and i.evidence == [] for i in res.interpreted_items)
 
 
-# Case 4 (spec §9.4): evidence empty -> not must-read
-def test_golden_empty_evidence_not_must_read():
+# Case 4 (spec §9.4): evidence empty -> 不采用解读(2026-09-15 起, 原为 ok 但不进必读)
+def test_golden_empty_evidence_falls_back():
     j = json.dumps(
         {
             "title": "t",
@@ -116,7 +116,7 @@ def test_golden_empty_evidence_not_must_read():
         default=json.dumps({"title": "甲发布X | 乙提出Y【AI日报】", "digest": "h"}),
     )
     res = interpret(items, InterpretConfig(), _ctx(), llm)
-    assert res.interpreted_items[0].interpretation_status == "ok"
+    assert res.interpreted_items[0].interpretation_status == "extractive_fallback"
     assert res.interpreted_items[0].eligible_for_must_read is False
 
 
@@ -330,3 +330,44 @@ def test_unusable_cache_entry_falls_through_to_the_llm():
     )
     assert res.interpreted_items[0].interpretation_status == "ok"
     assert len(llm.calls) == 1
+
+
+# --- 没有锚点就不采用解读 (2026-09-15) ---
+# LangChain 推文只是"Managed Deep Agent 可以接 Slack"的提示, DeepSeek 写成了
+# "LangChain 推出 Managed Deep Agent", evidence 为 0。prompt 早就禁止无依据的动作词,
+# 模型没遵守; 零锚点说明它一句都没对上原文, 宁可不发。
+
+
+def _no_evidence_json():
+    d = json.loads(_ok_json("https://a/1"))
+    d["evidence"] = []
+    return json.dumps(d)
+
+
+def test_interpretation_without_any_evidence_falls_back():
+    llm = FakeLLMProvider({"https://a/1": _no_evidence_json()})
+    res = interpret([_scored("https://a/1")], InterpretConfig(), _ctx(), llm, generate_head=False)
+    one = res.interpreted_items[0]
+    assert one.interpretation_status == "extractive_fallback"
+    assert one.fallback_reason == "NoEvidence"
+
+
+def test_no_evidence_cache_hit_also_falls_back_without_calling_the_llm():
+    cache = {
+        "https://a/1": {
+            "parsed": json.loads(_no_evidence_json()),
+            "model": "m",
+            "ts": NOW.isoformat(),
+        }
+    }
+    llm = FailingLLMProvider()
+    res = interpret(
+        [_scored("https://a/1")],
+        InterpretConfig(),
+        _ctx(),
+        llm,
+        generate_head=False,
+        cache=cache,
+    )
+    assert res.interpreted_items[0].fallback_reason == "NoEvidence"
+    assert llm.calls == []
