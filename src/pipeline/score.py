@@ -182,6 +182,30 @@ def apply_account_cap(scored: list[ScoredItem], cap: int) -> list[ScoredItem]:
     return out
 
 
+def apply_org_cap(scored: list[ScoredItem], cap: int, org_of: dict[str, str]) -> list[ScoredItem]:
+    """同一家公司跨渠道最多留 cap 条, 留分数最高的。
+
+    2026-09-14: LangChain 的 X 账号、博客、GitHub 各自按 card_pool_account_cap 封顶 3 条,
+    合起来 7 条, 读者看到的是同一个产品来回说。故事线合并拦不住这种: 它只认"带版本号
+    且同一天"的候选(实测 329 条推文只有 22 条带版本号, LangChain 一条都没有)。
+
+    只对 org_of 里列出的 key 生效: 没列的来源保持独立, 不能把 hf-papers(保留率 100%)
+    这类误并进某一家一起砍。cap<=0 或表为空 = 关闭。"""
+    if cap <= 0 or not org_of:
+        return scored
+    seen: dict[str, int] = defaultdict(int)
+    out: list[ScoredItem] = []
+    for s in sorted(scored, key=lambda s: (-s.score, s.published_at, s.link)):
+        org = org_of.get(publisher_key(s.link, s.source))
+        if org is None:
+            out.append(s)
+            continue
+        if seen[org] < cap:
+            seen[org] += 1
+            out.append(s)
+    return out
+
+
 def apply_quota(
     scored: list[ScoredItem], quota: dict[str, int], total_limit: int
 ) -> tuple[list[ScoredItem], dict[str, QuotaLine]]:
@@ -318,6 +342,16 @@ def score(
             dropped=len(eligible) - len(capped),
             kept=len(capped),
         )
+    org_capped = apply_org_cap(capped, config.card_pool_org_cap, config.card_pool_org_of)
+    if len(org_capped) < len(capped):
+        emit(
+            ctx.logger,
+            "card_pool_org_cap_applied",
+            cap=config.card_pool_org_cap,
+            dropped=len(capped) - len(org_capped),
+            kept=len(org_capped),
+        )
+    capped = org_capped
     reserved, remaining = apply_reserved_quota(capped, config.card_pool_reserved_quota)
     fill_n = max(config.card_pool_limit - len(reserved), 0)
     selected = sorted(

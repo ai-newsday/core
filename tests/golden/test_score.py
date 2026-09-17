@@ -279,3 +279,49 @@ def test_same_source_penalty_now_applies_per_x_account():
     pen = {k: v.score_breakdown.get("惩罚", 0) for k, v in scored.items()}
     assert pen["https://x.com/spammer/status/1"] < 0, "同账号第二条应当吃到同源惩罚"
     assert pen["https://x.com/other/status/9"] == 0, "别的账号不该被连累"
+
+
+# --- 跨渠道按公司封顶 (2026-09-17) ---
+# 09-14: LangChain 的 X 账号、博客、GitHub 被当成三个来源各自封顶 3 条, 叠出 7 条,
+# 读者看到的是同一个产品(Managed Deep Agent)来回说。故事线合并拦不住: 它只认
+# "带版本号且同一天"的候选, 实测 329 条推文只有 22 条带版本号, LangChain 一条都没有。
+
+
+def test_org_cap_counts_x_blog_and_github_as_one_company():
+    cfg = _cfg()
+    cfg.card_pool_limit = 100
+    cfg.card_pool_account_cap = 3
+    cfg.card_pool_org_cap = 2
+    cfg.card_pool_org_of = {
+        "x:langchain": "langchain",
+        "langchain": "langchain",
+        "langchain-gh": "langchain",
+    }
+    items = [
+        _ni("x1", "https://x.com/LangChain/status/1", "x-ai-product", Genre.announcement),
+        _ni("x2", "https://x.com/LangChain/status/2", "x-ai-product", Genre.announcement),
+        _ni("b1", "https://www.langchain.com/blog/a", "langchain", Genre.writeup),
+        _ni(
+            "g1", "https://github.com/langchain-ai/x/releases/1", "langchain-gh", Genre.announcement
+        ),
+        _ni("other", "https://openai.com/news/1", "openai", Genre.announcement),
+    ]
+    res = score(items, cfg, _ctx())
+    links = [s.link for s in res.selected_items]
+    lc = [ln for ln in links if "langchain" in ln.lower()]
+    assert len(lc) == 2, f"同一家公司跨渠道最多 2 条, 实际 {len(lc)}: {lc}"
+    assert any("openai.com" in ln for ln in links), "别的公司不该被连累"
+
+
+def test_org_cap_off_by_default_and_unmapped_sources_untouched():
+    """没在对照表里的来源各自独立: hf-papers 保留率 100%, 绝不能被误并进某一家封掉。"""
+    cfg = _cfg()
+    cfg.card_pool_limit = 100
+    cfg.card_pool_org_cap = 2
+    cfg.card_pool_org_of = {}
+    items = [
+        _ni(f"p{i}", f"https://huggingface.co/papers/{i}", "hf-papers", Genre.paper)
+        for i in range(4)
+    ]
+    res = score(items, cfg, _ctx())
+    assert len(res.selected_items) == 4

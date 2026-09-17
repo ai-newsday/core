@@ -120,3 +120,13 @@ def test_uncertain_content_penalty_default():
 def test_production_config_has_uncertain_content_penalty():
     c = load_scoring_config("config/scoring.yaml")
     assert c.uncertain_content_penalty == -15.0
+
+
+def test_repo_config_org_cap_is_live_and_spares_unlisted_sources():
+    """接线: 表在配置里写了不等于生效, 而且绝不能把高保留率的来源并进某一家。"""
+    c = load_scoring_config("config/scoring.yaml")
+    assert c.card_pool_org_cap == 2
+    assert c.card_pool_org_of["x:langchain"] == "langchain"
+    assert c.card_pool_org_of["langchain-gh"] == "langchain"
+    for never in ("hf-papers", "hf-models", "x:openai", "openai"):
+        assert never not in c.card_pool_org_of, f"{never} 不该被并进公司封顶"

@@ -112,3 +112,31 @@ adapter_authority_factor: {x_list: 0.0}
 # 的事, 第 2、3 条被无谓降权)。刷屏由 card_pool_account_cap 和反馈闭环降权解决,
 # 不靠这个。**保留豁免, 待用户确认后再动。**
 same_source_penalty_exempt_adapters: [x_list]
+
+# 跨渠道按公司封顶(2026-09-17)。09-14 LangChain 的 X 账号 3 条 + 博客 4 条叠出 7 条,
+# 读者看到同一个产品(Managed Deep Agent)来回说; 每个渠道各自 card_pool_account_cap: 3
+# 是拦不住的。故事线合并也拦不住: 它只认"带版本号且同一天"的候选, 实测 329 条推文
+# 只有 22 条带版本号, LangChain 那 13 条一条都没有。
+# 只对下表列出的来源生效: 没列的各自独立, 免得把 hf-papers(保留率 100%)误并进某家一起砍。
+card_pool_org_cap: 2
+card_pool_org_of:
+  x:langchain: langchain
+  langchain: langchain
+  langchain-gh: langchain
+  x:cohere: cohere
+  cohere: cohere
+  x:ollama: ollama
+  ollama: ollama
+  ollama-gh: ollama
+  x:dify_ai: dify
+  dify-gh: dify
+  x:kling_ai: kling
+  kling-yt: kling
+  x:krea_ai: krea
+  krea-yt: krea
+  x:assemblyai: assemblyai
+  assemblyai-yt: assemblyai
+  x:ultralytics: ultralytics
+  ultralytics-gh: ultralytics
+  x:modal: modal
+  modal: modal
