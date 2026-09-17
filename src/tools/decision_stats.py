@@ -59,6 +59,23 @@ def keep_rate_table(rows: list[dict], decisions: dict[str, str]) -> list[dict]:
     return out
 
 
+def merge_decision_sources(
+    rows: list[dict], live: dict[str, str], recorded: dict[str, str]
+) -> dict[str, str]:
+    """把三处决策合成一份, 新的盖旧的。
+
+    pending_reviews.status 每次 finalize 拉到决策就写一次, 不受 KV 的 7 天 TTL 限制 ——
+    第一版统计只看 KV, 231 条只对上 47 条, 看起来"得再攒两周", 其实历史一直在库里
+    (2026-09-17)。顺序: 库里的 status(最旧) → decisions 表 → KV(最新)。
+    """
+    merged = {
+        r["item_id"]: r["status"] for r in rows if r.get("status") in ("keep", "drop", "skip")
+    }
+    merged.update(recorded)
+    merged.update(live)
+    return merged
+
+
 def unmatched_count(rows: list[dict], decisions: dict[str, str]) -> int:
     """有多少决策找不到对应的推送记录。静默丢掉会让"数据有缺口"看起来像"样本很薄"。"""
     known = {r["item_id"] for r in rows}
@@ -94,7 +111,8 @@ def main(argv: list[str] | None = None) -> int:
         live = await store.fetch()
         # 先落库再统计: KV 里的会在 7 天后消失, 库里这份不会
         await db.record_decisions(live, ts=datetime.now(timezone.utc).isoformat())
-        return rows, live, await db.get_recorded_decisions()
+        recorded = await db.get_recorded_decisions()
+        return rows, live, merge_decision_sources(rows, live, recorded)
 
     rows, live, decisions = asyncio.run(_run())
     table = keep_rate_table(rows, decisions)
