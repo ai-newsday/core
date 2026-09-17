@@ -148,7 +148,9 @@ def compute_scores(
             "机构影响力": round((float(authority) + float(prio_bonus)) * qw * authority_factor, 4),
             "可见指标": round(_visibility(it, config), 4),
             "时效": recency_band(it.published_at, ctx.now, config),
-            "惩罚": penalty_of[it.link] + firehose,
+            "惩罚": penalty_of[it.link]
+            + firehose
+            + float(config.publisher_penalty.get(publisher_key(it.link, it.source), 0.0)),
             "读者相关度": _topic_relevance(it, config),
         }
         for k in _MATRIX_DIMS:
@@ -323,13 +325,26 @@ def score(
     # 空 dict 时这里是纯 no-op, 行为与恢复前完全一致。
     # 分数下限先于保底配额: 这是硬闸, 保底名额也不该用低质条目去填满
     # ——供给差的一天应当出一份短的, 而不是硬凑 (#167)。
-    eligible = [s for s in scored if s.score >= config.card_pool_min_score]
+    if config.publisher_blocklist:
+        blocked = set(config.publisher_blocklist)
+        kept = [s for s in scored if publisher_key(s.link, s.source) not in blocked]
+        if len(kept) < len(scored):
+            emit(
+                ctx.logger,
+                "publisher_blocklist_applied",
+                dropped=len(scored) - len(kept),
+                kept=len(kept),
+            )
+    else:
+        kept = scored
+
+    eligible = [s for s in kept if s.score >= config.card_pool_min_score]
     if len(eligible) < len(scored):
         emit(
             ctx.logger,
             "card_pool_floor_applied",
             floor=config.card_pool_min_score,
-            dropped=len(scored) - len(eligible),
+            dropped=len(kept) - len(eligible),
             kept=len(eligible),
         )
     # 单发布方封顶先于 top-N 硬切: 砍掉的名额要让位给别的发布方, 而不是空着

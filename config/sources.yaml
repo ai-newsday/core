@@ -164,11 +164,11 @@
 # --- aggregators (人群信号源: HN points) ---
 # Reddit 已迁移到 sources.d/community.yaml(走 .rss 通路, 数据中心 IP 不被封, 但无 upvotes)。
 # old.reddit HTML / .json 在 prod 一律 403, RedditAdapter 已删。
-- {name: hackernews, url: "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=50", genre: writeup, publisher: individual, adapter: hn, status: working, priority: 2, min_score: 100, max_items: 15, keywords: [AI, LLM, GPT, model, agent, diffusion, neural, transformer, "machine learning", inference, RAG, multimodal, "open source", openai, anthropic, gemini, llama]}
+- {name: hackernews, url: "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=50", genre: writeup, publisher: individual, adapter: hn, status: manual, priority: 2, min_score: 100, max_items: 15, keywords: [AI, LLM, GPT, model, agent, diffusion, neural, transformer, "machine learning", inference, RAG, multimodal, "open source", openai, anthropic, gemini, llama]}
 # --- github (releases watch + trending discovery) ---  ADR 0003 一致: release/repo 归 announcement, star 当 github_stars 信号
 # 现有 5 个高优 OSS 推理/微调引擎 (P1 优先): vllm/sglang/ollama/comfyui/unsloth
 - {name: comfyui-gh, url: "https://api.github.com/repos/comfyanonymous/ComfyUI/releases", genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 2}
-- {name: ollama-gh, url: "https://api.github.com/repos/ollama/ollama/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}  # -gh 后缀: 避开已存在的 ollama blog RSS 源同名
+- {name: ollama-gh, url: "https://api.github.com/repos/ollama/ollama/releases", genre: announcement, publisher: company, adapter: github_releases, status: manual, priority: 2}  # -gh 后缀: 避开已存在的 ollama blog RSS 源同名
 - {name: vllm-gh, url: "https://api.github.com/repos/vllm-project/vllm/releases", genre: announcement, publisher: company, adapter: github_releases, status: working, priority: 2}
 - {name: gh-trending-ai, url: "https://api.github.com/search/repositories?q=topic:llm+topic:artificial-intelligence+sort:stars&sort=stars&order=desc&per_page=30", genre: writeup, publisher: individual, adapter: github_trending, status: working, priority: 3, keywords: [llm, llms, ai, artificial-intelligence, machine-learning, deep-learning, agent, agents, agentic, rag, generative-ai, transformer, diffusion, multimodal, nlp, computer-vision]}
 # --- 扩源 2026-06-29: 30 个 awesome AI 仓 releases (4 轮筛选: 人工挑 + gitstar-ranking top + 探活)
@@ -180,7 +180,7 @@
 - {name: langchain-gh,     url: "https://api.github.com/repos/langchain-ai/langchain/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2, tag_pattern: "^langchain==\\d"}
 - {name: langgraph-gh,     url: "https://api.github.com/repos/langchain-ai/langgraph/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
 - {name: openhands-gh,     url: "https://api.github.com/repos/All-Hands-AI/OpenHands/releases",     genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
-- {name: cline-gh,         url: "https://api.github.com/repos/cline/cline/releases",                genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
+- {name: cline-gh,         url: "https://api.github.com/repos/cline/cline/releases",                genre: announcement, publisher: company,    adapter: github_releases, status: manual, priority: 3}
 - {name: dify-gh,          url: "https://api.github.com/repos/langgenius/dify/releases",            genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 2}
 - {name: ragflow-gh,       url: "https://api.github.com/repos/infiniflow/ragflow/releases",         genre: announcement, publisher: company,    adapter: github_releases, status: working, priority: 3}
 - {name: fish-speech-gh,   url: "https://api.github.com/repos/fishaudio/fish-speech/releases",      genre: announcement, publisher: individual, adapter: github_releases, status: working, priority: 3}
