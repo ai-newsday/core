@@ -140,3 +140,15 @@ card_pool_org_of:
   ultralytics-gh: ultralytics
   x:modal: modal
   modal: modal
+# 按保留率砍来源(2026-09-17, 502 条历史决策; 数据来自 Decision Stats)。
+# higgsfield 两个账号: 推送 125 条、看过 16 条、保留 0 条(用户原话"他妈的狂发")。
+# 账号在 X 列表里不是独立源, 停不掉源, 所以按发布方丢。
+publisher_blocklist:
+  - x:higgsfield_ai
+  - x:higgsfield
+
+# 推送量大但样本薄(看过 1-5 次)的只降权, 不直接删: 依据比 higgsfield 弱。
+# lobe-chat-gh 推送 134 条只看过 1 次; google-ai 推送 22 条看过 5 次、保留 0 条。
+publisher_penalty:
+  lobe-chat-gh: -20.0
+  google-ai: -20.0

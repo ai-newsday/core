@@ -130,3 +130,15 @@ def test_repo_config_org_cap_is_live_and_spares_unlisted_sources():
     assert c.card_pool_org_of["langchain-gh"] == "langchain"
     for never in ("hf-papers", "hf-models", "x:openai", "openai"):
         assert never not in c.card_pool_org_of, f"{never} 不该被并进公司封顶"
+
+
+def test_repo_config_cuts_the_sources_you_never_keep():
+    """接线: 2026-09-17 的决策数据(502 条)对应的砍/降权名单要真的在配置里生效。"""
+    c = load_scoring_config("config/scoring.yaml")
+    for handle in ("x:higgsfield_ai", "x:higgsfield"):
+        assert handle in c.publisher_blocklist
+    assert c.publisher_penalty["lobe-chat-gh"] < 0
+    assert c.publisher_penalty["google-ai"] < 0
+    # 保留率高的来源绝不能进黑名单
+    for keep in ("hf-papers", "hf-models", "apple-ml", "deepmind", "x:dair_ai"):
+        assert keep not in c.publisher_blocklist

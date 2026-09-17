@@ -221,6 +221,11 @@ class ScoringConfig:
     # 表的来源各自独立, 免得把 hf-papers 这类误并进某一家一起砍掉。
     card_pool_org_cap: int = 0
     card_pool_org_of: dict[str, str] = field(default_factory=dict)
+    # 按保留率砍来源(2026-09-17, 502 条历史决策)。黑名单里的发布方不进发卡池 ——
+    # higgsfield 两个账号推送 125 条、看过 16 条、保留 0 条; 账号在 X 列表里不是独立
+    # 源, 停不掉源, 只能按发布方丢。样本薄的(看过 1-5 次)用 publisher_penalty 降权。
+    publisher_blocklist: list[str] = field(default_factory=list)
+    publisher_penalty: dict[str, float] = field(default_factory=dict)
     sources_registry_path: str = "config/sources.yaml"
     topic_keywords: list[str] = field(default_factory=list)
     topic_bonus: float = 5.0

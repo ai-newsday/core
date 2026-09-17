@@ -325,3 +325,45 @@ def test_org_cap_off_by_default_and_unmapped_sources_untouched():
     ]
     res = score(items, cfg, _ctx())
     assert len(res.selected_items) == 4
+
+
+# --- 按保留率砍来源 (2026-09-17, 502 条历史决策) ---
+# higgsfield 两个账号推送 125 条、看过 16 条、保留 0 条; cline-gh 13 次丢了 10 次。
+# 账号在 X 列表里不是独立源, 所以停不掉源, 只能按发布方丢。
+
+
+def test_blocklisted_publisher_never_reaches_the_card_pool():
+    cfg = _cfg()
+    cfg.card_pool_limit = 100
+    cfg.publisher_blocklist = ["x:higgsfield_ai"]
+    items = [
+        _ni("spam", "https://x.com/higgsfield_ai/status/1", "x-ai-product", Genre.announcement),
+        _ni("keep", "https://x.com/dair_ai/status/1", "x-ai-product", Genre.announcement),
+    ]
+    res = score(items, cfg, _ctx())
+    links = [s.link for s in res.selected_items]
+    assert not any("higgsfield" in ln for ln in links)
+    assert any("dair_ai" in ln for ln in links)
+    # all_scored 仍然保留: 黑名单只挡发卡, 不篡改打分记录
+    assert len(res.all_scored) == 2
+
+
+def test_publisher_penalty_lowers_the_score_without_dropping_the_item():
+    """样本太薄的来源(看过 1-5 次)只降权, 不直接删。"""
+    cfg = _cfg()
+    cfg.card_pool_limit = 100
+    cfg.publisher_penalty = {"lobe-chat-gh": -20.0}
+    items = [
+        _ni(
+            "a",
+            "https://github.com/lobehub/lobe-chat/releases/1",
+            "lobe-chat-gh",
+            Genre.announcement,
+        ),
+        _ni("b", "https://github.com/other/x/releases/1", "other-gh", Genre.announcement),
+    ]
+    res = score(items, cfg, _ctx())
+    by_src = {s.source: s for s in res.all_scored}
+    assert by_src["lobe-chat-gh"].score == max(0, by_src["other-gh"].score - 20)
+    # 降权并进已有的"惩罚"项: score_breakdown 的键是固定集合, 不新增维度
+    assert by_src["lobe-chat-gh"].score_breakdown["惩罚"] == -20.0

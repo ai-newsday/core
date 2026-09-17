@@ -73,6 +73,8 @@ def load_scoring_config(path: str) -> ScoringConfig:
         card_pool_account_cap=data.get("card_pool_account_cap", d.card_pool_account_cap),
         card_pool_org_cap=data.get("card_pool_org_cap", d.card_pool_org_cap),
         card_pool_org_of=data.get("card_pool_org_of", d.card_pool_org_of),
+        publisher_blocklist=data.get("publisher_blocklist", d.publisher_blocklist),
+        publisher_penalty=data.get("publisher_penalty", d.publisher_penalty),
         sources_registry_path=data.get("sources_registry_path", d.sources_registry_path),
         topic_keywords=data.get("topic_boost", {}).get("keywords", d.topic_keywords),
         topic_bonus=data.get("topic_boost", {}).get("bonus", d.topic_bonus),
