@@ -1,7 +1,7 @@
 import asyncio
 
 from src.state.db import Database
-from src.tools.decision_stats import keep_rate_table
+from src.tools.decision_stats import keep_rate_table, unmatched_count
 
 
 def _db(tmp_path, rows):
@@ -56,9 +56,11 @@ def test_keep_rate_table_groups_by_publisher_and_marks_undecided(tmp_path):
     assert by_key["x:langchain"] == {
         "publisher": "x:langchain",
         "pushed": 3,
+        "seen": 3,
         "decided": 3,
         "keep": 1,
         "drop": 2,
+        "skip": 0,
         "keep_rate": 1 / 3,
     }
     assert by_key["hf-papers"]["pushed"] == 2 and by_key["hf-papers"]["decided"] == 1
@@ -75,9 +77,40 @@ def test_undecided_only_publisher_has_no_keep_rate(tmp_path):
         {
             "publisher": "openai",
             "pushed": 1,
+            "seen": 0,
             "decided": 0,
             "keep": 0,
             "drop": 0,
+            "skip": 0,
             "keep_rate": None,
         }
     ]
+
+
+def test_skip_is_counted_separately_not_as_undecided(tmp_path):
+    """worker 的三个动作是 keep/drop/skip。skip 原来被当成"没决策", 于是
+    "你主动跳过 30 次"和"从没推给你看过"在表里长得一模一样(2026-09-17)。"""
+    db = _db(
+        tmp_path,
+        [
+            ("i1", "lobe-chat-gh", "https://github.com/lobehub/lobe-chat/releases/1"),
+            ("i2", "lobe-chat-gh", "https://github.com/lobehub/lobe-chat/releases/2"),
+            ("i3", "lobe-chat-gh", "https://github.com/lobehub/lobe-chat/releases/3"),
+        ],
+    )
+    rows = asyncio.run(db.get_all_pending_reviews())
+    table = keep_rate_table(rows, {"i1": "skip", "i2": "skip", "i3": "keep"})
+    row = table[0]
+    assert row["skip"] == 2
+    # 保留率的分母只算 keep/drop: skip 不是"不要", 但也不是"要"
+    assert row["decided"] == 1 and row["keep_rate"] == 1.0
+    # 但看过的次数要看得见, 否则刷屏又被你跳过的来源看起来像"没数据"
+    assert row["seen"] == 3
+
+
+def test_unmatched_decisions_are_reported(tmp_path):
+    """决策对不上推送记录时要报出来: 2026-09-17 实测 231 条决策只有 47 条对上,
+    静默丢掉的话统计会看起来"样本很薄", 而不是"数据有缺口"。"""
+    db = _db(tmp_path, [("i1", "hf-papers", "https://huggingface.co/papers/1")])
+    rows = asyncio.run(db.get_all_pending_reviews())
+    assert unmatched_count(rows, {"i1": "keep", "zz": "drop"}) == 1
