@@ -146,3 +146,23 @@ def test_live_kv_wins_over_older_stored_status(tmp_path):
     asyncio.run(db.update_decision("i1", "keep"))
     rows = asyncio.run(db.get_all_pending_reviews())
     assert merge_decision_sources(rows, live={"i1": "drop"}, recorded={})["i1"] == "drop"
+
+
+def test_tool_creates_missing_tables_on_an_old_database(tmp_path, monkeypatch):
+    """2026-09-17 实测: Actions 缓存里的库是新表加入之前的, 工具直接写 decisions 表
+    报 'no such table'。工具必须自己先建表(CREATE TABLE IF NOT EXISTS)。"""
+    import src.tools.decision_stats as mod
+
+    path = tmp_path / "old.db"
+    path.write_bytes(b"")  # 空文件: 没有任何表
+    monkeypatch.setenv("DECISIONS_API_SECRET", "s")
+
+    class _Store:
+        def __init__(self, *a, **k):
+            pass
+
+        async def fetch(self):
+            return {"i1": "keep"}
+
+    monkeypatch.setattr(mod, "WorkerDecisionStore", _Store)
+    assert mod.main([str(path)]) == 0
