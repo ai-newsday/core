@@ -1,7 +1,11 @@
 import asyncio
 
 from src.state.db import Database
-from src.tools.decision_stats import keep_rate_table, unmatched_count
+from src.tools.decision_stats import (
+    keep_rate_table,
+    merge_decision_sources,
+    unmatched_count,
+)
 
 
 def _db(tmp_path, rows):
@@ -114,3 +118,31 @@ def test_unmatched_decisions_are_reported(tmp_path):
     db = _db(tmp_path, [("i1", "hf-papers", "https://huggingface.co/papers/1")])
     rows = asyncio.run(db.get_all_pending_reviews())
     assert unmatched_count(rows, {"i1": "keep", "zz": "drop"}) == 1
+
+
+def test_history_comes_from_pending_review_status_not_only_kv(tmp_path):
+    """pending_reviews.status 每次 finalize 拉到决策就写一次, 不受 KV 的 7 天 TTL 限制。
+    2026-09-17 第一版统计只看 KV, 231 条只对上 47 条, 看起来"要攒两周",
+    其实历史一直在库里。"""
+    db = _db(
+        tmp_path,
+        [
+            ("i1", "hf-papers", "https://huggingface.co/papers/1"),
+            ("i2", "hf-papers", "https://huggingface.co/papers/2"),
+            ("i3", "openai", "https://openai.com/news/1"),
+        ],
+    )
+    asyncio.run(db.update_decision("i1", "keep"))
+    asyncio.run(db.update_decision("i3", "drop"))
+    rows = asyncio.run(db.get_all_pending_reviews())
+    # KV 里只剩最近那条; 历史由 status 补上
+    merged = merge_decision_sources(rows, live={"i2": "keep"}, recorded={})
+    assert merged == {"i1": "keep", "i2": "keep", "i3": "drop"}
+
+
+def test_live_kv_wins_over_older_stored_status(tmp_path):
+    """同一条后来改判, 以最新的为准。"""
+    db = _db(tmp_path, [("i1", "openai", "https://openai.com/news/1")])
+    asyncio.run(db.update_decision("i1", "keep"))
+    rows = asyncio.run(db.get_all_pending_reviews())
+    assert merge_decision_sources(rows, live={"i1": "drop"}, recorded={})["i1"] == "drop"
