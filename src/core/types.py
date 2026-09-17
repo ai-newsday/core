@@ -216,6 +216,11 @@ class ScoringConfig:
     # 的特征, 用户看到的是"巨多各种 demo"。X 的 source 是列表名不是账号, 同源惩罚
     # 看不见账号; 这里按链接里的 handle 分组, 那才是真正的发布方。
     card_pool_account_cap: int = 0
+    # 跨渠道按公司封顶: X 账号 / 博客 / GitHub 是三个来源, 同一家公司能叠出 7 条
+    # (2026-09-14 LangChain)。只对出现在 card_pool_org_of 里的 key 生效 —— 没列进
+    # 表的来源各自独立, 免得把 hf-papers 这类误并进某一家一起砍掉。
+    card_pool_org_cap: int = 0
+    card_pool_org_of: dict[str, str] = field(default_factory=dict)
     sources_registry_path: str = "config/sources.yaml"
     topic_keywords: list[str] = field(default_factory=list)
     topic_bonus: float = 5.0
