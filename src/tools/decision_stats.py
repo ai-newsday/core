@@ -107,6 +107,9 @@ def main(argv: list[str] | None = None) -> int:
     db = Database(db_path)
 
     async def _run():
+        # 缓存里的库可能早于某张表(2026-09-17 实测 decisions 表缺失直接报错);
+        # init 是 CREATE TABLE IF NOT EXISTS, 对已有数据无副作用
+        await db.init()
         rows = await db.get_all_pending_reviews()
         live = await store.fetch()
         # 先落库再统计: KV 里的会在 7 天后消失, 库里这份不会
