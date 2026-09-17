@@ -158,6 +158,24 @@ def merge_story_groups(
     return out
 
 
+def _dominant_model(items: list) -> str | None:
+    """当期主笔: 写得最多的那个模型; 条数打平时取最高分那条所属的模型。"""
+    counts: dict[str, int] = {}
+    for it in items:
+        if it.model:
+            counts[it.model] = counts.get(it.model, 0) + 1
+    if not counts:
+        return None
+    best = max(counts.values())
+    tied = {m for m, c in counts.items() if c == best}
+    if len(tied) == 1:
+        return next(iter(tied))
+    for it in sorted(items, key=lambda i: -i.score):
+        if it.model in tied:
+            return it.model
+    return None
+
+
 def build_report(
     review_result: ReviewResult, date_label: str, config: PublishConfig
 ) -> DailyReport:
@@ -177,6 +195,12 @@ def build_report(
         # 读者看到的是标题下面什么都没有。宁可少发一条, 不发一张空卡片。
         and it.body.strip()
     ]
+    # 一期一模型: 只留当期主笔写的条目。同一期里混着两三个模型的文风, 读者读到的
+    # 就是"质量参差"(2026-09-17: 34 条里 agnes 32 条、DeepSeek 2 条)。
+    if config.single_model_per_issue:
+        pinned = _dominant_model(items)
+        if pinned is not None:
+            items = [it for it in items if it.model == pinned]
     # 采集渠道封顶(spec §5): 先砍 GitHub 超额, 让 genre 配额的剩余名额优先给非 GitHub 条目
     items, _ = apply_adapter_quota(items, config.adapter_quota)
     # 故事线合并(spec 2026-08-28): 先把同故事的条目收成一条再占配额, 不然故事组

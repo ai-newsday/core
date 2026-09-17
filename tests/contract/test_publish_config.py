@@ -101,3 +101,9 @@ def test_load_publish_config_story_merge_support_template_override(tmp_path):
 def test_production_config_has_story_merge_support_template():
     c = load_publish_config("config/publish.yaml")
     assert c.story_merge_support_template == "\n\n目前已知 {names} 等平台跟进支持。"
+
+
+def test_repo_config_pins_one_model_per_issue():
+    """接线: 开关写在 config 里才算生效, 默认值对不上等于没开。"""
+    c = load_publish_config("config/publish.yaml")
+    assert c.single_model_per_issue is True
