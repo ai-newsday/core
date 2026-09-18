@@ -432,6 +432,13 @@ class DailyReport(BaseModel):
 @dataclass
 class PublishConfig:
     must_read_count: int = 3
+    # 一期只用一个模型写(2026-09-18)。09-17 实测一期 34 条里 agnes 写 32、DeepSeek 2,
+    # 读者感到的"质量参差"有一部分就是这个。少数派条目不发, 也不重写: finalize 时
+    # agnes 正被限流, 重写大概率失败还白花额度。
+    single_model_per_issue: bool = True
+    # 优先的主笔模型(2026-09-18 Boss: agnes 优先)。它写了至少一条就只发它的;
+    # 一条都没写时退回"谁写得最多发谁", 不出空稿。空字符串 = 不指定。
+    preferred_issue_model: str = ""
     top_keywords: int = 4
     pending_watermark: str = "草稿待定稿"
     # 报告日期标签所在时区(IANA 名, 不用固定 UTC 偏移 —— 夏令时要自动跟随)。

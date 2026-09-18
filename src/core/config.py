@@ -203,6 +203,8 @@ def load_publish_config(path: str) -> PublishConfig:
     d = PublishConfig()
     return PublishConfig(
         must_read_count=data.get("must_read_count", d.must_read_count),
+        single_model_per_issue=data.get("single_model_per_issue", d.single_model_per_issue),
+        preferred_issue_model=data.get("preferred_issue_model", d.preferred_issue_model),
         top_keywords=data.get("top_keywords", d.top_keywords),
         pending_watermark=data.get("pending_watermark", d.pending_watermark),
         min_display_score=data.get("min_display_score", d.min_display_score),

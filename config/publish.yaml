@@ -4,6 +4,14 @@ timezone: "Europe/London"
 must_read_count: 3                       # 今日必读取前几条(保留兼容, 渲染层已不使用)
 top_keywords: 4                          # 数据概览高频关键词个数(保留兼容)
 pending_watermark: "草稿待定稿"
+# 一期只用一个模型写(2026-09-18)。09-17 实测一期 34 条解读里 agnes 写 32 条、
+# DeepSeek 2 条 —— 读者感到的"质量参差"有一部分就是同一期混着两三个模型的文风。
+# 少数派条目不发, 也不重写: finalize 时 agnes 正被限流, 重写大概率失败还白花额度。
+# 关掉就回到混写但条数略多的旧行为。
+single_model_per_issue: true
+# 2026-09-18 Boss: agnes 优先。只按"谁写得多"会翻车: 09-15 DeepSeek 写 34、agnes 22,
+# 那天会把 agnes 的 22 条全丢掉。agnes 写了至少一条就只发它的, 一条没写才退回"谁写得多"。
+preferred_issue_model: "agnes:agnes-2.0-flash"
 min_display_score: 40                    # 人工 keep 条目质量底(确认门已保证全是 keep; 60 会吞 keep 的低分首发)
 quota: {paper: 3, model: 3, announcement: 3, writeup: 2, news: 1}  # per-genre 上限(人 keep 后施加)
 adapter_quota: {github_releases: 2, github_trending: 1}  # 按采集渠道封顶, 不占用 genre 配额名额(spec §5)

@@ -41,6 +41,7 @@ def _ri(
     is_explore=False,
     status="ok",
     image_url=None,
+    model="agnes:agnes-2.0-flash",
 ):
     return ReviewedItem(
         title_en="X released",
@@ -61,6 +62,7 @@ def _ri(
         tags=tags if tags is not None else ["#a", "#b", "#c"],
         evidence=evidence if evidence is not None else [Evidence(claim="事实", anchor=link)],
         interpretation_status=status,
+        model=model,
         eligible_for_must_read=eligible,
         review_action="keep",
         was_edited=False,
@@ -1062,3 +1064,75 @@ def test_all_fallback_day_yields_an_empty_report_without_crashing():
     assert rep.item_count == 0
     render_markdown(rep, CFG)
     render_wechat(rep, CFG)
+
+
+# --- 一期一模型 (2026-09-18) ---
+# 09-17 实测: 一期 34 条解读里 agnes 写了 32 条, DeepSeek 2 条。读者感到的"质量参差"
+# 有一部分就是这个。少数派条目不发, 也不额外重写: finalize 时 agnes 正被限流,
+# 重写大概率失败, 白花额度。
+
+
+def test_report_keeps_only_the_dominant_model():
+    cfg = PublishConfig()
+    cfg.single_model_per_issue = True
+    items = [
+        _ri("https://a/1", model="agnes:agnes-2.0-flash"),
+        _ri("https://a/2", model="agnes:agnes-2.0-flash"),
+        _ri("https://a/3", model="modelscope:deepseek-ai/DeepSeek-V4-Pro"),
+    ]
+    rep = build_report(_rr(items), "2026-09-18", cfg)
+    links = [it.link for cat in rep.categories for it in cat.items]
+    assert links == ["https://a/1", "https://a/2"]
+
+
+def test_single_model_off_keeps_everything():
+    cfg = PublishConfig()
+    cfg.single_model_per_issue = False
+    items = [
+        _ri("https://a/1", model="agnes:agnes-2.0-flash"),
+        _ri("https://a/2", model="modelscope:deepseek-ai/DeepSeek-V4-Pro"),
+    ]
+    rep = build_report(_rr(items), "2026-09-18", cfg)
+    assert len([it for cat in rep.categories for it in cat.items]) == 2
+
+
+def test_a_tie_keeps_the_model_that_wrote_the_highest_scoring_item():
+    """打平时按最高分那条所属的模型, 而不是字典序 —— 别让并列把当期主笔换掉。"""
+    cfg = PublishConfig()
+    cfg.single_model_per_issue = True
+    items = [
+        _ri("https://a/1", score=90, model="agnes:agnes-2.0-flash"),
+        _ri("https://a/2", score=70, model="modelscope:deepseek-ai/DeepSeek-V4-Pro"),
+    ]
+    rep = build_report(_rr(items), "2026-09-18", cfg)
+    links = [it.link for cat in rep.categories for it in cat.items]
+    assert links == ["https://a/1"]
+
+
+def test_preferred_model_wins_even_when_it_wrote_fewer():
+    """2026-09-18 Boss: agnes 优先。09-15 那天 DeepSeek 写了 34、agnes 22, 按"谁写得多"
+    会把 agnes 的 22 条全丢掉。"""
+    cfg = PublishConfig()
+    cfg.single_model_per_issue = True
+    cfg.preferred_issue_model = "agnes:agnes-2.0-flash"
+    items = [
+        _ri("https://a/1", model="agnes:agnes-2.0-flash"),
+        _ri("https://a/2", model="modelscope:deepseek-ai/DeepSeek-V4-Pro"),
+        _ri("https://a/3", model="modelscope:deepseek-ai/DeepSeek-V4-Pro"),
+    ]
+    rep = build_report(_rr(items), "2026-09-18", cfg)
+    assert [it.link for cat in rep.categories for it in cat.items] == ["https://a/1"]
+
+
+def test_falls_back_to_dominant_when_preferred_wrote_nothing():
+    """agnes 一条都没写时不能出空稿, 退回"谁写得最多发谁"。"""
+    cfg = PublishConfig()
+    cfg.single_model_per_issue = True
+    cfg.preferred_issue_model = "agnes:agnes-2.0-flash"
+    items = [
+        _ri("https://a/1", model="modelscope:deepseek-ai/DeepSeek-V4-Pro"),
+        _ri("https://a/2", model="modelscope:deepseek-ai/DeepSeek-V4-Pro"),
+        _ri("https://a/3", model="modelscope:Qwen/Qwen3.5-397B-A17B"),
+    ]
+    rep = build_report(_rr(items), "2026-09-18", cfg)
+    assert len([it for cat in rep.categories for it in cat.items]) == 2
