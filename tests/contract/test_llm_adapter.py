@@ -305,3 +305,62 @@ def test_plain_empty_content_is_not_retried(monkeypatch):
     with pytest.raises(ValueError):
         llm.complete_json("p", temperature=0.1, max_tokens=100)
     assert route.call_count == 1
+
+
+# --- 查清真实限额 (2026-09-18) ---
+# 用户说 agnes 限额是每分钟 20 次, 但日志里我们每分钟发 15-25 次、最多只成功 2 次。
+# 按请求限还是按 token 限, 答案在 429 的响应头/响应体里, 之前全丢了。
+
+
+@respx.mock
+def test_rate_limit_logs_limit_headers_and_body(monkeypatch, caplog):
+    import logging
+
+    monkeypatch.setattr(OpenAICompatLLM, "_rate_limit_details_logged", 0)
+
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
+    route = respx.post(URL)
+    route.side_effect = [
+        httpx.Response(
+            429,
+            headers={
+                "x-ratelimit-limit-tokens": "20000",
+                "x-ratelimit-remaining-tokens": "0",
+                "retry-after": "31",
+                "content-type": "application/json",
+                "server": "nginx",
+            },
+            json={"error": {"message": "TPM limit exceeded"}},
+        ),
+        httpx.Response(200, json={"choices": [{"message": {"content": '{"ok":1}'}}]}),
+    ]
+    llm = OpenAICompatLLM(providers=PROVIDERS, model="m", retry_sleep=lambda s: None)
+    with caplog.at_level(logging.INFO, logger="ai-newsday"):
+        llm.complete_json("p", temperature=0.1, max_tokens=100)
+    text = caplog.text
+    assert "x-ratelimit-limit-tokens" in text and "20000" in text
+    assert "retry-after" in text and "31" in text
+    assert "TPM limit exceeded" in text
+    # 只记限额相关的头, 不把 server 这类无关头也倒进日志
+    assert "nginx" not in text
+
+
+@respx.mock
+def test_rate_limit_detail_is_logged_only_a_few_times(monkeypatch, caplog):
+    """一次运行几百次 429, 每次都倒一遍头会淹掉日志; 前几次足够判断限额。"""
+    import logging
+
+    monkeypatch.setattr(OpenAICompatLLM, "_rate_limit_details_logged", 0)
+
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
+    respx.post(URL).mock(
+        return_value=httpx.Response(429, headers={"retry-after": "9"}, json={"e": 1})
+    )
+    llm = OpenAICompatLLM(providers=PROVIDERS, model="m", retry_sleep=lambda s: None)
+    with caplog.at_level(logging.INFO, logger="ai-newsday"):
+        for _ in range(5):
+            try:
+                llm.complete_json("p", temperature=0.1, max_tokens=100)
+            except Exception:
+                pass
+    assert caplog.text.count("rate limit detail") == OpenAICompatLLM._RATE_LIMIT_DETAIL_LOGS

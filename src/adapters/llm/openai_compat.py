@@ -109,6 +109,29 @@ class OpenAICompatLLM:
     # 引起的。换下一个模型也兜不住: 当晚 ModelScope 链同样在 429/400 里, 而且每换一个
     # 模型就多一次注定失败的往返。所以短暂限流在出事的那一层就地扛住。
     _RATE_LIMIT_BACKOFF = (2.0, 5.0, 10.0)
+    # 2026-09-18: 用户说 agnes 限额每分钟 20 次, 但日志里每分钟发 15-25 次最多只成功 2 次。
+    # 按请求限还是按 token 限, 答案在 429 的响应头/响应体里, 之前全丢了。一次运行几百次
+    # 429, 每次都记会淹掉日志, 前几次就够判断。
+    _RATE_LIMIT_DETAIL_LOGS = 3
+    _rate_limit_details_logged = 0
+
+    @classmethod
+    def _log_rate_limit_detail(cls, model_ref: str, resp: httpx.Response) -> None:
+        if cls._rate_limit_details_logged >= cls._RATE_LIMIT_DETAIL_LOGS:
+            return
+        # ponytail: 计数不加锁, 并发下可能多记一两条, 无害
+        cls._rate_limit_details_logged += 1
+        headers = {
+            k: v
+            for k, v in resp.headers.items()
+            if "ratelimit" in k.lower() or k.lower() == "retry-after"
+        }
+        logger.info(
+            "LLM %s rate limit detail: headers=%s body=%s",
+            model_ref,
+            headers,
+            resp.text[:300],
+        )
 
     def _call_with_rate_limit_retry(self, model_ref, prompt, *, temperature, max_tokens):
         """只对 429 退避重试。400 这类确定性错误重试毫无意义, 只会拖慢每次失败。"""
@@ -118,6 +141,7 @@ class OpenAICompatLLM:
             except httpx.HTTPStatusError as e:
                 if e.response.status_code != 429:
                     raise
+                self._log_rate_limit_detail(model_ref, e.response)
                 logger.info(
                     "LLM %s rate limited, backing off %.0fs (attempt %d)", model_ref, wait, i + 1
                 )
