@@ -107,3 +107,4 @@ def test_repo_config_pins_one_model_per_issue():
     """接线: 开关写在 config 里才算生效, 默认值对不上等于没开。"""
     c = load_publish_config("config/publish.yaml")
     assert c.single_model_per_issue is True
+    assert c.preferred_issue_model == "agnes:agnes-2.0-flash"

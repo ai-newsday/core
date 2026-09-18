@@ -198,7 +198,11 @@ def build_report(
     # 一期一模型: 只留当期主笔写的条目。同一期里混着两三个模型的文风, 读者读到的
     # 就是"质量参差"(2026-09-17: 34 条里 agnes 32 条、DeepSeek 2 条)。
     if config.single_model_per_issue:
-        pinned = _dominant_model(items)
+        preferred = config.preferred_issue_model
+        if preferred and any(it.model == preferred for it in items):
+            pinned = preferred
+        else:
+            pinned = _dominant_model(items)
         if pinned is not None:
             items = [it for it in items if it.model == pinned]
     # 采集渠道封顶(spec §5): 先砍 GitHub 超额, 让 genre 配额的剩余名额优先给非 GitHub 条目
