@@ -113,14 +113,16 @@ class OpenAICompatLLM:
     # 按请求限还是按 token 限, 答案在 429 的响应头/响应体里, 之前全丢了。一次运行几百次
     # 429, 每次都记会淹掉日志, 前几次就够判断。
     _RATE_LIMIT_DETAIL_LOGS = 3
-    _rate_limit_details_logged = 0
+    # 按模型分开计: 全局计数时 release_importance 先用 Qwen 把名额用光, agnes 一条没记上
+    _rate_limit_details_logged: dict = {}
 
     @classmethod
     def _log_rate_limit_detail(cls, model_ref: str, resp: httpx.Response) -> None:
-        if cls._rate_limit_details_logged >= cls._RATE_LIMIT_DETAIL_LOGS:
+        seen = cls._rate_limit_details_logged.get(model_ref, 0)
+        if seen >= cls._RATE_LIMIT_DETAIL_LOGS:
             return
         # ponytail: 计数不加锁, 并发下可能多记一两条, 无害
-        cls._rate_limit_details_logged += 1
+        cls._rate_limit_details_logged[model_ref] = seen + 1
         headers = {
             k: v
             for k, v in resp.headers.items()
