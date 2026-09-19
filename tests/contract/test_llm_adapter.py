@@ -316,7 +316,7 @@ def test_plain_empty_content_is_not_retried(monkeypatch):
 def test_rate_limit_logs_limit_headers_and_body(monkeypatch, caplog):
     import logging
 
-    monkeypatch.setattr(OpenAICompatLLM, "_rate_limit_details_logged", 0)
+    monkeypatch.setattr(OpenAICompatLLM, "_rate_limit_details_logged", {})
 
     monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
     route = respx.post(URL)
@@ -350,7 +350,7 @@ def test_rate_limit_detail_is_logged_only_a_few_times(monkeypatch, caplog):
     """一次运行几百次 429, 每次都倒一遍头会淹掉日志; 前几次足够判断限额。"""
     import logging
 
-    monkeypatch.setattr(OpenAICompatLLM, "_rate_limit_details_logged", 0)
+    monkeypatch.setattr(OpenAICompatLLM, "_rate_limit_details_logged", {})
 
     monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
     respx.post(URL).mock(
@@ -364,3 +364,23 @@ def test_rate_limit_detail_is_logged_only_a_few_times(monkeypatch, caplog):
             except Exception:
                 pass
     assert caplog.text.count("rate limit detail") == OpenAICompatLLM._RATE_LIMIT_DETAIL_LOGS
+
+
+@respx.mock
+def test_rate_limit_detail_is_counted_per_model(monkeypatch, caplog):
+    """2026-09-18 实测: 计数是全局的, release_importance 先用 Qwen 把 3 个名额用光,
+    真正要查的 agnes 一条都没记上。每个模型各自计数。"""
+    import logging
+
+    monkeypatch.setattr(OpenAICompatLLM, "_rate_limit_details_logged", {})
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
+    respx.post(URL).mock(return_value=httpx.Response(429, json={"e": 1}))
+    a = OpenAICompatLLM(providers=PROVIDERS, model="qwen", retry_sleep=lambda s: None)
+    b = OpenAICompatLLM(providers=PROVIDERS, model="agnes", retry_sleep=lambda s: None)
+    with caplog.at_level(logging.INFO, logger="ai-newsday"):
+        for llm in (a, a, b):
+            try:
+                llm.complete_json("p", temperature=0.1, max_tokens=100)
+            except Exception:
+                pass
+    assert "LLM agnes rate limit detail" in caplog.text
