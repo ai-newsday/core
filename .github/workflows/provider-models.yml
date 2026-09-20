@@ -1,0 +1,32 @@
+# 手动触发的只读探测: 列出 provider 有哪些模型并逐个探活。
+# 2026-09-19: agnes 的限额按模型算(2.5-flash 成功的同一秒 2.0-flash 在 429),
+# 所以轮换模型能提高免费额度下的产量, 前提是知道有哪些模型能用。
+name: Provider Models
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "provider 的 /v1 基址"
+        default: "https://apihub.agnes-ai.com/v1"
+      key_env:
+        description: "用哪个 secret 作为 API key"
+        default: "AGNES_API_KEY"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      AGNES_API_KEY: ${{ secrets.AGNES_API_KEY }}
+      MODELSCOPE_API_KEY: ${{ secrets.MODELSCOPE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+      - run: uv sync
+      - name: Probe
+        run: |
+          set -o pipefail
+          uv run python -m src.tools.provider_models \
+            "${{ inputs.base_url }}" "${{ inputs.key_env }}" | tee -a "$GITHUB_STEP_SUMMARY"
