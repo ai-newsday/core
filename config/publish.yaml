@@ -11,7 +11,7 @@ pending_watermark: "草稿待定稿"
 single_model_per_issue: true
 # 2026-09-18 Boss: agnes 优先。只按"谁写得多"会翻车: 09-15 DeepSeek 写 34、agnes 22,
 # 那天会把 agnes 的 22 条全丢掉。agnes 写了至少一条就只发它的, 一条没写才退回"谁写得多"。
-preferred_issue_model: "agnes:agnes-2.0-flash"
+preferred_issue_model: "agnes:agnes-2.5-flash"  # 2026-09-26 Boss: 只有 2.5-flash 能用
 min_display_score: 40                    # 人工 keep 条目质量底(确认门已保证全是 keep; 60 会吞 keep 的低分首发)
 quota: {paper: 3, model: 3, announcement: 3, writeup: 2, news: 1}  # per-genre 上限(人 keep 后施加)
 adapter_quota: {github_releases: 2, github_trending: 1}  # 按采集渠道封顶, 不占用 genre 配额名额(spec §5)
