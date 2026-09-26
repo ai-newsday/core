@@ -108,7 +108,12 @@ class OpenAICompatLLM:
     # 了 97 次, 导致 30/60 条目解读失败; 前两晚同样并发 4 只有 0-1 次, 所以不是并发
     # 引起的。换下一个模型也兜不住: 当晚 ModelScope 链同样在 429/400 里, 而且每换一个
     # 模型就多一次注定失败的往返。所以短暂限流在出事的那一层就地扛住。
-    _RATE_LIMIT_BACKOFF = (2.0, 5.0, 10.0)
+    # 2026-09-26: 2/5/10 秒的重试全落在同一个限额窗口里, 等于连续撞墙 —— agnes 免费额度
+    # 实测约每分钟只成功 1 次。退避拉长到跨过窗口。
+    # 只两级: 三级(35/65/95)时每条最坏等 195 秒, 60 条并发 4 就是近 50 分钟墙钟。
+    _RATE_LIMIT_BACKOFF = (35.0, 65.0)
+    # 429 但其实是"余额用完"而不是限流: 重试毫无意义(2026-09-19 一次运行 424 次全是它)
+    _NOT_A_RATE_LIMIT = ("insufficient balance", "insufficient_quota")
     # 2026-09-18: 用户说 agnes 限额每分钟 20 次, 但日志里每分钟发 15-25 次最多只成功 2 次。
     # 按请求限还是按 token 限, 答案在 429 的响应头/响应体里, 之前全丢了。一次运行几百次
     # 429, 每次都记会淹掉日志, 前几次就够判断。
@@ -144,6 +149,9 @@ class OpenAICompatLLM:
                 if e.response.status_code != 429:
                     raise
                 self._log_rate_limit_detail(model_ref, e.response)
+                body = e.response.text.lower()
+                if any(m in body for m in self._NOT_A_RATE_LIMIT):
+                    raise
                 logger.info(
                     "LLM %s rate limited, backing off %.0fs (attempt %d)", model_ref, wait, i + 1
                 )

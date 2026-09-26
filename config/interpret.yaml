@@ -24,14 +24,15 @@ providers:
 # ModelScope 会给模型 id 加日期后缀(DeepSeek-V4-Flash 已 400, -0731 存在), 硬编码 id
 # 会腐烂 —— 之后由定期维护的可用名单接管(2026-09-10 定的方向)。
 models:
-  - "agnes:agnes-2.0-flash"
+# 2026-09-26 Boss: agnes 现在只有 2.5-flash 能用。
+  - "agnes:agnes-2.5-flash"
   - "modelscope:deepseek-ai/DeepSeek-V4-Pro"
   - "modelscope:inclusionAI/Ring-2.6-1T"
 
 # 备用模型链 (前 3 家 2026-07-11 未探活, 生产表现见分晓; agnes 是付费保险丝)
 fallback_models:
   - "modelscope:Qwen/Qwen3.5-397B-A17B"
-  - "agnes:agnes-2.0-flash"
+  - "agnes:agnes-2.5-flash"
 
 # 每条解读是一次独立的 LLM 往返。顺序跑 100 条发卡池实测 40-60 分钟
 # (2026-09-03/04), 并发只压墙钟时间, 调用次数与成本不变。

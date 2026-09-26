@@ -384,3 +384,39 @@ def test_rate_limit_detail_is_counted_per_model(monkeypatch, caplog):
             except Exception:
                 pass
     assert "LLM agnes rate limit detail" in caplog.text
+
+
+# --- 不再把请求浪费在"余额不足"上 (2026-09-26) ---
+
+
+@respx.mock
+def test_insufficient_balance_is_not_retried(monkeypatch):
+    """ModelScope 的 429 实测是 `insufficient balance`(余额用完), 不是限流:
+    2026-09-19 一次运行 424 次请求全是这个, 退避重试纯属白发。"""
+    monkeypatch.setattr(OpenAICompatLLM, "_rate_limit_details_logged", {})
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
+    route = respx.post(URL).mock(
+        return_value=httpx.Response(429, json={"error": {"message": "insufficient balance"}})
+    )
+    llm = OpenAICompatLLM(providers=PROVIDERS, model="m", retry_sleep=lambda s: None)
+    with pytest.raises(Exception):
+        llm.complete_json("p", temperature=0.1, max_tokens=100)
+    assert route.call_count == 1
+
+
+@respx.mock
+def test_real_rate_limit_backoff_waits_long_enough_to_clear_the_window(monkeypatch):
+    """agnes 免费额度实测约每分钟 1 次成功; 2/5/10 秒的重试全落在同一个窗口里,
+    等于连续撞墙。退避要跨过窗口。"""
+    monkeypatch.setattr(OpenAICompatLLM, "_rate_limit_details_logged", {})
+    monkeypatch.setenv("MODELSCOPE_API_KEY", "k")
+    slept: list[float] = []
+    route = respx.post(URL)
+    route.side_effect = [
+        httpx.Response(429, json={"error": {"message": "rate limit for free users"}}),
+        httpx.Response(200, json={"choices": [{"message": {"content": '{"ok":1}'}}]}),
+    ]
+    llm = OpenAICompatLLM(providers=PROVIDERS, model="m", retry_sleep=slept.append)
+    assert llm.complete_json("p", temperature=0.1, max_tokens=100) == '{"ok":1}'
+    assert slept and slept[0] >= 30, f"第一次退避太短: {slept}"
+    assert sum(OpenAICompatLLM._RATE_LIMIT_BACKOFF) >= 90
