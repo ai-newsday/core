@@ -1,5 +1,7 @@
 # 交接(2026-09-26)
 
+> 交给 Codex 时用 `docs/tasks/codex-prompt.md` 作为启动 prompt(Codex 读不到 Claude 的技能)。
+
 **锚点**:基于 master `ba8bf96`,加上本文件所在的 PR #214(评估文档 + 本交接)。
 
 ## 目标
