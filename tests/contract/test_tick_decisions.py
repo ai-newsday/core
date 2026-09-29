@@ -319,6 +319,31 @@ def test_collect_tick_snapshots_scored_item_for_each_relevant_card(tmp_path):
     asyncio.run(go())
 
 
+def test_collect_tick_snapshot_uses_pre_interpret_scored_item(tmp_path):
+    """I1: 解读会把内容确定性罚分叠进 score; 快照必须是解读的输入, 否则 finalize 重罚。"""
+    from src.core.types import ScoredItem
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        interpreted = _item("https://x/1", "A").model_copy(
+            update={"score": 65, "score_breakdown": {"技术价值": 80.0, "内容确定性": -15.0}}
+        )
+        scored = ScoredItem.model_validate(
+            _item("https://x/1", "A").model_dump(include=set(ScoredItem.model_fields))
+        )
+        await run_collect_tick(
+            "r1", NOW, [interpreted], "take", db, [FakeNotifier()], scored_items=[scored]
+        )
+        snap = ScoredItem.model_validate_json(
+            (await db.get_snapshots([_iid("https://x/1")]))[_iid("https://x/1")]
+        )
+        assert snap.score == 80
+        assert "内容确定性" not in snap.score_breakdown
+
+    asyncio.run(go())
+
+
 def test_collect_tick_snapshot_failure_does_not_block_card(tmp_path):
     class _BrokenSnapshots(Database):
         async def upsert_snapshot(self, *a, **k):

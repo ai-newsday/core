@@ -517,8 +517,6 @@ def run_tick(
     if dcfg.website.enabled:
         notifiers.append(WebsiteNotifier(dcfg.website))
 
-    # 完整 pipeline (collect → interpret)
-    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
     ecfg = load_enrich_config("config/enrich.yaml")
 
     if tick == "finalize":
@@ -566,6 +564,9 @@ def run_tick(
     if tick != "collect":
         raise ValueError(f"Unknown tick: {tick!r}. Use 'collect' or 'finalize'.")
 
+    # 完整 pipeline (collect → interpret)
+    coll_cfg = CollectionConfig(sources_registry_path=registry_path)
+
     # collect tick 用: 把 source_reports 带出闭包给零产出告警。
     head_llm_holder: dict = {}
 
@@ -601,15 +602,14 @@ def run_tick(
             ctx,
             _llm,
             uncertain_content_penalty=scfg.uncertain_content_penalty,
-            # 同上: finalize 走 regenerate_wechat_head 重生成; collect tick 的
-            # daily_take 参数在 run_collect_tick 里从未被使用。
+            # generate_head=False: collect tick 的 daily_take 在 run_collect_tick 里从未被使用。
             generate_head=False,
             cache=cache,
         )
         await db.set_kv(_INTERPRET_CACHE_KEY, json.dumps(cache, ensure_ascii=False))
-        return ires
+        return ires, linked_items
 
-    ires = asyncio.run(_collect_and_interpret())
+    ires, linked_items = asyncio.run(_collect_and_interpret())
     date_label = now.date().isoformat()
 
     asyncio.run(
@@ -625,6 +625,7 @@ def run_tick(
             source_reports=head_llm_holder.get("source_reports"),
             zero_yield_config=dcfg.zero_yield_alert,
             adapter_of={s.name: s.adapter for s in load_registry(registry_path, ctx)},
+            scored_items=linked_items,  # A1: 快照存解读前的条目
         )
     )
     return {

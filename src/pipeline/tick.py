@@ -203,9 +203,12 @@ async def run_collect_tick(
     source_reports=None,
     zero_yield_config=None,
     adapter_of: dict[str, str] | None = None,
+    scored_items: list[ScoredItem] | None = None,
 ) -> None:
-    """采集 tick: 把新候选写 DB + 推 Telegram 卡片。决策由 webhook 异步收集, finalize 时拉取。"""
+    """采集 tick: 把新候选写 DB + 推 Telegram 卡片。决策由 webhook 异步收集, finalize 时拉取。
+    scored_items = interpret() 的输入; 快照优先存它(解读会叠内容确定性罚分, 不能存解读后的)。"""
     logger = logging.getLogger("ai-newsday")
+    scored_by_link = {it.link: it for it in scored_items or []}
     date = now.date().isoformat()
     await db.insert_run(run_id, "collect")
     emit(logger, "tick_collect_start", run_id=run_id, date=date, item_count=len(interpreted_items))
@@ -233,7 +236,9 @@ async def run_collect_tick(
             date=date,
         )
         try:
-            await db.upsert_snapshot(item_id, date, _snapshot_json(item))
+            pre = scored_by_link.get(item.link)
+            snap = pre.model_dump_json() if pre is not None else _snapshot_json(item)
+            await db.upsert_snapshot(item_id, date, snap)
         except Exception as e:  # noqa: BLE001 - 快照失败不影响推卡
             emit(logger, "snapshot_write_error", item_id=item_id, error=str(e))
         # 只推之前没发过卡片的条目（msg_id 仍为 NULL）
