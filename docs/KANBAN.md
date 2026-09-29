@@ -21,7 +21,7 @@
 
 | 顺序 | 子项目 | 解决 | 状态 | spec | 验收一句话 |
 |---|---|---|---|---|---|
-| 1 | **A1 定稿只处理保留条目** | E1 已审内容被悄悄丢 + 夜间白烧额度 | **plan 已写,待实现** | `docs/superpowers/specs/2026-09-28-finalize-from-snapshots-design.md` | keep 的每条要么发出、要么有带原因的跳过日志;finalize 不再调 collect |
+| 1 | **A1 定稿只处理保留条目** | E1 已审内容被悄悄丢 + 夜间白烧额度 | **PR #218 待合并**(测试+真实 agnes 跑通;生产效果待恢复审阅后观察) | `docs/superpowers/specs/2026-09-28-finalize-from-snapshots-design.md` | keep 的每条要么发出、要么有带原因的跳过日志;finalize 不再调 collect |
 | 1b | A1b 超额/跳过 TG 通知 | 用户要及时决策:keep >12 在 21:00 提醒里预告将被砍的条目(改卡片 drop 自行调换);finalize 后 TG 汇总跳过条目 | 决策已定(未处理→按规则自动砍、照常出刊;不顺延) | 并入 A1 spec「超额规则」节 | 超额当天 21:00 收到预告;finalize 后收到跳过汇总 |
 | 2 | A2 保留条目同事件合并 | Q3 同期选题重叠 | 决策已定,待 brainstorm 细节 | — | 同期重叠条数下降,合并失败退回高分那条 |
 | 3 | B 状态可靠 | E2 缓存并发/丢失 + E3 记账≠交付 | 待排期 | — | 并发不互相覆盖;只记实际成稿;成稿/上线/通知分状态 |
@@ -93,7 +93,7 @@
 
 | ✓ | 优先 | 任务 | 详情 |
 |---|---|---|---|
-| ☐ | **P0 · 待实现** | **重构 A1:定稿只处理你保留的条目,不再重采集(E1)** | 2026-09-28 双轴审核(已验收)工程 E1:定稿重跑 collect→interpret 再按 id 对决策,保留条目若掉出新池会被**悄悄丢**。已定:①**锁身份、刷内容**——白天把原始采集内容快照进 state.db 新表,晚上只对 keep 条目重新解读 ②**重解读失败→跳过该条**(宁可少发),找不到快照同样跳过,都记日志 ③删掉 finalize 的全量重采集,夜间解读 44–60 条→十几条。已知风险:快照仍在 Actions cache,缓存丢失=当晚全跳过=空稿,靠 B 解决。**spec:`docs/superpowers/specs/2026-09-28-finalize-from-snapshots-design.md`;plan:`docs/superpowers/plans/2026-09-28-finalize-from-snapshots.md`(5 task);下一步实现。** |
+| ☐ | **P0 · PR #218 待合并** | **重构 A1:定稿只处理你保留的条目,不再重采集(E1)** | 2026-09-28 双轴审核(已验收)工程 E1:定稿重跑 collect→interpret 再按 id 对决策,保留条目若掉出新池会被**悄悄丢**。已定:①**锁身份、刷内容**——白天把原始采集内容快照进 state.db 新表,晚上只对 keep 条目重新解读 ②**重解读失败→跳过该条**(宁可少发),找不到快照同样跳过,都记日志 ③删掉 finalize 的全量重采集,夜间解读 44–60 条→十几条。已知风险:快照仍在 Actions cache,缓存丢失=当晚全跳过=空稿,靠 B 解决。**spec:`docs/superpowers/specs/2026-09-28-finalize-from-snapshots-design.md`;plan:`docs/superpowers/plans/2026-09-28-finalize-from-snapshots.md`;**PR #218 / issue #217**。实现中最终审查补了"决策只结算一次"(防 7 天决策窗每晚重放反馈+LLM)与快照取解读输入(防确定性扣分叠加)。上线首晚看 Actions 日志 `finalize_summary`。** |
 | ☐ | **P1 · 待 A1** | **重构 A2:保留条目间同事件合并(Q3)** | 已定:两条 keep 讲同一件事→**LLM 合并成一条**(一条正文+另一条作补充来源);合并失败→退回只留高分那条。现有 `storylink.py` 只在同 UTC 日+版本号 token 下配对,跨天 keep 集合基本命不中,需替换或改造。A1 合并后再 brainstorm 细节。 |
 | ☐ | 待排期 | **重构 B:状态可靠(E2+E3)** | 三个工作流共用 state.db 缓存无 `concurrency` 保护;`mark_published` 记的是配额筛选前的 `report_items` 且早于通知;成稿/上线/通知成功未分状态。A1 之后。 |
 | ☐ | 待排期 | **重构 C:内容质量(Q1/Q2)** | 事实范围误概括、正文/标题截断、头像配图。A1 省下的解读额度可用于事实核查。 |
