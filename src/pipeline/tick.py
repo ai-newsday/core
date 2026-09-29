@@ -56,7 +56,12 @@ async def _load_kept_from_snapshots(
     except Exception as e:  # noqa: BLE001 - 读不出快照 = 全部 no_snapshot, 不崩
         emit(logger, "snapshot_read_error", error_type=type(e).__name__, error=str(e))
         snaps = {}
-    pool = {iid: ScoredItem.model_validate_json(s) for iid, s in snaps.items()}
+    pool: dict[str, ScoredItem] = {}
+    for iid, raw in snaps.items():
+        try:
+            pool[iid] = ScoredItem.model_validate_json(raw)
+        except Exception as e:  # noqa: BLE001 - 坏快照/旧 schema = 视同无快照, 不崩
+            emit(logger, "snapshot_invalid", item_id=iid, error_type=type(e).__name__, error=str(e))
     keep_ids = [iid for iid in decided if remote[iid] == "keep"]
     skipped: list[tuple[str, str, str | None]] = [
         (iid, "no_snapshot", None) for iid in keep_ids if iid not in pool

@@ -489,3 +489,20 @@ def test_finalize_snapshot_read_error_skips_all_without_crash(tmp_path):
         assert out["skipped_by_reason"] == {"no_snapshot": 1}
 
     asyncio.run(go())
+
+
+def test_finalize_invalid_snapshot_is_no_snapshot_not_crash(tmp_path):
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        await _seed(db, ["https://x/good"])
+        await db.upsert_snapshot(_iid("https://x/bad"), "2026-06-19", '{"not": "a scored item"}')
+        out = await _finalize(
+            db,
+            {_iid("https://x/good"): "keep", _iid("https://x/bad"): "keep"},
+            _reinterpreter([]),
+        )
+        assert out["item_count"] == 1
+        assert out["skipped_by_reason"] == {"no_snapshot": 1}
+
+    asyncio.run(go())
