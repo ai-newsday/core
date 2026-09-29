@@ -521,9 +521,52 @@ def run_tick(
     coll_cfg = CollectionConfig(sources_registry_path=registry_path)
     ecfg = load_enrich_config("config/enrich.yaml")
 
-    # #139: 标题/摘要必须用 build_report() 过滤后的最终条目重新生成, 不能用
-    # interpret() 阶段的全量解读池——闭包内造好的 llm/icfg 借这个可写容器带到
-    # run_finalize_tick 调用点。
+    if tick == "finalize":
+        # A1(2026-09-28): 定稿不再重采集。只对 keep 条目按白天快照重新解读,
+        # 且绕过解读缓存(用户定: 终版前真正刷新)。
+        icfg = load_interpret_config("config/interpret.yaml")
+        fin_llm = llm or _make_llm(icfg)
+        scfg = load_scoring_config("config/scoring.yaml")
+
+        def _reinterpret(items):
+            return interpret(
+                items,
+                icfg,
+                ctx,
+                fin_llm,
+                uncertain_content_penalty=scfg.uncertain_content_penalty,
+                generate_head=False,
+                cache=None,
+            ).interpreted_items
+
+        # 结算跑在当天 23:00 本地, 但报告标的是**发布日**(用户在午夜之后发, 对应
+        # 北京早上八点), 所以晚上这次标第二天。详见 _report_date。
+        result = asyncio.run(
+            run_finalize_tick(
+                run_id=ctx.run_id,
+                now=now,
+                date_label=_report_date(now=now),
+                interpreted_items=[],
+                daily_take=None,
+                db=db,
+                notifiers=notifiers,
+                decision_store=decision_store,
+                site_base_url=dcfg.website.site_base_url,
+                llm=fin_llm,
+                interpret_config=icfg,
+                image_client=ItemImageClient(
+                    timeout_s=ecfg.item_image.timeout_s, max_bytes=ecfg.item_image.max_bytes
+                ),
+                item_image_config=ecfg.item_image,
+                reinterpret=_reinterpret,
+            )
+        )
+        result["tick"] = "finalize"
+        return result
+    if tick != "collect":
+        raise ValueError(f"Unknown tick: {tick!r}. Use 'collect' or 'finalize'.")
+
+    # collect tick 用: 把 source_reports 带出闭包给零产出告警。
     head_llm_holder: dict = {}
 
     async def _collect_and_interpret():
@@ -547,19 +590,10 @@ def run_tick(
         quality_of = await db.get_quality_weights()
         sres = score(dres.deduped_items, scfg, ctx, quality_of=quality_of)
 
-        if tick == "finalize":
-            slcfg = load_storylink_config("config/storylink.yaml")
-            sl_llm = _make_storylink_llm(slcfg)
-            linked_items = link_stories(sres.selected_items, sl_llm, slcfg, ctx)
-        else:
-            # collect tick 从不发布(只写 DB 列 + 推 review 卡, 都不读 story_id),
-            # 故事线合并的 LLM 调用留给 finalize 一次就够, 这里跑纯属浪费(spec 2026-08-28 review)。
-            linked_items = sres.selected_items
+        linked_items = sres.selected_items
 
         icfg = load_interpret_config("config/interpret.yaml")
         _llm = llm or _make_llm(icfg)
-        head_llm_holder["llm"] = _llm
-        head_llm_holder["icfg"] = icfg
         cache = await _load_interpret_cache(db, now, icfg.cache_ttl_hours)
         ires = interpret(
             linked_items,
@@ -578,57 +612,27 @@ def run_tick(
     ires = asyncio.run(_collect_and_interpret())
     date_label = now.date().isoformat()
 
-    if tick == "collect":
-        asyncio.run(
-            run_collect_tick(
-                run_id=ctx.run_id,
-                now=now,
-                interpreted_items=ires.interpreted_items,
-                daily_take=ires.daily_take,
-                db=db,
-                notifiers=notifiers,
-                # 静默归零告警 (#169): 抓取失败是非致命的, 报的是 success + 0 条,
-                # 日志里看不出来。x-extension 曾因此连续 17 天无产出无人察觉。
-                source_reports=head_llm_holder.get("source_reports"),
-                zero_yield_config=dcfg.zero_yield_alert,
-                adapter_of={s.name: s.adapter for s in load_registry(registry_path, ctx)},
-            )
+    asyncio.run(
+        run_collect_tick(
+            run_id=ctx.run_id,
+            now=now,
+            interpreted_items=ires.interpreted_items,
+            daily_take=ires.daily_take,
+            db=db,
+            notifiers=notifiers,
+            # 静默归零告警 (#169): 抓取失败是非致命的, 报的是 success + 0 条,
+            # 日志里看不出来。x-extension 曾因此连续 17 天无产出无人察觉。
+            source_reports=head_llm_holder.get("source_reports"),
+            zero_yield_config=dcfg.zero_yield_alert,
+            adapter_of={s.name: s.adapter for s in load_registry(registry_path, ctx)},
         )
-        return {
-            "run_id": ctx.run_id,
-            "tick": "collect",
-            "pushed": len(ires.interpreted_items),
-            "date": date_label,
-        }
-
-    elif tick == "finalize":
-        # 结算跑在当天 23:00 本地, 但报告标的是**发布日**(用户在午夜之后发, 对应
-        # 北京早上八点), 所以晚上这次标第二天。详见 _report_date。
-        date_label = _report_date(now=now)
-        result = asyncio.run(
-            run_finalize_tick(
-                run_id=ctx.run_id,
-                now=now,
-                date_label=date_label,
-                interpreted_items=ires.interpreted_items,
-                daily_take=ires.daily_take,
-                db=db,
-                notifiers=notifiers,
-                decision_store=decision_store,
-                site_base_url=dcfg.website.site_base_url,
-                wechat_title=ires.wechat_title,
-                llm=head_llm_holder.get("llm"),
-                interpret_config=head_llm_holder.get("icfg"),
-                image_client=ItemImageClient(
-                    timeout_s=ecfg.item_image.timeout_s, max_bytes=ecfg.item_image.max_bytes
-                ),
-                item_image_config=ecfg.item_image,
-            )
-        )
-        result["tick"] = "finalize"
-        return result
-    else:
-        raise ValueError(f"Unknown tick: {tick!r}. Use 'collect' or 'finalize'.")
+    )
+    return {
+        "run_id": ctx.run_id,
+        "tick": "collect",
+        "pushed": len(ires.interpreted_items),
+        "date": date_label,
+    }
 
 
 def _latest_run_dir(base=None):
