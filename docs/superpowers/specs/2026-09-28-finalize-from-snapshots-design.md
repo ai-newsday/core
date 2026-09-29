@@ -20,7 +20,9 @@
 
 ## 数据流
 
-**collect(每天 8 次)**:流程不变,推卡时把该条**解读前的 `ScoredItem`** 整条 JSON 写入
+**collect(每天 8 次)**:流程不变,推卡时把该条**解读前的 `ScoredItem`**(即 `interpret()` 的输入,
+由 `run_tick` 以 `scored_items` 传给 `run_collect_tick`、按 link 对应;不是从解读结果里截字段——解读会把
+内容确定性罚分叠进 `score`/`score_breakdown`,存它会让 finalize 重复扣分)整条 JSON 写入
 `review_snapshots(item_id PK, date, snapshot_json, updated_at)`。`item_id` = 现有 `sha256(link)[:16]`。
 同条重复采集 → 覆盖为最新快照,卡片不重推(与现状一致)。写快照失败只记日志,不影响推卡。
 
@@ -31,6 +33,15 @@
    `interpretation_status != "ok"` → 跳过(`interpret_failed`),`relevant=False` → 跳过(`irrelevant`)。
    有快照的 **drop** 条目不解读,但照样参与 id→link 映射与反馈闭环(负反馈不能丢)。
 4. 其余不变:跨期去重 → review → build_report → 标题/摘要重生成 → 配图 → render → mark_published → 通知。
+
+### 决策只结算一次
+
+决策 KV 保留 7 天、每晚全量拉回,快照不过期;不筛的话同一条 keep/drop 会每晚被重解读、反馈重复入账。
+所以 finalize 只处理**新鲜决策**:该 id 在 `settled_decisions(item_id PK, date_label, ts)` 里的 label
+等于本次 `date_label`(同日重跑放行),或 id 既未结算、也不在 `decisions` 表里(上线第一晚:旧 finalize
+已记账的决策视为已结算)。判断在 `record_decisions` 写入之前做。处理完后本批新鲜决策(keep + drop,
+含解读失败/无快照的 keep——不顺延)全部以本次 `date_label` 结算,首次 label 固定。
+`finalize_summary.kept` 计的是新鲜 keep 数。代价:结算后在卡片上改主意(keep→drop)不再生效。
 
 **删除**:finalize 分支的 collect / HN / release_importance / hf_readme / dedup / score / storylink 调用;
 `finalize.yml` 的 x-signals clone 步骤。
