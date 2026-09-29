@@ -74,6 +74,12 @@ CREATE TABLE IF NOT EXISTS review_snapshots (
     snapshot_json TEXT NOT NULL,
     updated_at    TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS settled_decisions (
+    item_id    TEXT PRIMARY KEY,
+    date_label TEXT NOT NULL,
+    ts         TEXT NOT NULL
+);
 """
 
 
@@ -221,6 +227,30 @@ class Database:
                 [(k, v, ts) for k, v in decisions.items()],
             )
             await conn.commit()
+
+    async def settle_decisions(self, item_ids: list[str], date_label: str) -> None:
+        """A1: 决策已由某 date_label 的 finalize 结算。INSERT OR IGNORE: 首次 label 固定。"""
+        if not item_ids:
+            return
+        ts = datetime.now(timezone.utc).isoformat()
+        async with aiosqlite.connect(self._path) as conn:
+            await conn.executemany(
+                "INSERT OR IGNORE INTO settled_decisions(item_id,date_label,ts) VALUES(?,?,?)",
+                [(i, date_label, ts) for i in item_ids],
+            )
+            await conn.commit()
+
+    async def get_settled(self, item_ids: list[str]) -> dict[str, str]:
+        """{item_id: date_label}, 只含已结算的 id。"""
+        if not item_ids:
+            return {}
+        ph = ",".join("?" * len(item_ids))
+        async with aiosqlite.connect(self._path) as conn:
+            async with conn.execute(
+                f"SELECT item_id, date_label FROM settled_decisions WHERE item_id IN ({ph})",
+                tuple(item_ids),
+            ) as cur:
+                return {r[0]: r[1] for r in await cur.fetchall()}
 
     async def get_recorded_decisions(self) -> dict[str, str]:
         async with aiosqlite.connect(self._path) as conn:

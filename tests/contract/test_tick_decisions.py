@@ -360,16 +360,16 @@ async def _seed(db, links):
     await run_collect_tick("r1", NOW, [_item(u, u) for u in links], "take", db, [FakeNotifier()])
 
 
-def _finalize(db, decisions, reinterpret):
+def _finalize(db, decisions, reinterpret, run_id="r2", date_label="2026-06-19", store=None):
     return run_finalize_tick(
-        "r2",
+        run_id,
         NOW,
-        "2026-06-19",
+        date_label,
         [],
         None,
         db,
         [FakeNotifier()],
-        decision_store=FakeDecisionStore(decisions),
+        decision_store=store or FakeDecisionStore(decisions),
         reinterpret=reinterpret,
     )
 
@@ -504,5 +504,76 @@ def test_finalize_invalid_snapshot_is_no_snapshot_not_crash(tmp_path):
         )
         assert out["item_count"] == 1
         assert out["skipped_by_reason"] == {"no_snapshot": 1}
+
+    asyncio.run(go())
+
+
+async def _feedback_rows(db):
+    import aiosqlite
+
+    async with aiosqlite.connect(db._path) as conn:
+        async with conn.execute("SELECT run_id, link, action FROM feedback_events") as cur:
+            return set(await cur.fetchall())
+
+
+def test_finalize_settles_decisions_once_across_nights(tmp_path):
+    """C1: KV 决策保留 7 天, 第二晚同一批决策不能再解读、再计反馈。"""
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        await _seed(db, ["https://x/1", "https://x/2"])
+        store = FakeDecisionStore({_iid("https://x/1"): "keep", _iid("https://x/2"): "drop"})
+        calls = []
+        n1 = await _finalize(
+            db, None, _reinterpreter(calls), run_id="n1", date_label="2026-06-19", store=store
+        )
+        assert n1["item_count"] == 1
+        assert calls == [["https://x/1"]]
+        rows_n1 = await _feedback_rows(db)
+        n2 = await _finalize(
+            db, None, _reinterpreter(calls), run_id="n2", date_label="2026-06-20", store=store
+        )
+        assert calls == [["https://x/1"]]  # 第二晚一条都不解读
+        assert await _feedback_rows(db) == rows_n1  # 不新增反馈事件
+        assert n2["item_count"] == 0
+
+    asyncio.run(go())
+
+
+def test_finalize_same_label_rerun_reprocesses_settled_decisions(tmp_path):
+    """C1: 同一 date_label 重跑(手动补跑)照样重新处理。"""
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        await _seed(db, ["https://x/1"])
+        store = FakeDecisionStore({_iid("https://x/1"): "keep"})
+        calls = []
+        await _finalize(db, None, _reinterpreter(calls), run_id="a", store=store)
+        out = await _finalize(db, None, _reinterpreter(calls), run_id="b", store=store)
+        assert calls == [["https://x/1"], ["https://x/1"]]
+        assert out["item_count"] == 1
+
+    asyncio.run(go())
+
+
+def test_finalize_skips_decisions_recorded_before_settlement_existed(tmp_path):
+    """C1: 上线第一晚, 旧 finalize 已记进 decisions 表的决策视为已结算, 不再处理。"""
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        await _seed(db, ["https://x/old", "https://x/new"])
+        await db.record_decisions({_iid("https://x/old"): "keep"}, ts=NOW.isoformat())
+        calls = []
+        out = await _finalize(
+            db,
+            {_iid("https://x/old"): "keep", _iid("https://x/new"): "keep"},
+            _reinterpreter(calls),
+        )
+        assert calls == [["https://x/new"]]
+        assert out["item_count"] == 1
+        assert {link for _, link, _ in await _feedback_rows(db)} == {"https://x/new"}
 
     asyncio.run(go())

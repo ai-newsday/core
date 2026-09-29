@@ -290,10 +290,22 @@ async def run_finalize_tick(
             )
     feedback_items: list = list(interpreted_items)
     skipped: list[tuple[str, str, str | None]] = []
+    fresh = remote_raw
     if reinterpret is not None:
+        # 决策只结算一次: KV 留 7 天, 不筛就会每晚重解读 + 重计反馈。同 label 重跑放行;
+        # 旧 finalize 已记进 decisions 表但未结算的(上线第一晚)视为已结算。
+        prev_recorded = await db.get_recorded_decisions()
+        settled = await db.get_settled(list(remote_raw))
+        fresh = {
+            iid: a
+            for iid, a in remote_raw.items()
+            if settled.get(iid) == date_label or (iid not in settled and iid not in prev_recorded)
+        }
         interpreted_items, feedback_items, skipped = await _load_kept_from_snapshots(
-            remote_raw, db, reinterpret, logger
+            fresh, db, reinterpret, logger
         )
+        # 失败/无快照的 keep 也结算: 不顺延
+        await db.settle_decisions(list(fresh), date_label)
     id_to_link = {_item_id(it): it.link for it in [*interpreted_items, *feedback_items]}
     for item_id, action in remote_raw.items():
         link = id_to_link.get(item_id)
@@ -355,7 +367,7 @@ async def run_finalize_tick(
         logger,
         "finalize_summary",
         run_id=run_id,
-        kept=sum(1 for a in remote_raw.values() if a == "keep"),
+        kept=sum(1 for a in fresh.values() if a == "keep"),
         published=pres.report.item_count,
         skipped_by_reason=skipped_by_reason,
     )
