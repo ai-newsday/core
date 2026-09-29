@@ -298,3 +298,37 @@ def test_finalize_applies_kv_decision_by_item_id_without_pending_rows(tmp_path):
         assert out["item_count"] <= 1
 
     asyncio.run(go())
+
+
+def test_collect_tick_snapshots_scored_item_for_each_relevant_card(tmp_path):
+    from src.core.types import ScoredItem
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        ok = _item("https://x/1", "A")
+        junk = _item("https://x/junk", "Not AI").model_copy(update={"relevant": False})
+        await run_collect_tick("r1", NOW, [ok, junk], "take", db, [FakeNotifier()])
+        snaps = await db.get_snapshots([_iid("https://x/1"), _iid("https://x/junk")])
+        assert set(snaps) == {_iid("https://x/1")}
+        restored = ScoredItem.model_validate_json(snaps[_iid("https://x/1")])
+        assert restored.link == "https://x/1"
+        assert restored.score == 80
+        assert "body" not in restored.model_dump()  # 存的是解读前的条目
+
+    asyncio.run(go())
+
+
+def test_collect_tick_snapshot_failure_does_not_block_card(tmp_path):
+    class _BrokenSnapshots(Database):
+        async def upsert_snapshot(self, *a, **k):
+            raise RuntimeError("disk full")
+
+    async def go():
+        db = _BrokenSnapshots(str(tmp_path / "s.db"))
+        await db.init()
+        notifier = FakeNotifier()
+        await run_collect_tick("r1", NOW, [_item("https://x/1", "A")], "take", db, [notifier])
+        assert len(notifier.sent_cards) == 1
+
+    asyncio.run(go())

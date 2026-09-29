@@ -14,6 +14,7 @@ from src.core.types import (
     InterpretedItem,
     ItemImageConfig,
     ReviewDecision,
+    ScoredItem,
 )
 from src.notifiers import Notifier
 from src.observability.events import emit
@@ -30,6 +31,12 @@ _ZERO_YIELD_KEY = "zero_yield_state"
 def _item_id(item: InterpretedItem) -> str:
     """稳定唯一 ID: sha256(link) 前 16 字符。"""
     return hashlib.sha256(item.link.encode()).hexdigest()[:16]
+
+
+def _snapshot_json(item: InterpretedItem) -> str:
+    """A1: 存解读前的 ScoredItem(interpret() 的输入), finalize 按它重新解读。"""
+    fields = set(ScoredItem.model_fields)
+    return ScoredItem.model_validate(item.model_dump(include=fields)).model_dump_json()
 
 
 def regenerate_wechat_head(
@@ -186,6 +193,10 @@ async def run_collect_tick(
             signals=item.signals,
             date=date,
         )
+        try:
+            await db.upsert_snapshot(item_id, date, _snapshot_json(item))
+        except Exception as e:  # noqa: BLE001 - 快照失败不影响推卡
+            emit(logger, "snapshot_write_error", item_id=item_id, error=str(e))
         # 只推之前没发过卡片的条目（msg_id 仍为 NULL）
         rows = await db.get_pending_reviews_for_date(date)
         row = next((r for r in rows if r["item_id"] == item_id), None)
