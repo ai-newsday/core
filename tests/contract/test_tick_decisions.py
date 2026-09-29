@@ -332,3 +332,160 @@ def test_collect_tick_snapshot_failure_does_not_block_card(tmp_path):
         assert len(notifier.sent_cards) == 1
 
     asyncio.run(go())
+
+
+PREF = "agnes:agnes-2.5-flash"  # config/publish.yaml preferred_issue_model
+
+
+def _reinterpreter(calls, fail=(), irrelevant=(), model_of=None):
+    """假 reinterpret: 记录收到的条目; 按 link 制造失败/不相关/指定模型。"""
+    model_of = model_of or {}
+
+    def f(items):
+        calls.append([it.link for it in items])
+        out = []
+        for it in items:
+            upd = {"model": model_of.get(it.link, PREF)}
+            if it.link in fail:
+                upd.update(interpretation_status="extractive_fallback", fallback_reason="RateLimit")
+            if it.link in irrelevant:
+                upd["relevant"] = False
+            out.append(_item(it.link, it.title_en).model_copy(update=upd))
+        return out
+
+    return f
+
+
+async def _seed(db, links):
+    await run_collect_tick("r1", NOW, [_item(u, u) for u in links], "take", db, [FakeNotifier()])
+
+
+def _finalize(db, decisions, reinterpret):
+    return run_finalize_tick(
+        "r2",
+        NOW,
+        "2026-06-19",
+        [],
+        None,
+        db,
+        [FakeNotifier()],
+        decision_store=FakeDecisionStore(decisions),
+        reinterpret=reinterpret,
+    )
+
+
+def test_finalize_reinterprets_only_kept_snapshots(tmp_path):
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        await _seed(db, ["https://x/1", "https://x/2", "https://x/3"])
+        calls = []
+        out = await _finalize(
+            db,
+            {_iid("https://x/1"): "keep", _iid("https://x/2"): "drop"},
+            _reinterpreter(calls),
+        )
+        assert calls == [["https://x/1"]]  # 只解读 keep, 不碰 drop / 未决策
+        assert out["item_count"] == 1
+        assert out["skipped_by_reason"] == {}
+
+    asyncio.run(go())
+
+
+def test_finalize_skips_with_reasons(tmp_path, caplog):
+    import json as _json
+    import logging
+
+    caplog.set_level(logging.INFO, logger="ai-newsday")
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        await _seed(db, ["https://x/ok", "https://x/fail", "https://x/junk", "https://x/other"])
+        decisions = {
+            _iid(u): "keep"
+            for u in ["https://x/ok", "https://x/fail", "https://x/junk", "https://x/other"]
+        }
+        decisions[_iid("https://x/nosnap")] = "keep"
+        out = await _finalize(
+            db,
+            decisions,
+            _reinterpreter(
+                [],
+                fail={"https://x/fail"},
+                irrelevant={"https://x/junk"},
+                model_of={"https://x/other": "modelscope:other"},
+            ),
+        )
+        assert out["item_count"] == 1
+        assert out["skipped_by_reason"] == {
+            "no_snapshot": 1,
+            "interpret_failed": 1,
+            "irrelevant": 1,
+            "model_mismatch": 1,
+        }
+
+    asyncio.run(go())
+    events = [_json.loads(r.getMessage()) for r in caplog.records if r.getMessage().startswith("{")]
+    skipped = [e for e in events if e["event"] == "finalize_item_skipped"]
+    assert {e["reason"] for e in skipped} == {
+        "no_snapshot",
+        "interpret_failed",
+        "irrelevant",
+        "model_mismatch",
+    }
+    fail = next(e for e in skipped if e["reason"] == "interpret_failed")
+    assert fail["error"] == "RateLimit"
+    assert any(e["event"] == "finalize_summary" and e["kept"] == 5 for e in events)
+
+
+def test_finalize_logs_rule_cut_when_keeps_exceed_total_limit(tmp_path):
+    """keep 13 条 news(配额 news:1, total_limit 12)→ 只发 1 条, 12 条 rule_cut, 不顺延。"""
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        links = [f"https://x/n{i}" for i in range(13)]
+        await _seed(db, links)
+        out = await _finalize(db, {_iid(u): "keep" for u in links}, _reinterpreter([]))
+        assert out["item_count"] == 1
+        assert out["skipped_by_reason"] == {"rule_cut": 12}
+
+    asyncio.run(go())
+
+
+def test_finalize_keeps_drop_feedback_from_snapshots(tmp_path):
+    """drop 条目不解读, 但负反馈必须照样入账(否则权重只升不降)。"""
+
+    async def go():
+        db = Database(str(tmp_path / "s.db"))
+        await db.init()
+        await _seed(db, ["https://x/1", "https://x/2"])
+        await _finalize(
+            db,
+            {_iid("https://x/1"): "keep", _iid("https://x/2"): "drop"},
+            _reinterpreter([]),
+        )
+        import aiosqlite
+
+        async with aiosqlite.connect(db._path) as conn:
+            async with conn.execute("SELECT link, action FROM feedback_events") as cur:
+                rows = set(await cur.fetchall())
+        assert rows == {("https://x/1", "keep"), ("https://x/2", "drop")}
+
+    asyncio.run(go())
+
+
+def test_finalize_snapshot_read_error_skips_all_without_crash(tmp_path):
+    class _BrokenRead(Database):
+        async def get_snapshots(self, item_ids):
+            raise RuntimeError("no such table")
+
+    async def go():
+        db = _BrokenRead(str(tmp_path / "s.db"))
+        await db.init()
+        out = await _finalize(db, {_iid("https://x/1"): "keep"}, _reinterpreter([]))
+        assert out["item_count"] == 0
+        assert out["skipped_by_reason"] == {"no_snapshot": 1}
+
+    asyncio.run(go())
