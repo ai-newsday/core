@@ -96,13 +96,18 @@ def test_run_tick_reads_seeded_quality_weights_without_error(tmp_path, monkeypat
         assert k in out
 
 
-def test_finalize_reuses_interpretations_written_by_collect(tmp_path, monkeypatch):
-    """接线: collect 写的解读要能被 finalize 读到, 否则缓存只是摆设。
-    finalize 用一个必然失败的 llm, 条目仍是 ok 就说明走的是缓存。"""
+def test_finalize_reinterprets_kept_snapshots_without_collecting(tmp_path, monkeypatch):
+    """A1 接线: 走 run_tick 真实入口。collect 写快照 → finalize 不调 collect、
+    只对 keep 条目绕过缓存(cache=None)重新解读, keep 那条进报告。"""
+    from src.adapters.decisions.worker import FakeDecisionStore
+    from src.core.types import CollectionResult, Genre, Publisher, RawItem
+    from src.notifiers import FakeNotifier
+    from src.pipeline.tick import _item_id
     from tests.fakes import FakeLLMProvider
 
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake_tok")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "123")
+    monkeypatch.setenv("DECISIONS_API_SECRET", "x")
     ok = json.dumps(
         {
             "title": "中文标题",
@@ -118,21 +123,7 @@ def test_finalize_reuses_interpretations_written_by_collect(tmp_path, monkeypatc
         db_path=str(tmp_path / "state.db"),
         embedder=FakeEmbeddingProvider({}),
     )
-    seen = {}
-    real = cli_module.interpret
-
-    def _spy(*a, **k):
-        res = real(*a, **k)
-        seen[k.get("cache") is not None] = res
-        return res
-
-    monkeypatch.setattr(cli_module, "interpret", _spy)
-
-    # 固定条目: registry_min 的源是真网络, CI 恰好跨过 UTC 午夜时两次 tick 抓到的
-    # "当天"论文不同, 缓存自然命中 0 (2026-09-10 CI 实测 0 == 3)。
-    from src.core.types import CollectionResult, Genre, Publisher, RawItem
-
-    items = [
+    raw = [
         RawItem(
             title_en=f"OpenAI ships thing {i}",
             link=f"https://openai.com/news/{i}",
@@ -147,11 +138,97 @@ def test_finalize_reuses_interpretations_written_by_collect(tmp_path, monkeypatc
     ]
 
     async def _fixed_collect(cfg, ctx):
-        return CollectionResult(items=list(items), source_reports=[], is_silent=False)
+        return CollectionResult(items=list(raw), source_reports=[], is_silent=False)
 
     monkeypatch.setattr(cli_module, "collect", _fixed_collect)
     run_tick(tick="collect", llm=FakeLLMProvider({}, default=ok), **kw)
-    first = seen.pop(True)
-    assert first.interpreted_count > 0
-    run_tick(tick="finalize", llm=FailingLLMProvider(), **kw)
-    assert seen[True].interpreted_count == first.interpreted_count
+
+    def _boom(*a, **k):
+        raise AssertionError("finalize must not collect")
+
+    class _NoImages:
+        async def fetch_html(self, url):
+            return None
+
+        async def check_image(self, url):
+            return False
+
+    keep_id = _item_id(raw[0])
+    monkeypatch.setattr(cli_module, "collect", _boom)
+    monkeypatch.setattr(
+        cli_module, "WorkerDecisionStore", lambda *a: FakeDecisionStore({keep_id: "keep"})
+    )
+    monkeypatch.setattr(cli_module, "WebsiteNotifier", lambda cfg: FakeNotifier())
+    monkeypatch.setattr(cli_module, "ItemImageClient", lambda **k: _NoImages())
+    seen = []
+    real = cli_module.interpret
+
+    def _spy(items, *a, **k):
+        seen.append((len(items), k.get("cache")))
+        return real(items, *a, **k)
+
+    monkeypatch.setattr(cli_module, "interpret", _spy)
+    out = run_tick(tick="finalize", llm=FakeLLMProvider({}, default=ok), **kw)
+    assert seen == [(1, None)]  # 只解读 1 条 keep, 且绕过缓存
+    assert out["item_count"] == 1
+    assert out["skipped_by_reason"] == {}
+
+
+def test_collect_snapshot_is_interpret_input_not_penalized_output(tmp_path, monkeypatch):
+    """I1 接线: content_certain=false 时解读会扣分; run_tick 存的快照必须是扣分前的。"""
+    from src.core.types import CollectionResult, Genre, Publisher, RawItem, ScoredItem
+    from src.pipeline.tick import _item_id
+    from tests.fakes import FakeLLMProvider
+
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake_tok")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "123")
+    uncertain = json.dumps(
+        {
+            "title": "中文标题",
+            "body": "正文。",
+            "tags": ["#a", "#b", "#c"],
+            "evidence": [{"claim": "c", "anchor": "https://openai.com/news/0"}],
+            "relevant": True,
+            "content_certain": False,
+        }
+    )
+    raw = RawItem(
+        title_en="OpenAI ships thing 0",
+        link="https://openai.com/news/0",
+        source="openai",
+        genre=Genre.announcement,
+        publisher=Publisher.lab,
+        published_at=NOW,
+        raw_summary="A summary.",
+        adapter="rss",
+    )
+
+    async def _fixed_collect(cfg, ctx):
+        return CollectionResult(items=[raw], source_reports=[], is_silent=False)
+
+    monkeypatch.setattr(cli_module, "collect", _fixed_collect)
+    seen_in, seen_out = {}, {}
+    real = cli_module.interpret
+
+    def _spy(items, *a, **k):
+        seen_in.update({it.link: it.score for it in items})
+        res = real(items, *a, **k)
+        seen_out.update({it.link: it.score for it in res.interpreted_items})
+        return res
+
+    monkeypatch.setattr(cli_module, "interpret", _spy)
+    db_path = str(tmp_path / "state.db")
+    run_tick(
+        tick="collect",
+        registry_path="tests/golden/data/registry_min.yaml",
+        now=NOW,
+        db_path=db_path,
+        embedder=FakeEmbeddingProvider({}),
+        llm=FakeLLMProvider({}, default=uncertain),
+    )
+    link = raw.link
+    assert seen_out[link] != seen_in[link]  # 前提: 罚分确实生效了
+    snaps = asyncio.run(Database(db_path).get_snapshots([_item_id(raw)]))
+    snap = ScoredItem.model_validate_json(snaps[_item_id(raw)])
+    assert snap.score == seen_in[link]
+    assert "内容确定性" not in snap.score_breakdown

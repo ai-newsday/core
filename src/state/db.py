@@ -67,6 +67,19 @@ CREATE TABLE IF NOT EXISTS published_items (
     date_label TEXT NOT NULL,
     ts         TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS review_snapshots (
+    item_id       TEXT PRIMARY KEY,
+    date          TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    updated_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS settled_decisions (
+    item_id    TEXT PRIMARY KEY,
+    date_label TEXT NOT NULL,
+    ts         TEXT NOT NULL
+);
 """
 
 
@@ -139,6 +152,30 @@ class Database:
             )
             await conn.commit()
 
+    async def upsert_snapshot(self, item_id: str, date: str, snapshot_json: str) -> None:
+        """A1: 推卡时存解读前的 ScoredItem, finalize 按它重新解读。同条重复采集覆盖为最新。"""
+        ts = datetime.now(timezone.utc).isoformat()
+        async with aiosqlite.connect(self._path) as conn:
+            await conn.execute(
+                "INSERT INTO review_snapshots(item_id,date,snapshot_json,updated_at) "
+                "VALUES(?,?,?,?) ON CONFLICT(item_id) DO UPDATE SET date=excluded.date, "
+                "snapshot_json=excluded.snapshot_json, updated_at=excluded.updated_at",
+                (item_id, date, snapshot_json, ts),
+            )
+            await conn.commit()
+
+    async def get_snapshots(self, item_ids: list[str]) -> dict[str, str]:
+        """{item_id: snapshot_json}, 只含存在的 id。"""
+        if not item_ids:
+            return {}
+        ph = ",".join("?" * len(item_ids))
+        async with aiosqlite.connect(self._path) as conn:
+            async with conn.execute(
+                f"SELECT item_id, snapshot_json FROM review_snapshots WHERE item_id IN ({ph})",
+                tuple(item_ids),
+            ) as cur:
+                return {r[0]: r[1] for r in await cur.fetchall()}
+
     async def mark_published(self, item_ids: list[str], date_label: str) -> None:
         """记录条目在某 date_label 报告中已发布。INSERT OR IGNORE: 首发 label 固定不被覆盖。"""
         if not item_ids:
@@ -190,6 +227,30 @@ class Database:
                 [(k, v, ts) for k, v in decisions.items()],
             )
             await conn.commit()
+
+    async def settle_decisions(self, item_ids: list[str], date_label: str) -> None:
+        """A1: 决策已由某 date_label 的 finalize 结算。INSERT OR IGNORE: 首次 label 固定。"""
+        if not item_ids:
+            return
+        ts = datetime.now(timezone.utc).isoformat()
+        async with aiosqlite.connect(self._path) as conn:
+            await conn.executemany(
+                "INSERT OR IGNORE INTO settled_decisions(item_id,date_label,ts) VALUES(?,?,?)",
+                [(i, date_label, ts) for i in item_ids],
+            )
+            await conn.commit()
+
+    async def get_settled(self, item_ids: list[str]) -> dict[str, str]:
+        """{item_id: date_label}, 只含已结算的 id。"""
+        if not item_ids:
+            return {}
+        ph = ",".join("?" * len(item_ids))
+        async with aiosqlite.connect(self._path) as conn:
+            async with conn.execute(
+                f"SELECT item_id, date_label FROM settled_decisions WHERE item_id IN ({ph})",
+                tuple(item_ids),
+            ) as cur:
+                return {r[0]: r[1] for r in await cur.fetchall()}
 
     async def get_recorded_decisions(self) -> dict[str, str]:
         async with aiosqlite.connect(self._path) as conn:

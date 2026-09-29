@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from collections import Counter
+from collections.abc import Callable
 from datetime import datetime
 
 from src.adapters.decisions.worker import DecisionStore
@@ -14,6 +16,7 @@ from src.core.types import (
     InterpretedItem,
     ItemImageConfig,
     ReviewDecision,
+    ScoredItem,
 )
 from src.notifiers import Notifier
 from src.observability.events import emit
@@ -30,6 +33,49 @@ _ZERO_YIELD_KEY = "zero_yield_state"
 def _item_id(item: InterpretedItem) -> str:
     """稳定唯一 ID: sha256(link) 前 16 字符。"""
     return hashlib.sha256(item.link.encode()).hexdigest()[:16]
+
+
+def _snapshot_json(item: InterpretedItem) -> str:
+    """A1: 存解读前的 ScoredItem(interpret() 的输入), finalize 按它重新解读。"""
+    fields = set(ScoredItem.model_fields)
+    return ScoredItem.model_validate(item.model_dump(include=fields)).model_dump_json()
+
+
+async def _load_kept_from_snapshots(
+    remote: dict[str, str],
+    db: Database,
+    reinterpret: Callable[[list[ScoredItem]], list[InterpretedItem]],
+    logger: logging.Logger,
+) -> tuple[list[InterpretedItem], list[ScoredItem], list[tuple[str, str, str | None]]]:
+    """A1: 决策 id → 快照 → 只重新解读 keep。
+    返回 (报告候选, 有快照的全部已决策条目, 跳过列表[(item_id, reason, error)])。
+    drop 条目不解读, 但放进第二项: id→link 映射与反馈闭环要用(负反馈不能丢)。"""
+    decided = [iid for iid, a in remote.items() if a in ("keep", "drop")]
+    try:
+        snaps = await db.get_snapshots(decided)
+    except Exception as e:  # noqa: BLE001 - 读不出快照 = 全部 no_snapshot, 不崩
+        emit(logger, "snapshot_read_error", error_type=type(e).__name__, error=str(e))
+        snaps = {}
+    pool: dict[str, ScoredItem] = {}
+    for iid, raw in snaps.items():
+        try:
+            pool[iid] = ScoredItem.model_validate_json(raw)
+        except Exception as e:  # noqa: BLE001 - 坏快照/旧 schema = 视同无快照, 不崩
+            emit(logger, "snapshot_invalid", item_id=iid, error_type=type(e).__name__, error=str(e))
+    keep_ids = [iid for iid in decided if remote[iid] == "keep"]
+    skipped: list[tuple[str, str, str | None]] = [
+        (iid, "no_snapshot", None) for iid in keep_ids if iid not in pool
+    ]
+    to_interpret = [pool[iid] for iid in keep_ids if iid in pool]
+    kept: list[InterpretedItem] = []
+    for it in reinterpret(to_interpret) if to_interpret else []:
+        if it.interpretation_status != "ok":
+            skipped.append((_item_id(it), "interpret_failed", it.fallback_reason))
+        elif not it.relevant:
+            skipped.append((_item_id(it), "irrelevant", None))
+        else:
+            kept.append(it)
+    return kept, list(pool.values()), skipped
 
 
 def regenerate_wechat_head(
@@ -157,9 +203,12 @@ async def run_collect_tick(
     source_reports=None,
     zero_yield_config=None,
     adapter_of: dict[str, str] | None = None,
+    scored_items: list[ScoredItem] | None = None,
 ) -> None:
-    """采集 tick: 把新候选写 DB + 推 Telegram 卡片。决策由 webhook 异步收集, finalize 时拉取。"""
+    """采集 tick: 把新候选写 DB + 推 Telegram 卡片。决策由 webhook 异步收集, finalize 时拉取。
+    scored_items = interpret() 的输入; 快照优先存它(解读会叠内容确定性罚分, 不能存解读后的)。"""
     logger = logging.getLogger("ai-newsday")
+    scored_by_link = {it.link: it for it in scored_items or []}
     date = now.date().isoformat()
     await db.insert_run(run_id, "collect")
     emit(logger, "tick_collect_start", run_id=run_id, date=date, item_count=len(interpreted_items))
@@ -186,6 +235,12 @@ async def run_collect_tick(
             signals=item.signals,
             date=date,
         )
+        try:
+            pre = scored_by_link.get(item.link)
+            snap = pre.model_dump_json() if pre is not None else _snapshot_json(item)
+            await db.upsert_snapshot(item_id, date, snap)
+        except Exception as e:  # noqa: BLE001 - 快照失败不影响推卡
+            emit(logger, "snapshot_write_error", item_id=item_id, error=str(e))
         # 只推之前没发过卡片的条目（msg_id 仍为 NULL）
         rows = await db.get_pending_reviews_for_date(date)
         row = next((r for r in rows if r["item_id"] == item_id), None)
@@ -217,26 +272,19 @@ async def run_finalize_tick(
     interpret_config: InterpretConfig | None = None,
     image_client=None,
     item_image_config: ItemImageConfig | None = None,
+    reinterpret: Callable[[list[ScoredItem]], list[InterpretedItem]] | None = None,
 ) -> dict:
     """定稿 tick: 读决策 → review → publish → send_final_report。"""
     logger = logging.getLogger("ai-newsday")
     date = now.date().isoformat()
     await db.insert_run(run_id, "finalize")
     emit(logger, "tick_finalize_start", run_id=run_id, date=date)
-    # webhook 决策按 item_id 直接匹配本报条目(与采集日解耦); 失败降级=未审默认 keep
+    # 决策按 item_id 匹配(与采集日解耦)。拉取失败 = 零决策 = 空稿(2026-08-06 起不再兜底自动发)。
     decisions_raw: dict[str, str] = {}
     remote_raw: dict[str, str] = {}
     if decision_store is not None:
         try:
-            remote = await decision_store.fetch()  # {item_id: action}
-            # KV 只留 7 天; 留一份到库里, 才能按来源看长期保留率(2026-09-17)
-            remote_raw = dict(remote)
-            id_to_link = {_item_id(it): it.link for it in interpreted_items}
-            for item_id, action in remote.items():
-                link = id_to_link.get(item_id)
-                if link is not None and action in ("keep", "drop"):
-                    decisions_raw[link] = action
-                    await db.update_decision(item_id, action)  # 记录用, 无行则 no-op
+            remote_raw = dict(await decision_store.fetch())  # {item_id: action}
         except Exception as e:  # noqa: BLE001 - 拉取失败非致命
             emit(
                 logger,
@@ -245,6 +293,31 @@ async def run_finalize_tick(
                 error_type=type(e).__name__,
                 error=str(e),
             )
+    feedback_items: list = list(interpreted_items)
+    skipped: list[tuple[str, str, str | None]] = []
+    fresh = remote_raw
+    if reinterpret is not None:
+        # 决策只结算一次: KV 留 7 天, 不筛就会每晚重解读 + 重计反馈。同 label 重跑放行;
+        # 旧 finalize 已记进 decisions 表但未结算的(上线第一晚)视为已结算。
+        prev_recorded = await db.get_recorded_decisions()
+        settled = await db.get_settled(list(remote_raw))
+        fresh = {
+            iid: a
+            for iid, a in remote_raw.items()
+            if settled.get(iid) == date_label or (iid not in settled and iid not in prev_recorded)
+        }
+        interpreted_items, feedback_items, skipped = await _load_kept_from_snapshots(
+            fresh, db, reinterpret, logger
+        )
+        # 失败/无快照的 keep 也结算: 不顺延
+        await db.settle_decisions(list(fresh), date_label)
+    id_to_link = {_item_id(it): it.link for it in [*interpreted_items, *feedback_items]}
+    for item_id, action in remote_raw.items():
+        link = id_to_link.get(item_id)
+        if link is not None and action in ("keep", "drop"):
+            decisions_raw[link] = action
+            await db.update_decision(item_id, action)  # 记录用, 无行则 no-op
+    # KV 只留 7 天; 留一份到库里, 才能按来源看长期保留率(2026-09-17)
     if remote_raw:
         await db.record_decisions(remote_raw, ts=now.isoformat())
     decisions = {link: ReviewDecision(action=action) for link, action in decisions_raw.items()}
@@ -260,14 +333,19 @@ async def run_finalize_tick(
     already = await db.already_published_elsewhere(
         [_item_id(it) for it in report_items], date_label
     )
+    skipped += [
+        (_item_id(it), "already_published", None) for it in report_items if _item_id(it) in already
+    ]
     report_items = [it for it in report_items if _item_id(it) not in already]
     rres = review(report_items, daily_take, decisions, rcfg, ctx, wechat_title=wechat_title)
     pcfg = load_publish_config("config/publish.yaml")
+    final: list = []
     if not rres.reviewed_items:
         # 空报(零决策/全砍): 走 publish() 自己的静默短路, 不必生成标题或抓图。
         pres = publish(rres, date_label, pcfg, ctx)
     else:
         report = build_report(rres, date_label, pcfg)
+        final = [it for cat in report.categories for it in cat.items]
         if llm is not None and interpret_config is not None:
             # 英文回退条目纯翻译(2026-09-02 用户要求, 只在最终条目上跑, 同
             # 逐条配图一个道理); 在标题/摘要重生成之前做, 但 generate_daily_head
@@ -280,6 +358,24 @@ async def run_finalize_tick(
             await enrich_item_images(final_items, image_client, item_image_config, ctx)
         pres = render(report, pcfg, ctx)
     # 记录本报已发布条目(按 date_label), 供后续 tick 跨天去重。首发 label 固定。
+    # 没进成品的 keep 条目逐条记原因(只记日志, 不改筛选行为)。
+    final_ids = {_item_id(it) for it in final}
+    final_models = {it.model for it in final}
+    for it in report_items:
+        if _item_id(it) not in final_ids:
+            reason = "model_mismatch" if final and it.model not in final_models else "rule_cut"
+            skipped.append((_item_id(it), reason, None))
+    for iid, reason, err in skipped:
+        emit(logger, "finalize_item_skipped", run_id=run_id, item_id=iid, reason=reason, error=err)
+    skipped_by_reason = dict(Counter(reason for _, reason, _ in skipped))
+    emit(
+        logger,
+        "finalize_summary",
+        run_id=run_id,
+        kept=sum(1 for a in fresh.values() if a == "keep"),
+        published=pres.report.item_count,
+        skipped_by_reason=skipped_by_reason,
+    )
     await db.mark_published([_item_id(it) for it in report_items], date_label)
     summary = {
         "date_label": date_label,
@@ -307,7 +403,7 @@ async def run_finalize_tick(
 
         try:
             fcfg = load_feedback_config("config/feedback.yaml")
-            run_events = derive_events(interpreted_items, decisions, run_id=run_id, now=now)
+            run_events = derive_events(feedback_items, decisions, run_id=run_id, now=now)
             await db.append_feedback_events(run_events)
             prior = await db.get_quality_weights()
             fres = feedback(run_events, prior, fcfg, ctx)
@@ -320,6 +416,7 @@ async def run_finalize_tick(
         "date_label": date_label,
         "item_count": pres.report.item_count,
         "is_pending": pres.is_pending,
+        "skipped_by_reason": skipped_by_reason,
     }
 
 

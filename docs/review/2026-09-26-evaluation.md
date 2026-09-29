@@ -79,3 +79,17 @@ MAINLINE/KANBAN 把每次事故当单独 bug 修(#100、#130、release_importanc
 - `self_check(` 只在 `run_dry_selfcheck` 里调用。
 - `main()` 里 `run_tick(tick=args.tick, ...)` 不传 dry_run。
 - `run_finalize_tick` 不读 `pending_reviews`(只有 collect 与 reminder tick 读)。
+
+## 验收(2026-09-28):双轴独立审核,Boss 已验收
+
+- **状态**:审核交付完成 → **Boss 已验收**(2026-09-28)。**不等于问题已修复,也不等于系统通过上线验收。**
+- **交付物**:`~/.codex/visualizations/2026/09/26/01a0e01a-8ebb-7160-a7c6-694c5ef908f3/newsday-review/final/`
+  (`decision-summary.md`、`evidence-index.md`、`scorecard.*`、两张图)。代码基线 `e33cd0c`,至本记录 `src/ .github/ config/` 无变化。
+- **质量线**:8 期 50 条样本,均分 79.15 / 中位数 82.50(审核者量表分,不是准确率)。主要问题:事实表述错误、正文/标题截断、选题重叠与配图。
+  "47 条支持"是审核者标签,未逐条独立核实;遗漏率、读者满意度、渠道交付率未验证。
+- **工程线**:E1 定稿重建候选池,已审内容可能被悄悄丢;E2 状态靠跨 runner 缓存,持久化/并发/恢复责任不清;
+  E3 `mark_published` 记的是配额筛选前的 `report_items`,且早于通知发送。均为静态代码确认的机制,历史事故频率未知。
+- **对上文的修正**:`publish.yml` "从未成功过"缺逐次运行证据,不采纳;只确认 `--publish-only` 参数在当前代码中不存在。
+- **DeepWiki 交叉复核(2026-09-28)**:E2 得到独立佐证;DeepWiki 对 E1/E3 的描述与代码不符,回代码核实后原结论成立;
+  其索引包含本文档,凡复述本评审的内容不计为独立证据。
+- **范围**:整改、架构选型、实施均未授权,须另立独立任务。
