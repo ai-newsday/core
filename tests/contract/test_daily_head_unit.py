@@ -5,11 +5,12 @@
 
 import json
 import logging
+from types import SimpleNamespace
 
 import pytest
 
 from src.core.prompts import load_prompt
-from src.core.types import InterpretConfig
+from src.core.types import InterpretConfig, Publisher
 from src.pipeline.interpret import enforce_digest, enforce_title, generate_daily_head
 from tests.fakes import FailingLLMProvider
 
@@ -101,6 +102,27 @@ def test_overlong_digest_is_trimmed_to_a_sentence_boundary():
     assert out.endswith("。")
 
 
+GOOD_TITLE = "OpenAI推出全天候Agent | NaiveAI开源1M上下文编程模型 | RAGFlow用Go重写【AI日报】"
+GOOD_ORGS = ["OpenAI", "NaiveAI", "RAGFlow"]
+GOOD_DIGEST = "今日亮点：A 发 X；B 提 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"
+
+
+def _head_json(title, orgs=None, digest=GOOD_DIGEST):
+    d = {"title": title, "digest": digest}
+    if orgs is not None:
+        d["title_orgs"] = orgs
+    return json.dumps(d, ensure_ascii=False)
+
+
+# 标题目标事件数 = min(3, 入选条数), 测 3 事件规则时要真的有 3 条
+THREE_ITEMS = [
+    SimpleNamespace(
+        title=t, title_en=t, interpretation_status="ok", score=80, publisher=Publisher.company
+    )
+    for t in ("甲", "乙", "丙")
+]
+
+
 class _SequenceLLM:
     """依次返回不同的 payload, 模拟"第一次超字数, 重试一次给短的"。"""
 
@@ -132,10 +154,9 @@ def test_overlong_title_triggers_one_retry_with_shorter_result():
 
 
 def test_title_within_limit_on_first_try_does_not_retry():
-    ok = '{"title": "短标题【AI日报】", "digest": "今日亮点：A 发 X；B 提 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"}'
-    llm = _SequenceLLM([ok])
+    llm = _SequenceLLM([_head_json(GOOD_TITLE, GOOD_ORGS)])
     title, _ = generate_daily_head([], "tpl {{items}}", InterpretConfig(), llm, "2026-09-03")
-    assert title == "短标题【AI日报】"
+    assert title == GOOD_TITLE
     assert llm.calls == 1
 
 
@@ -186,12 +207,9 @@ def test_retry_prompt_asks_for_a_shorter_title():
 
 
 def test_generate_daily_head_returns_both_fields():
-    llm = _CannedLLM(
-        '{"title": "A发布X | B提出Y【AI日报】",'
-        ' "digest": "今日亮点：A 发 X；B 提 Y；C 开源 Z；D 上线 W。详见正文，参考链接见文末。"}'
-    )
+    llm = _CannedLLM(_head_json(GOOD_TITLE, GOOD_ORGS))
     title, digest = generate_daily_head([], "tpl {{items}}", InterpretConfig(), llm, "2026-09-01")
-    assert title == "A发布X | B提出Y【AI日报】"
+    assert title == GOOD_TITLE
     assert digest.startswith("今日亮点：")
     assert llm.calls == 1, "标题和摘要必须一次调用产出, 不是两次"
 
@@ -243,35 +261,24 @@ def test_generate_daily_head_survives_malformed_output(raw):
     assert digest is None
 
 
-def test_three_median_length_events_cannot_fit_the_limit():
-    """把算术钉死 (#161)。
+def test_three_short_events_fit_the_limit():
+    """把算术钉死 (#161 → 2026-09-30 改回 3 个)。
 
-    2026-09-02/03/04 连续三晚标题回退成朴素标题, 诊断日志显示两次尝试分别是
-    75 字和 88 字。根因是 prompt 的目标从"2 个事件"改成了"3 个事件":
-    `【AI日报】` 占 6 字、每个 ` | ` 占 3 字, 64 字里只剩约 52 字分给事件, 而
-    单个模型名就可能占 13 字(`GLM-5.3-Flash`)。三个中等长度事件必然超。
-
-    这条测试不测 prompt 文案, 测的是**物理上装不下**——将来谁再把目标改回 3 个,
-    这里会红。"""
-    event = "OpenAI 推出 Daybreak 计划"  # 21 字, 真实产出里的中等长度
-    title = " | ".join([event] * 3) + "【AI日报】"
-    assert len(title) > 64, f"三个 {len(event)} 字事件只占 {len(title)} 字, 前提变了请重算"
-    assert enforce_title(title, "2026-09-04") == "AI Daily · 2026-09-04"
-
-
-def test_two_median_length_events_do_fit():
-    """两个同样长度的事件放得下——这是把目标定在 2 个的依据。"""
-    event = "OpenAI 推出 Daybreak 计划"
-    title = " | ".join([event] * 2) + "【AI日报】"
+    `【AI日报】` 6 字 + 两个 ` | ` 6 字, 留给事件 52 字, 每个事件约 17 字。
+    #161 时的事件写法是 21 字一个(`OpenAI 推出 Daybreak 计划`), 三个必超;
+    2026-09-30 手工稿证明去掉空格、只留"主体+动作+结果"后三个事件 58 字放得下。
+    这条测的是 prompt 要求的写法在物理上装得下; 谁把事件写法放宽到 21 字, 这里会红。"""
+    title = "OpenAI推出全天候Agent | NaiveAI开源1M上下文编程模型 | RAGFlow用Go重写【AI日报】"
     assert len(title) <= 64
-    assert enforce_title(title, "2026-09-04") == title
+    assert enforce_title(title, "2026-09-30") == title
 
 
-def test_prompt_targets_two_events_not_three():
-    """回归: prompt 的目标数量与上面的算术必须一致, 否则模型每天产出必然被拒。"""
+def test_prompt_targets_three_events_from_distinct_orgs():
+    """用户 2026-09-30: 标题要 3 个事件、尽量不同公司。prompt 要同时要 title_orgs,
+    代码才能检查"不同公司"——只写在 prompt 里, 9-30 当天就出了两条 OpenAI。"""
     tpl = load_prompt("src/prompts/daily_take.md")
-    assert "目标是 2 个事件" in tpl
-    assert "目标是 3 个事件" not in tpl
+    assert "目标是 3 个事件" in tpl
+    assert "title_orgs" in tpl
 
 
 # --- 摘要格式强制 (#174) ---
@@ -331,8 +338,8 @@ def test_prompt_and_enforcement_agree_on_the_closing_string():
 # --- 摘要段数 (2026-09-09) ---
 
 
-def _digest_json(digest, title="短标题【AI日报】"):
-    return json.dumps({"title": title, "digest": digest})
+def _digest_json(digest, title=None):
+    return _head_json(title or GOOD_TITLE, GOOD_ORGS, digest)
 
 
 def test_thin_digest_triggers_one_retry_for_more_segments():
@@ -392,3 +399,91 @@ def test_trimming_must_not_reintroduce_a_separator_before_the_closer():
     assert out.endswith("。" + DIGEST_CLOSER[:0] + DIGEST_CLOSER) or out.endswith(DIGEST_CLOSER)
     idx = out.find("详见正文")
     assert out[idx - 1] == "。", f"收尾前应当是句号, 实际 {out[idx - 1]!r}"
+
+
+# --- 标题 3 个事件、不同公司 (2026-09-30) ---
+
+
+def test_two_event_title_triggers_one_retry_for_three():
+    """2026-09-30 成品只有 2 个事件, 64 字里还有余量——跟摘要段数同一类问题。"""
+    two = "OpenAI发布Dots | GPT-6.1 Sol价格仅Astra 1/5【AI日报】"
+    llm = _SequenceLLM([_head_json(two, ["OpenAI", "NaiveAI"]), _head_json(GOOD_TITLE, GOOD_ORGS)])
+    title, _ = generate_daily_head(
+        THREE_ITEMS, "tpl {{items}}", InterpretConfig(), llm, "2026-09-30"
+    )
+    assert title == GOOD_TITLE
+    assert llm.calls == 2
+    assert "3 个事件" in llm.prompts[1]
+
+
+def test_same_org_twice_triggers_retry_asking_for_distinct_orgs():
+    """2026-09-30: 标题两条都是 OpenAI。prompt 里本来就写了"尽量不同机构", 模型没遵守。"""
+    dup = "OpenAI推出Dots | OpenAI发布GPT-6.1 Sol | RAGFlow用Go重写【AI日报】"
+    llm = _SequenceLLM(
+        [_head_json(dup, ["OpenAI", "openai", "RAGFlow"]), _head_json(GOOD_TITLE, GOOD_ORGS)]
+    )
+    title, _ = generate_daily_head(
+        THREE_ITEMS, "tpl {{items}}", InterpretConfig(), llm, "2026-09-30"
+    )
+    assert title == GOOD_TITLE
+    assert "OpenAI" in llm.prompts[1] and "不同" in llm.prompts[1]
+
+
+def test_retry_that_is_not_better_keeps_the_first_valid_title():
+    """用户 2026-09-30 选 A: 重试没更好就用第一次的合法标题, 不退回朴素标题。"""
+    two = "OpenAI发布Dots | RAGFlow用Go重写【AI日报】"
+    llm = _SequenceLLM(
+        [_head_json(two, ["OpenAI", "RAGFlow"]), _head_json("OpenAI发布Dots【AI日报】", ["OpenAI"])]
+    )
+    title, _ = generate_daily_head(
+        THREE_ITEMS, "tpl {{items}}", InterpretConfig(), llm, "2026-09-30"
+    )
+    assert title == two
+
+
+def test_overlong_three_event_title_drops_trailing_events_instead_of_plain_title():
+    """#161 的教训: 3 事件写超长、重试也超长时, 三晚都回退成朴素标题。
+    有效的前两个事件本来放得下——删掉末尾事件比整条作废好。"""
+    long3 = (
+        "OpenAI推出全天候运行的常驻Agent dots | NaiveAI开源309B百万上下文编程模型"
+        " | RAGFlow 1.0预览版用Go全面重写【AI日报】"
+    )
+    assert len(long3) > 64
+    llm = _SequenceLLM([_head_json(long3, GOOD_ORGS)] * 2)
+    title, _ = generate_daily_head(
+        THREE_ITEMS, "tpl {{items}}", InterpretConfig(), llm, "2026-09-30"
+    )
+    assert title == (
+        "OpenAI推出全天候运行的常驻Agent dots | NaiveAI开源309B百万上下文编程模型【AI日报】"
+    )
+
+
+def test_missing_title_orgs_only_checks_the_event_count():
+    """旧格式输出(无 title_orgs)不能因此被拒——查不了公司就只查数量。"""
+    llm = _SequenceLLM([_head_json(GOOD_TITLE)])
+    title, _ = generate_daily_head(
+        THREE_ITEMS, "tpl {{items}}", InterpretConfig(), llm, "2026-09-30"
+    )
+    assert title == GOOD_TITLE
+    assert llm.calls == 1
+
+
+def test_fewer_items_than_three_does_not_retry_for_more_events():
+    """当天只有 1 条入选时, 1 个事件就是满的——不能为凑 3 个白花一次调用。"""
+    llm = _SequenceLLM([_head_json("OpenAI推出全天候Agent【AI日报】", ["OpenAI"])])
+    title, _ = generate_daily_head(
+        THREE_ITEMS[:1], "tpl {{items}}", InterpretConfig(), llm, "2026-09-30"
+    )
+    assert title == "OpenAI推出全天候Agent【AI日报】"
+    assert llm.calls == 1
+
+
+def test_missing_suffix_is_appended_instead_of_spending_the_retry():
+    """2026-09-30 真实调用: 3 次首次输出都漏了【AI日报】, 重试次数全花在补后缀上。"""
+    bare = GOOD_TITLE[: -len("【AI日报】")]
+    llm = _SequenceLLM([_head_json(bare, GOOD_ORGS)])
+    title, _ = generate_daily_head(
+        THREE_ITEMS, "tpl {{items}}", InterpretConfig(), llm, "2026-09-30"
+    )
+    assert title == GOOD_TITLE
+    assert llm.calls == 1

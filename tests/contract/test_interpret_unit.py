@@ -295,6 +295,16 @@ def test_trim_to_sentence_does_not_cut_mid_version_number():
     assert out == text[:39] + "…"  # no real sentence end in window -> hard cut + ellipsis
 
 
+def test_trim_to_sentence_window_ending_inside_a_version_number_is_not_a_sentence_end():
+    """2026-09-30 摘要断成 `RAGFlow v1.。`: 窗口正好停在 `v1.0` 的点后, 旧逻辑把
+    "窗口末尾的点"一律当句末。要看原文里点后面实际是什么。"""
+    from src.pipeline.interpret import _trim_to_sentence
+
+    text = "价格仅为其 1/5；RAGFlow v1.0 用 Go 重写"
+    out = _trim_to_sentence(text, text.index(".") + 1)
+    assert out == "价格仅为其 1/5；"
+
+
 def test_trim_to_sentence_dot_followed_by_space_still_counts():
     from src.pipeline.interpret import _trim_to_sentence
 

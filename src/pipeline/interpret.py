@@ -83,7 +83,8 @@ def _trim_to_sentence(text: str, n: int) -> str:
     window = text[:n]
     dot_cut = -1
     for i, ch in enumerate(window):
-        if ch == "." and (i + 1 == len(window) or window[i + 1].isspace()):
+        # 窗口末尾的点要看原文下一个字符: `v1.0` 被窗口切在点后时不是句末 (2026-09-30)
+        if ch == "." and (i + 1 == len(text) or text[i + 1].isspace()):
             dot_cut = i
     cut = max([window.rfind(ch) for ch in _SENT_ENDS] + [dot_cut], default=-1)
     if cut >= 0:
@@ -377,6 +378,99 @@ def _retry_thin_digest(digest: str, prompt: str, config: InterpretConfig, llm, l
     return digest
 
 
+_TITLE_SEP = " | "
+_TITLE_TARGET_EVENTS = 3
+
+
+def _fit_title(title: str, orgs: list | None) -> tuple[str, list | None] | None:
+    """合规化一个候选标题: 空 -> None; 缺后缀就补上; 超长就从末尾删事件直到放得下。
+
+    补后缀: 2026-09-30 真实调用 3 次里首次输出 3 次都漏了【AI日报】, 重试全花在这上面。
+    删事件而不是整条作废: #161 时 3 事件写超、重试也超, 三晚都回退成朴素标题——而前两个
+    事件本来放得下。仍放不下(单个事件就超长)才返回 None。"""
+    t = (title or "").strip()
+    if not t:
+        return None
+    if not t.endswith(_TITLE_SUFFIX):
+        t = t.rstrip("。.，,|｜ ") + _TITLE_SUFFIX
+    events = [e.strip() for e in t[: -len(_TITLE_SUFFIX)].split(_TITLE_SEP) if e.strip()]
+    if orgs is not None and len(orgs) != len(events):
+        orgs = None  # 对不上就当没给, 不猜哪个公司对哪个事件
+    while events:
+        fitted = _TITLE_SEP.join(events) + _TITLE_SUFFIX
+        if len(fitted) <= _TITLE_MAX:
+            return fitted, orgs
+        events.pop()
+        orgs = orgs[: len(events)] if orgs else orgs
+    return None
+
+
+def _title_rank(fitted: tuple[str, list | None]) -> tuple[int, int]:
+    """(不同公司数, 事件数)。没给 title_orgs 时查不了公司, 按事件数都算不同。"""
+    title, orgs = fitted
+    n = len(title[: -len(_TITLE_SUFFIX)].split(_TITLE_SEP))
+    distinct = len({str(o).strip().lower() for o in orgs}) if orgs else n
+    return distinct, n
+
+
+def _title_problem(title, fitted, target: int) -> str | None:
+    """重试要告诉模型的具体问题; 已经达标返回 None。"""
+    if fitted is None:
+        return "超过 64 字。请精简每个事件的措辞, 严格 ≤64 字且以【AI日报】结尾"
+    if len(fitted[0]) < len(title.strip()):
+        return "超过 64 字。请精简每个事件的措辞(去掉空格与修饰), 3 个事件严格 ≤64 字"
+    distinct, n = _title_rank(fitted)
+    if n < target:
+        return f"只有 {n} 个事件, 64 字里还有余量。请写满 {target} 个事件, 每个约 15 字"
+    if distinct < n:
+        return f"事件来自同一家公司({'、'.join(map(str, fitted[1]))})。请换成 3 家不同公司的事件"
+    return None
+
+
+def _pick_title(
+    data: dict, n_items: int, prompt: str, config: InterpretConfig, llm, date_label, logger=None
+):
+    """标题: 目标 3 个事件、3 家不同公司 (用户 2026-09-30)。
+
+    不达标(超长 / 事件不足 / 公司重复)就重试一次, 把具体问题告诉模型。重试后在两次
+    候选里取更好的(不同公司数, 再事件数); 都不合规才回退朴素标题——用户选的是
+    "宁可 2 个事件照常发, 也不要朴素标题"。只重试一次, 成本可控。"""
+    title = data["title"]
+    orgs = data.get("title_orgs") if isinstance(data.get("title_orgs"), list) else None
+    first = _fit_title(title, orgs)
+    candidates = [first] if first else []
+    # 当天只有 1-2 条入选时不能要求 3 个事件, 否则每次都白白重试
+    problem = _title_problem(title, first, min(_TITLE_TARGET_EVENTS, n_items))
+    if problem:
+        retry_prompt = (
+            prompt
+            + f"\n\n(上一次给出的 title 不合规: {problem}。"
+            + "请只重写 title 与 title_orgs; digest 不变。仍输出同样的 JSON 结构。)"
+        )
+        try:
+            raw2 = llm.complete_json(
+                retry_prompt, temperature=config.temperature, max_tokens=config.max_tokens
+            )
+            data2 = json.loads(raw2)
+            if isinstance(data2, dict) and isinstance(data2.get("title"), str):
+                orgs2 = data2.get("title_orgs")
+                second = _fit_title(data2["title"], orgs2 if isinstance(orgs2, list) else None)
+                if second:
+                    candidates.append(second)
+        except Exception as e:
+            if logger is not None:
+                emit(
+                    logger,
+                    "daily_title_retry_error",
+                    error_type=type(e).__name__,
+                    error=str(e)[:120],
+                )
+    if not candidates:
+        return enforce_title(title, date_label, logger=logger)  # 记 daily_title_rejected
+    # max 取第一个最大值: 并列时保留第一次的
+    return max(candidates, key=_title_rank)[0]
+
+
 def generate_daily_head(
     items: list[InterpretedItem],
     daily_template: str,
@@ -389,10 +483,7 @@ def generate_daily_head(
 
     任何失败 -> (朴素标题, None), 不编造。
 
-    标题不合规(超字数/缺后缀)时重试一次, 要求模型自己精简——2026-09-03 实测:
-    "目标 3 个事件, 塞不下就退化"这条指令模型基本不会主动执行, 一次性写到
-    64 字上限两倍的情况很常见; 靠 prompt 文字自觉不够, 得代码层面强制再要一次。
-    重试仍不合规就老实回退, 不无限重试(成本可控: 只在第一次不合规时多花一次调用)。"""
+    标题的规则与重试见 `_pick_title`。"""
     try:
         prompt = build_daily_prompt(items, daily_template)
         raw = llm.complete_json(
@@ -406,26 +497,9 @@ def generate_daily_head(
         if not isinstance(title, str) or not isinstance(digest, str):
             raise ValueError("title/digest missing or not a string")
 
-        enforced_title = enforce_title(title, date_label)
-        if enforced_title == plain_title(date_label) and title.strip():
-            retry_prompt = (
-                prompt
-                + "\n\n(上一次给出的 title 不合规——超过 64 字, 或缺少【AI日报】后缀。"
-                + "请只重写 title, 精简事件数量或措辞, 严格 ≤64 字且以【AI日报】结尾；"
-                + "digest 不变。仍输出同样的 JSON 结构。)"
-            )
-            try:
-                raw2 = llm.complete_json(
-                    retry_prompt, temperature=config.temperature, max_tokens=config.max_tokens
-                )
-                data2 = json.loads(raw2)
-                if isinstance(data2, dict) and isinstance(data2.get("title"), str):
-                    enforced_title = enforce_title(data2["title"], date_label, logger=logger)
-                else:
-                    enforced_title = enforce_title(title, date_label, logger=logger)
-            except Exception:
-                enforced_title = enforce_title(title, date_label, logger=logger)
-
+        enforced_title = _pick_title(
+            data, len(items), prompt, config, llm, date_label, logger=logger
+        )
         enforced_digest = enforce_digest(digest, logger=logger)
         enforced_digest = _retry_thin_digest(enforced_digest, prompt, config, llm, logger=logger)
         return (enforced_title, enforced_digest or None)
